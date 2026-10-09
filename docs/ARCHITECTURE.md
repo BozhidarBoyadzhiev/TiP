@@ -39,11 +39,14 @@ One deployable with feature packages. Features talk through `api` subpackages an
 
 ```
 CREATED ──▶ CAPTURED ──▶ REFUNDED
-   │  ╲
-   │   ╲──▶ PENDING ──▶ CAPTURED | FAILED
+   │  ╲         │
+   │   ╲        └──────▶ REVERSED (chargeback)
+   │    ╲──▶ PENDING ──▶ CAPTURED | FAILED
    ▼
  FAILED          CREATED older than 6h ──▶ ABANDONED (scheduled job)
 ```
+
+`PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.DECLINED` move `CREATED` or `PENDING` to `FAILED`. `PAYMENT.CAPTURE.REVERSED` moves `CAPTURED` to `REVERSED`. A capture request for a `FAILED` or `ABANDONED` tip gets 409 `TIP_CLOSED`.
 
 Every transition is a conditional update:
 
@@ -62,9 +65,29 @@ The caller that gets one affected row owns the transition and is the only one th
 
 **Our own retries to PayPal.** Order creation and capture send a `PayPal-Request-Id` derived from the tip id, so a timeout followed by a retry cannot create two orders or two captures.
 
-**Crash between capture and AI.** `TipCaptured` is published after commit and handled asynchronously. If the process dies in between, the tip is `CAPTURED` with `ai_status = PENDING`. A scheduled job picks up tips stuck in `PENDING` for more than two minutes and processes them again. The handler is idempotent on tip id.
+**AI exactly once per tip.** `TipCaptured` is published after commit and handled on a virtual thread. The capture listener and a recovery job can both reach the same tip, and a worker can crash or hang mid call, so ownership of the work is a claim in PostgreSQL, not application state:
 
-**AI slow or down.** Claude calls have a 10 second timeout and one retry. On failure the tip gets `NEUTRAL` with `ai_status = FAILED`. The payment already happened, so the device must still confirm it.
+```sql
+UPDATE tip SET ai_status = 'PROCESSING', ai_claimed_at = :now, ai_attempts = ai_attempts + 1
+WHERE id = :id AND status = 'CAPTURED'
+  AND (ai_status = 'PENDING' OR (ai_status = 'PROCESSING' AND ai_claimed_at < :now - interval '2 minutes'))
+  AND ai_attempts < 3
+```
+
+```
+PENDING ──claim──▶ PROCESSING ──▶ DONE      (classified)
+   ▲                   │      ──▶ SKIPPED   (no message, or AI disabled: NEUTRAL, no API call)
+   └── attempt failed ─┘      ──▶ FAILED    (third failure: NEUTRAL, not flagged)
+       (attempts < 3)
+```
+
+Zero rows means another worker has the tip or it is finished. The final write is conditional on `ai_status = 'PROCESSING'` and the worker's own `ai_claimed_at`, so a slow worker whose claim expired and was taken over cannot overwrite the newer result. Only the final write that changes the row sets `reaction_at` and publishes `TipReacted`, after commit, so every captured tip gets exactly one reaction event.
+
+**Crash between capture and AI.** If the process dies after the capture commits, the tip stays `CAPTURED` with `ai_status = PENDING`. If it dies during a call, the tip stays `PROCESSING` until its claim expires after two minutes. A recovery job runs every 30 seconds and runs the same flow for both. A tip whose worker died on the third attempt is failed as `NEUTRAL` by the same job once that claim expires.
+
+**AI slow or down.** Claude calls have a 10 second timeout and SDK retries are off; the attempt counter is the retry. A timeout, an API error or a response outside the schema puts the tip back to `PENDING` for the recovery job, up to three attempts. After the third failure the tip gets `NEUTRAL` with `ai_status = FAILED`. The payment already happened, so the device must still confirm it.
+
+**Refund response and webhook race.** An owner's refund calls PayPal with `PayPal-Request-Id: refund-<tipId>`. A `COMPLETED` answer and the `PAYMENT.CAPTURE.REFUNDED` webhook both try the conditional `CAPTURED` to `REFUNDED` update, so exactly one makes the transition. A `PENDING` answer leaves the tip `CAPTURED` and the webhook finishes it.
 
 **Device offline.** Reactions are stored on the tip. When a device reconnects, it receives reactions from the last 60 seconds that it has not acknowledged. Older ones are dropped, because a light reacting to a tip from an hour ago means nothing to anyone standing there.
 
@@ -77,7 +100,13 @@ The caller that gets one affected row owns the transition and is the only one th
 | `device` | `id` uuid, `slug` unique, `display_name`, `owner_id`, `secret_hash`, `created_at` |
 | `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `reaction` null, `flagged` bool, `ai_status`, `created_at`, `captured_at` |
 | `paypal_webhook_event` | `event_id` unique, `event_type`, `resource_id`, `received_at` |
-| `owner` | `id`, `email` unique, `password_hash`, `created_at` |
+| `owner` | `id`, `email` unique and lowercase, `password_hash`, `display_name`, `created_at` |
+
+## Owners
+
+An owner is a person with a login who owns devices. Every device has exactly one owner and every tip belongs to a device, so a tip's owner is the owner of its device. There is no public registration: owners are created by the demo seeder or, later, by a CLI command.
+
+Owners sign in with email and password through a session based form login. Passwords are hashed with bcrypt through Spring's `DelegatingPasswordEncoder`. Sign in attempts are limited to 5 per minute per IP and per email, and an unknown email gets the same answer as a wrong password. Every owner request needs the session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`) and a CSRF token. An owner who asks for another owner's tip gets 404, never 403, so tip ids cannot be probed.
 
 ## Threat model
 
