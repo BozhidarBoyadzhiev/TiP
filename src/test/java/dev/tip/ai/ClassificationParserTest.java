@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.tip.ai.MessageClassifier.Classification;
 import dev.tip.ai.MessageClassifier.ClassificationFailed;
-import dev.tip.ai.api.Reaction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -17,40 +16,65 @@ class ClassificationParserTest {
 
     @Test
     void readsAValidClassification() {
-        assertThat(parse("{\"reaction\":\"NEGATIVE\",\"flagged\":true,\"flagReason\":\"threat\"}"))
-                .isEqualTo(new Classification(Reaction.NEGATIVE, true, "threat"));
-        assertThat(parse("{\"reaction\":\"POSITIVE\",\"flagged\":false,\"flagReason\":null}"))
-                .isEqualTo(new Classification(Reaction.POSITIVE, false, null));
+        assertThat(parse(json("PLAYFUL", true, "\"threat\"", "null")))
+                .isEqualTo(new Classification(MessageKind.PLAYFUL, true, "threat", null));
+        assertThat(parse(json("WARM", false, "null", "null")))
+                .isEqualTo(new Classification(MessageKind.WARM, false, null, null));
+        assertThat(parse(json("REQUEST", false, "null", "\"Request: something by Oasis\"")))
+                .isEqualTo(new Classification(MessageKind.REQUEST, false, null, "Request: something by Oasis"));
     }
 
     @Test
     void dropsAReasonWhenNotFlagged() {
-        assertThat(parse("{\"reaction\":\"NEUTRAL\",\"flagged\":false,\"flagReason\":\"none\"}"))
-                .isEqualTo(new Classification(Reaction.NEUTRAL, false, null));
+        assertThat(parse(json("PLAIN", false, "\"none\"", "null")))
+                .isEqualTo(new Classification(MessageKind.PLAIN, false, null, null));
     }
 
     @Test
     void acceptsAReasonOfExactly200Characters() {
         String reason = "r".repeat(200);
 
-        assertThat(parse("{\"reaction\":\"NEGATIVE\",\"flagged\":true,\"flagReason\":\"" + reason + "\"}")
-                        .flagReason())
+        assertThat(parse(json("PLAIN", true, "\"" + reason + "\"", "null")).flagReason())
                 .isEqualTo(reason);
+    }
+
+    @Test
+    void ownerNoteIsTrimmedAndLosesControlCharactersBeforeItsLengthIsChecked() {
+        String note = "n".repeat(100);
+
+        assertThat(parse(json("REQUEST", false, "null", "\"  \\u0007" + note + "\\n \""))
+                        .ownerNote())
+                .isEqualTo(note);
+        assertThat(parse(json("REQUEST", false, "null", "\"Request:\\u0000 louder\""))
+                        .ownerNote())
+                .isEqualTo("Request: louder");
+    }
+
+    @Test
+    void blankOwnerNoteCountsAsNone() {
+        assertThat(parse(json("WARM", false, "null", "\" \\t \"")).ownerNote()).isNull();
+        assertThat(parse(json("REQUEST", false, "null", "\"\"")).ownerNote()).isNull();
     }
 
     @ParameterizedTest
     @ValueSource(
             strings = {
-                "{\"reaction\":\"positive\",\"flagged\":false,\"flagReason\":null}",
-                "{\"reaction\":\"EXCITED\",\"flagged\":false,\"flagReason\":null}",
-                "{\"reaction\":1,\"flagged\":false,\"flagReason\":null}",
-                "{\"flagged\":false,\"flagReason\":null}",
-                "{\"reaction\":\"NEUTRAL\",\"flagReason\":null}",
-                "{\"reaction\":\"NEUTRAL\",\"flagged\":false}",
-                "{\"reaction\":\"NEUTRAL\",\"flagged\":\"false\",\"flagReason\":null}",
-                "{\"reaction\":\"NEUTRAL\",\"flagged\":true,\"flagReason\":42}",
-                "[\"NEUTRAL\"]",
-                "NEUTRAL",
+                "{\"kind\":\"warm\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":null}",
+                "{\"kind\":\"POSITIVE\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":null}",
+                "{\"kind\":\"NEGATIVE\",\"flagged\":true,\"flagReason\":\"abuse\",\"ownerNote\":null}",
+                "{\"kind\":1,\"flagged\":false,\"flagReason\":null,\"ownerNote\":null}",
+                "{\"reaction\":\"PLAIN\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":null}",
+                "{\"kind\":\"PLAIN\",\"flagReason\":null,\"ownerNote\":null}",
+                "{\"kind\":\"PLAIN\",\"flagged\":false,\"ownerNote\":null}",
+                "{\"kind\":\"PLAIN\",\"flagged\":false,\"flagReason\":null}",
+                "{\"kind\":\"PLAIN\",\"flagged\":\"false\",\"flagReason\":null,\"ownerNote\":null}",
+                "{\"kind\":\"PLAIN\",\"flagged\":true,\"flagReason\":42,\"ownerNote\":null}",
+                "{\"kind\":\"REQUEST\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":7}",
+                "{\"kind\":\"WARM\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":\"Feedback: lovely\"}",
+                "{\"kind\":\"PLAYFUL\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":\"Request: Wonderwall\"}",
+                "{\"kind\":\"PLAIN\",\"flagged\":true,\"flagReason\":\"abuse\",\"ownerNote\":\"Request: x\"}",
+                "[\"PLAIN\"]",
+                "PLAIN",
                 ""
             })
     void rejectsAnythingOutsideTheSchema(String json) {
@@ -61,11 +85,20 @@ class ClassificationParserTest {
     void rejectsAReasonOver200Characters() {
         String reason = "r".repeat(201);
 
-        assertThatThrownBy(
-                        () -> parse("{\"reaction\":\"NEGATIVE\",\"flagged\":true,\"flagReason\":\"" + reason + "\"}"))
+        assertThatThrownBy(() -> parse(json("PLAIN", true, "\"" + reason + "\"", "null")))
                 .isInstanceOf(ClassificationFailed.class)
                 .message()
                 .doesNotContain(reason);
+    }
+
+    @Test
+    void rejectsAnOwnerNoteOver100Characters() {
+        String note = "Request: " + "n".repeat(92);
+
+        assertThatThrownBy(() -> parse(json("REQUEST", false, "null", "\"" + note + "\"")))
+                .isInstanceOf(ClassificationFailed.class)
+                .message()
+                .doesNotContain(note);
     }
 
     @Test
@@ -76,5 +109,11 @@ class ClassificationParserTest {
 
     private Classification parse(String json) {
         return ClassificationParser.parse(jsonMapper, json);
+    }
+
+    /** {@code flagReason} and {@code ownerNote} are raw JSON: {@code null} or a quoted string. */
+    private static String json(String kind, boolean flagged, String flagReason, String ownerNote) {
+        return "{\"kind\":\"" + kind + "\",\"flagged\":" + flagged + ",\"flagReason\":" + flagReason + ",\"ownerNote\":"
+                + ownerNote + "}";
     }
 }

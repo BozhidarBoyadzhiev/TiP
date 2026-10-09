@@ -18,11 +18,11 @@ public final class AnthropicStubs {
 
     private AnthropicStubs() {}
 
-    /** Low priority NEUTRAL answer for any message, so tips captured by unrelated tests finish quietly. */
+    /** Low priority PLAIN answer for any message, so tips captured by unrelated tests finish quietly. */
     public static void fallback(WireMockServer server) {
         server.stubFor(post(urlPathEqualTo(MESSAGES_PATH))
                 .atPriority(10)
-                .willReturn(reply(classification("NEUTRAL", false, null))));
+                .willReturn(reply(classification("PLAIN", false, null))));
     }
 
     /** Answers {@code modelText} to every request whose body contains {@code tipMessage}. */
@@ -49,9 +49,17 @@ public final class AnthropicStubs {
     }
 
     /** The JSON the model is asked to produce. */
-    public static String classification(String reaction, boolean flagged, String flagReason) {
-        return "{\"reaction\":\"" + reaction + "\",\"flagged\":" + flagged + ",\"flagReason\":"
-                + (flagReason == null ? "null" : "\"" + flagReason + "\"") + "}";
+    public static String classification(String kind, boolean flagged, String flagReason, String ownerNote) {
+        return "{\"kind\":\"" + kind + "\",\"flagged\":" + flagged + ",\"flagReason\":" + jsonString(flagReason)
+                + ",\"ownerNote\":" + jsonString(ownerNote) + "}";
+    }
+
+    public static String classification(String kind, boolean flagged, String flagReason) {
+        return classification(kind, flagged, flagReason, null);
+    }
+
+    private static String jsonString(String value) {
+        return value == null ? "null" : "\"" + value + "\"";
     }
 
     public static ResponseDefinitionBuilder reply(String modelText) {

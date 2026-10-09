@@ -2,8 +2,12 @@ package dev.tip.devices;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.tip.AnthropicStubs;
 import dev.tip.IntegrationTest;
+import dev.tip.PayPalStubs;
 import dev.tip.TestData;
 import dev.tip.ai.api.Reaction;
 import dev.tip.ai.api.TipReacted;
@@ -14,9 +18,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
 class ObserverChannelTest extends IntegrationTest {
@@ -36,21 +43,49 @@ class ObserverChannelTest extends IntegrationTest {
     @Autowired
     ObserverSessions observers;
 
-    @Test
-    void observerReceivesOnlyTypeReactionAndAt() throws Exception {
+    @Autowired
+    MockMvc mvc;
+
+    @ParameterizedTest
+    @EnumSource(Reaction.class)
+    void observerReceivesOnlyTypeReactionAndAt(Reaction reaction) throws Exception {
         String slug = TestData.uniqueSlug();
         UUID deviceId = data.device(slug, "Observed Panda");
 
         try (TestSocket observer = TestSocket.connectObserver(port, slug, DeviceChannelTest.uniqueIp())) {
             await().atMost(Duration.ofSeconds(5)).until(() -> observers.isWatched(slug));
-            transactions.executeWithoutResult(status -> events.publishEvent(new TipReacted(
-                    UUID.randomUUID(), deviceId, Reaction.NEGATIVE, Instant.parse("2026-10-13T14:02:11.5Z"))));
+            transactions.executeWithoutResult(status -> events.publishEvent(
+                    new TipReacted(UUID.randomUUID(), deviceId, reaction, Instant.parse("2026-10-13T14:02:11.5Z"))));
 
             assertThat(observer.nextJson())
                     .containsExactlyInAnyOrderEntriesOf(
-                            Map.of("type", "reaction", "reaction", "NEGATIVE", "at", "2026-10-13T14:02:11Z"));
+                            Map.of("type", "reaction", "reaction", reaction.name(), "at", "2026-10-13T14:02:11Z"));
         }
         await().atMost(Duration.ofSeconds(5)).until(() -> !observers.isWatched(slug));
+    }
+
+    @Test
+    void flaggedTipReachesObserversAsAnOrdinaryPlain() throws Exception {
+        String slug = TestData.uniqueSlug();
+        UUID deviceId = data.device(slug, "Observed Panda");
+        String message = TestData.uniqueMessage("Play Oasis or I will find you");
+        String orderId = TestData.uniqueId("ORDER");
+        UUID tipId = data.tipWithMessage(deviceId, orderId, message);
+        AnthropicStubs.replyFor(
+                ANTHROPIC,
+                message,
+                AnthropicStubs.classification("REQUEST", true, "threat", "Request: something by Oasis"));
+        PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
+
+        try (TestSocket observer = TestSocket.connectObserver(port, slug, DeviceChannelTest.uniqueIp())) {
+            await().atMost(Duration.ofSeconds(5)).until(() -> observers.isWatched(slug));
+            mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
+
+            Map<String, Object> received = observer.nextJson();
+            assertThat(received).containsOnlyKeys("type", "reaction", "at");
+            assertThat(received).containsEntry("type", "reaction").containsEntry("reaction", "PLAIN");
+            assertThat(data.tipRow(tipId)).containsEntry("flagged", true).containsEntry("message_kind", "REQUEST");
+        }
     }
 
     @Test

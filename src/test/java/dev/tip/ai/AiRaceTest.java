@@ -47,7 +47,7 @@ class AiRaceTest extends IntegrationTest {
                 String message = TestData.uniqueMessage("Race round " + round);
                 UUID tipId = data.capturedTip(deviceId, message);
                 AnthropicStubs.replyWithJitterFor(
-                        ANTHROPIC, message, AnthropicStubs.classification("POSITIVE", false, null), MAX_JITTER_MILLIS);
+                        ANTHROPIC, message, AnthropicStubs.classification("WARM", false, null), MAX_JITTER_MILLIS);
 
                 CountDownLatch start = new CountDownLatch(1);
                 Future<?> listener = pool.submit(() -> {

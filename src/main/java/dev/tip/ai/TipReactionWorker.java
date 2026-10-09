@@ -61,15 +61,16 @@ class TipReactionWorker {
                     log.warn("Classifying tip {} failed on attempt {}, will retry: {}", tipId, work.attempts(), reason);
                     return;
                 }
-                log.warn("Classifying tip {} failed on the last attempt, reacting NEUTRAL: {}", tipId, reason);
+                log.warn("Classifying tip {} failed on the last attempt, reacting PLAIN: {}", tipId, reason);
                 outcome = TipReactions.Outcome.failed();
             }
         }
         if (reactions.finish(tipId, work.deviceId(), claimedAt, outcome, now())) {
             log.info(
-                    "Tip {} reacts {} (ai {}, flagged {})",
+                    "Tip {} reacts {} (kind {}, ai {}, flagged {})",
                     tipId,
                     outcome.reaction(),
+                    outcome.kind(),
                     outcome.status(),
                     outcome.flagged());
         } else {
@@ -81,7 +82,7 @@ class TipReactionWorker {
     void failIfExhausted(UUID tipId) {
         Instant now = now();
         if (reactions.failExhausted(tipId, now.minus(CLAIM_TIMEOUT), now)) {
-            log.warn("Tip {} ran out of classification attempts, reacting NEUTRAL", tipId);
+            log.warn("Tip {} ran out of classification attempts, reacting PLAIN", tipId);
         }
     }
 

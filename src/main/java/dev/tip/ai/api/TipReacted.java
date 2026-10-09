@@ -5,7 +5,7 @@ import java.util.UUID;
 
 /**
  * Published exactly once per captured tip, when its reaction is final: classified, skipped (no message
- * or AI disabled) or failed (NEUTRAL). Listeners should use {@code
+ * or AI disabled) or failed, both PLAIN. Listeners should use {@code
  * @TransactionalEventListener(phase = AFTER_COMMIT)} so they only see stored reactions. Carries no
  * message text.
  */

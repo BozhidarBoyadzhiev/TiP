@@ -52,20 +52,21 @@ class FakeDevicePartsTest {
 
     @Test
     void patternsHaveTheProtocolLengths() {
-        assertThat(LedPattern.POSITIVE.length()).isEqualTo(Duration.ofMillis(3600));
-        assertThat(LedPattern.NEGATIVE.length()).isEqualTo(Duration.ofMillis(3130));
-        assertThat(LedPattern.NEUTRAL.length()).isEqualTo(Duration.ofMillis(700));
+        assertThat(LedPattern.WARM.length()).isEqualTo(Duration.ofMillis(3600));
+        assertThat(LedPattern.PLAYFUL.length()).isEqualTo(Duration.ofMillis(2890));
+        assertThat(LedPattern.REQUEST.length()).isEqualTo(Duration.ofMillis(2500));
+        assertThat(LedPattern.PLAIN.length()).isEqualTo(Duration.ofMillis(700));
     }
 
     @Test
     void playerQueueKeeps4AndDropsTheOldest() {
         Player player = new Player(id -> {}, new PrintStream(new ByteArrayOutputStream()));
         for (int i = 1; i <= Player.QUEUE_SIZE; i++) {
-            assertThat(player.enqueue(new Player.Reaction("tip-" + i, LedPattern.NEUTRAL)))
+            assertThat(player.enqueue(new Player.Reaction("tip-" + i, LedPattern.PLAIN)))
                     .isNull();
         }
 
-        Player.Reaction dropped = player.enqueue(new Player.Reaction("tip-5", LedPattern.NEUTRAL));
+        Player.Reaction dropped = player.enqueue(new Player.Reaction("tip-5", LedPattern.PLAIN));
 
         assertThat(dropped.tipId()).isEqualTo("tip-1");
         assertThat(player.waiting()).isEqualTo(Player.QUEUE_SIZE);
@@ -80,7 +81,7 @@ class FakeDevicePartsTest {
                 new PrintStream(bytes, true, StandardCharsets.UTF_8),
                 new Backoff(() -> 0));
         String tipId = UUID.randomUUID().toString();
-        String reaction = "{\"type\":\"reaction\",\"id\":\"" + tipId + "\",\"reaction\":\"POSITIVE\",\"at\":\"x\"}";
+        String reaction = "{\"type\":\"reaction\",\"id\":\"" + tipId + "\",\"reaction\":\"WARM\",\"at\":\"x\"}";
 
         device.handle(reaction);
         device.handle(reaction);

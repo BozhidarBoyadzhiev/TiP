@@ -16,7 +16,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Base for tests that run the whole app on a random port against PostgreSQL from Testcontainers, with
- * PayPal and Anthropic stubbed by WireMock servers shared by every test class. Anthropic answers NEUTRAL
+ * PayPal and Anthropic stubbed by WireMock servers shared by every test class. Anthropic answers PLAIN
  * unless a test stubs something more specific.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)

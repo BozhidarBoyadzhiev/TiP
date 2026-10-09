@@ -22,15 +22,7 @@ class TipReactions {
 
     @Transactional
     public boolean finish(UUID tipId, UUID deviceId, Instant claimedAt, Outcome outcome, Instant reactedAt) {
-        int changed = tips.finish(
-                tipId,
-                claimedAt,
-                outcome.reaction(),
-                outcome.flagged(),
-                outcome.flagReason(),
-                outcome.status(),
-                reactedAt);
-        if (changed != 1) {
+        if (tips.finish(tipId, claimedAt, outcome, reactedAt) != 1) {
             return false;
         }
         events.publishEvent(new TipReacted(tipId, deviceId, outcome.reaction(), reactedAt));
@@ -41,25 +33,41 @@ class TipReactions {
     public boolean failExhausted(UUID tipId, Instant staleBefore, Instant reactedAt) {
         return tips.failExhausted(tipId, staleBefore, reactedAt)
                 .map(deviceId -> {
-                    events.publishEvent(new TipReacted(tipId, deviceId, Reaction.NEUTRAL, reactedAt));
+                    events.publishEvent(new TipReacted(tipId, deviceId, Reaction.PLAIN, reactedAt));
                     return true;
                 })
                 .orElse(false);
     }
 
-    record Outcome(Reaction reaction, boolean flagged, String flagReason, AiStatus status) {
+    /**
+     * What gets stored. {@code kind} is null when the model never read the message. A flagged message
+     * plays PLAIN and keeps no owner note, whatever its kind.
+     */
+    record Outcome(
+            MessageKind kind,
+            Reaction reaction,
+            boolean flagged,
+            String flagReason,
+            String ownerNote,
+            AiStatus status) {
 
         static Outcome classified(MessageClassifier.Classification classification) {
+            boolean flagged = classification.flagged();
             return new Outcome(
-                    classification.reaction(), classification.flagged(), classification.flagReason(), AiStatus.DONE);
+                    classification.kind(),
+                    flagged ? Reaction.PLAIN : classification.kind().reaction(),
+                    flagged,
+                    classification.flagReason(),
+                    flagged ? null : classification.ownerNote(),
+                    AiStatus.DONE);
         }
 
         static Outcome skipped() {
-            return new Outcome(Reaction.NEUTRAL, false, null, AiStatus.SKIPPED);
+            return new Outcome(null, Reaction.PLAIN, false, null, null, AiStatus.SKIPPED);
         }
 
         static Outcome failed() {
-            return new Outcome(Reaction.NEUTRAL, false, null, AiStatus.FAILED);
+            return new Outcome(null, Reaction.PLAIN, false, null, null, AiStatus.FAILED);
         }
     }
 }

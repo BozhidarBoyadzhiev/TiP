@@ -44,7 +44,7 @@ class AiDisabledTest extends IntegrationTest {
     }
 
     @Test
-    void capturedTipWithAMessageIsSkippedAsNeutral() throws Exception {
+    void capturedTipWithAMessageIsSkippedAsPlain() throws Exception {
         String orderId = TestData.uniqueId("ORDER");
         UUID tipId = data.tipWithMessage(data.device(), orderId, TestData.uniqueMessage("Brilliant"));
         PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
@@ -52,11 +52,14 @@ class AiDisabledTest extends IntegrationTest {
         mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
 
         await().atMost(Duration.ofSeconds(15)).until(() -> "SKIPPED".equals(data.aiStatus(tipId)));
-        assertThat(data.tipRow(tipId)).containsEntry("reaction", "NEUTRAL").containsEntry("flagged", false);
+        assertThat(data.tipRow(tipId))
+                .containsEntry("reaction", "PLAIN")
+                .containsEntry("message_kind", null)
+                .containsEntry("flagged", false);
         await().atMost(Duration.ofSeconds(5)).until(() -> !reacted.forTip(tipId).isEmpty());
         assertThat(reacted.forTip(tipId))
                 .singleElement()
-                .satisfies(e -> assertThat(e.reaction()).isEqualTo(Reaction.NEUTRAL));
+                .satisfies(e -> assertThat(e.reaction()).isEqualTo(Reaction.PLAIN));
         assertThat(ANTHROPIC.findAll(postRequestedFor(urlPathEqualTo(AnthropicStubs.MESSAGES_PATH))))
                 .isEmpty();
     }

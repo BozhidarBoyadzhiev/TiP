@@ -7,11 +7,14 @@ import dev.tip.IntegrationTest;
 import dev.tip.TestData;
 import dev.tip.ai.api.Reaction;
 import dev.tip.ai.api.TipReacted;
+import dev.tip.devices.ResendJobRunner;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +43,9 @@ class FakeDeviceTest extends IntegrationTest {
     @Autowired
     TransactionTemplate transactions;
 
+    @Autowired
+    ResendJobRunner resendJob;
+
     @Test
     void playsAndAcksAReaction() throws Exception {
         String secret = TestData.randomSecret();
@@ -52,10 +58,41 @@ class FakeDeviceTest extends IntegrationTest {
             UUID tipId = UUID.randomUUID();
 
             transactions.executeWithoutResult(
-                    status -> events.publishEvent(new TipReacted(tipId, deviceId, Reaction.POSITIVE, clock.instant())));
+                    status -> events.publishEvent(new TipReacted(tipId, deviceId, Reaction.WARM, clock.instant())));
 
             await().atMost(Duration.ofSeconds(10)).until(() -> acked(tipId));
-            assertThat(output(bytes)).contains("POSITIVE", "heartbeat x3", "tip " + tipId);
+            assertThat(output(bytes)).contains("WARM", "heartbeat x3", "tip " + tipId);
+        } finally {
+            device.stop();
+        }
+        assertThat(exit.get(10, TimeUnit.SECONDS)).isZero();
+    }
+
+    @Test
+    void acksARepeatWithoutPlayingItAgain() throws Exception {
+        clock.pin(Instant.now().truncatedTo(ChronoUnit.MICROS));
+        String secret = TestData.randomSecret();
+        UUID deviceId = data.device(TestData.uniqueSlug(), "Fake Panda", secret);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        FakeDevice device = fakeDevice(deviceId, secret, bytes);
+        CompletableFuture<Integer> exit = CompletableFuture.supplyAsync(device::run);
+        try {
+            await().atMost(Duration.ofSeconds(10)).until(() -> output(bytes).contains("Connected as \"Fake Panda\""));
+            UUID tipId = UUID.randomUUID();
+            transactions.executeWithoutResult(
+                    status -> events.publishEvent(new TipReacted(tipId, deviceId, Reaction.PLAYFUL, clock.instant())));
+            await().atMost(Duration.ofSeconds(10)).until(() -> acked(tipId));
+
+            // As if the first ack was lost: the server sends the reaction again.
+            jdbc.sql("update reaction_delivery set acked_at = null where tip_id = :id")
+                    .param("id", tipId)
+                    .update();
+            clock.advance(ResendJobRunner.RESEND_INTERVAL);
+            resendJob.resend();
+
+            await().atMost(Duration.ofSeconds(10)).until(() -> acked(tipId));
+            assertThat(output(bytes)).contains("Repeat of tip " + tipId + ", not played again, acked again");
+            assertThat(output(bytes).split("giggle 6 \\+ 6 flicks", -1)).hasSize(2);
         } finally {
             device.stop();
         }

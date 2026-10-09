@@ -1,6 +1,5 @@
 package dev.tip.ai;
 
-import dev.tip.ai.api.Reaction;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -11,8 +10,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * The AI columns of the {@code tip} table ({@code reaction}, {@code flagged}, {@code flag_reason},
- * {@code ai_*}, {@code reaction_at}) belong to this feature. Every write is conditional, so PostgreSQL
+ * The AI columns of the {@code tip} table ({@code message_kind}, {@code reaction}, {@code flagged},
+ * {@code flag_reason}, {@code owner_note}, {@code ai_*}, {@code reaction_at}) belong to this feature. Every write is conditional, so PostgreSQL
  * row locking decides which worker owns a tip and whose result counts. Instants must already be
  * truncated to microseconds, the precision of {@code timestamptz}, because the claim time is compared
  * for equality.
@@ -54,36 +53,33 @@ class AiTipRepository {
     }
 
     /** Stores the final result. Rejected when the claim expired and someone else took the tip over. */
-    int finish(
-            UUID tipId,
-            Instant claimedAt,
-            Reaction reaction,
-            boolean flagged,
-            String flagReason,
-            AiStatus status,
-            Instant reactedAt) {
+    int finish(UUID tipId, Instant claimedAt, TipReactions.Outcome outcome, Instant reactedAt) {
         return jdbc.sql("""
-                        UPDATE tip SET reaction = :reaction, flagged = :flagged, flag_reason = :flagReason,
+                        UPDATE tip SET message_kind = :kind, reaction = :reaction, flagged = :flagged,
+                                       flag_reason = :flagReason, owner_note = :ownerNote,
                                        ai_status = :status, reaction_at = :reactedAt
                         WHERE id = :id AND ai_status = 'PROCESSING' AND ai_claimed_at = :claimedAt""")
                 .param("id", tipId)
                 .param("claimedAt", utc(claimedAt))
-                .param("reaction", reaction.name())
-                .param("flagged", flagged)
-                .param("flagReason", flagReason)
-                .param("status", status.name())
+                .param("kind", outcome.kind() == null ? null : outcome.kind().name())
+                .param("reaction", outcome.reaction().name())
+                .param("flagged", outcome.flagged())
+                .param("flagReason", outcome.flagReason())
+                .param("ownerNote", outcome.ownerNote())
+                .param("status", outcome.status().name())
                 .param("reactedAt", utc(reactedAt))
                 .update();
     }
 
     /**
      * A worker that crashed during the last allowed attempt leaves the tip PROCESSING with no attempts
-     * left. Once that claim expires, the tip fails as NEUTRAL so the panda still reacts. Returns the
+     * left. Once that claim expires, the tip fails as PLAIN so the panda still reacts. Returns the
      * device id when this call made the change.
      */
     Optional<UUID> failExhausted(UUID tipId, Instant staleBefore, Instant reactedAt) {
         return jdbc.sql("""
-                        UPDATE tip SET reaction = 'NEUTRAL', flagged = false, flag_reason = NULL,
+                        UPDATE tip SET message_kind = NULL, reaction = 'PLAIN', flagged = false,
+                                       flag_reason = NULL, owner_note = NULL,
                                        ai_status = 'FAILED', reaction_at = :reactedAt
                         WHERE id = :id AND status = 'CAPTURED' AND ai_status = 'PROCESSING'
                           AND ai_claimed_at < :staleBefore AND ai_attempts >= :maxAttempts
