@@ -32,12 +32,13 @@ class ReactionDeliveryRepository {
     /** Stores a new reaction. False when the tip already has one, so the event was a duplicate. */
     boolean insert(PendingReaction reaction) {
         return jdbc.sql("""
-                        INSERT INTO reaction_delivery (tip_id, device_id, reaction, reacted_at)
-                        VALUES (:tipId, :deviceId, :reaction, :reactedAt)
+                        INSERT INTO reaction_delivery (tip_id, device_id, reaction, repeats, reacted_at)
+                        VALUES (:tipId, :deviceId, :reaction, :repeats, :reactedAt)
                         ON CONFLICT (tip_id) DO NOTHING""")
                         .param("tipId", reaction.tipId())
                         .param("deviceId", reaction.deviceId())
                         .param("reaction", reaction.reaction().name())
+                        .param("repeats", reaction.repeats())
                         .param("reactedAt", utc(reaction.reactedAt()))
                         .update()
                 == 1;
@@ -65,7 +66,7 @@ class ReactionDeliveryRepository {
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     List<PendingReaction> unacked(UUID deviceId, Instant since) {
         return jdbc.sql("""
-                        SELECT tip_id, device_id, reaction, reacted_at FROM reaction_delivery
+                        SELECT tip_id, device_id, reaction, repeats, reacted_at FROM reaction_delivery
                         WHERE device_id = :deviceId AND acked_at IS NULL AND reacted_at > :since
                         ORDER BY reacted_at, tip_id""")
                 .param("deviceId", deviceId)
@@ -82,7 +83,7 @@ class ReactionDeliveryRepository {
     List<PendingReaction> dueForResend(
             List<UUID> deviceIds, Instant now, Duration interval, int maxSends, Instant since) {
         return jdbc.sql("""
-                        SELECT tip_id, device_id, reaction, reacted_at FROM reaction_delivery
+                        SELECT tip_id, device_id, reaction, repeats, reacted_at FROM reaction_delivery
                         WHERE device_id IN (:deviceIds) AND acked_at IS NULL
                           AND sent_count < :maxSends AND last_sent_at <= :sentBefore AND reacted_at > :since
                         ORDER BY reacted_at, tip_id""")
@@ -99,6 +100,7 @@ class ReactionDeliveryRepository {
                 rs.getObject("tip_id", UUID.class),
                 rs.getObject("device_id", UUID.class),
                 Reaction.valueOf(rs.getString("reaction")),
+                rs.getInt("repeats"),
                 rs.getObject("reacted_at", OffsetDateTime.class).toInstant());
     }
 

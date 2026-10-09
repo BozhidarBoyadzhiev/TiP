@@ -103,6 +103,7 @@ class AiClassificationTest extends IntegrationTest {
         TipReacted event = awaitOneEvent(tipId);
         assertThat(event.deviceId()).isEqualTo(deviceId);
         assertThat(event.reaction()).isEqualTo(reaction);
+        assertThat(event.repeats()).as("a 2 pound tip, once when flagged").isEqualTo(flagged ? 1 : 2);
         assertThat(AnthropicStubs.requestsFor(ANTHROPIC, message)).hasSize(1);
     }
 
@@ -111,9 +112,10 @@ class AiClassificationTest extends IntegrationTest {
         "PLAYFUL,Bet you cannot play Wonderwall you idiot,",
         "REQUEST,Play Oasis or I will find you,Request: something by Oasis"
     })
-    void flaggedMessageReactsPlainKeepsItsKindAndLosesTheOwnerNote(String kind, String text, String ownerNote) {
+    void flaggedMessageReactsPlainOnceKeepsItsKindAndLosesTheOwnerNote(String kind, String text, String ownerNote) {
         String message = TestData.uniqueMessage(text);
         UUID tipId = data.capturedTip(deviceId, message);
+        data.setAmount(tipId, 2_000);
         AnthropicStubs.replyFor(ANTHROPIC, message, AnthropicStubs.classification(kind, true, "threat", ownerNote));
 
         worker.process(tipId);
@@ -125,13 +127,18 @@ class AiClassificationTest extends IntegrationTest {
                 .containsEntry("flagged", true)
                 .containsEntry("flag_reason", "threat")
                 .containsEntry("owner_note", null);
-        assertThat(awaitOneEvent(tipId).reaction()).isEqualTo(Reaction.PLAIN);
+        TipReacted event = awaitOneEvent(tipId);
+        assertThat(event.reaction()).isEqualTo(Reaction.PLAIN);
+        assertThat(event.repeats())
+                .as("a flagged 20 pound tip looks like a plain 1 pound tip")
+                .isOne();
     }
 
     @Test
-    void tipWithoutMessageIsSkippedAsPlainWithoutCallingClaude() throws Exception {
+    void tipWithoutMessageIsSkippedAsPlainWithoutCallingClaudeAndStillScalesWithTheAmount() throws Exception {
         String orderId = TestData.uniqueId("ORDER");
         UUID tipId = data.tip(deviceId, "CREATED", orderId, Instant.now());
+        data.setAmount(tipId, 1_000);
         PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
 
         mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
@@ -143,7 +150,9 @@ class AiClassificationTest extends IntegrationTest {
                 .containsEntry("owner_note", null)
                 .containsEntry("flagged", false);
         assertThat(data.tipRow(tipId).get("reaction_at")).isNotNull();
-        assertThat(awaitOneEvent(tipId).reaction()).isEqualTo(Reaction.PLAIN);
+        TipReacted event = awaitOneEvent(tipId);
+        assertThat(event.reaction()).isEqualTo(Reaction.PLAIN);
+        assertThat(event.repeats()).isEqualTo(5);
         assertThat(ANTHROPIC.findAll(postRequestedFor(urlPathEqualTo(AnthropicStubs.MESSAGES_PATH))))
                 .isEmpty();
     }
@@ -166,6 +175,7 @@ class AiClassificationTest extends IntegrationTest {
     void invalidModelOutputIsRetriedThenFailsAsPlain(String modelText) {
         String message = TestData.uniqueMessage("Nice one");
         UUID tipId = data.capturedTip(deviceId, message);
+        data.setAmount(tipId, 500);
         AnthropicStubs.replyFor(ANTHROPIC, message, modelText);
 
         worker.process(tipId);
@@ -186,7 +196,9 @@ class AiClassificationTest extends IntegrationTest {
                 .containsEntry("flag_reason", null)
                 .containsEntry("message_kind", null)
                 .containsEntry("owner_note", null);
-        assertThat(awaitOneEvent(tipId).reaction()).isEqualTo(Reaction.PLAIN);
+        TipReacted event = awaitOneEvent(tipId);
+        assertThat(event.reaction()).isEqualTo(Reaction.PLAIN);
+        assertThat(event.repeats()).isEqualTo(4);
         recoveryJob.recover();
         assertThat(AnthropicStubs.requestsFor(ANTHROPIC, message)).hasSize(3);
         assertThat(reacted.forTip(tipId)).hasSize(1);
@@ -246,7 +258,7 @@ class AiClassificationTest extends IntegrationTest {
                 tipId,
                 deviceId,
                 originalClaim,
-                new TipReactions.Outcome(MessageKind.PLAYFUL, Reaction.PLAIN, true, "late", null, AiStatus.DONE),
+                new TipReactions.Outcome(MessageKind.PLAYFUL, Reaction.PLAIN, 1, true, "late", null, AiStatus.DONE),
                 Instant.now().truncatedTo(ChronoUnit.MICROS));
 
         assertThat(lateWriteAccepted).isFalse();
@@ -271,6 +283,7 @@ class AiClassificationTest extends IntegrationTest {
     void workerThatDiedOnTheLastAttemptStillGetsTheTipAPlainReaction() {
         String message = TestData.uniqueMessage("Crashed");
         UUID tipId = data.capturedTip(deviceId, message);
+        data.setAmount(tipId, 300);
         data.setAiState(tipId, "PROCESSING", Instant.now().minus(Duration.ofMinutes(3)), 3);
 
         recoveryJob.recover();
@@ -279,7 +292,9 @@ class AiClassificationTest extends IntegrationTest {
                 .containsEntry("ai_status", "FAILED")
                 .containsEntry("reaction", "PLAIN")
                 .containsEntry("ai_attempts", 3);
-        assertThat(awaitOneEvent(tipId).reaction()).isEqualTo(Reaction.PLAIN);
+        TipReacted event = awaitOneEvent(tipId);
+        assertThat(event.reaction()).isEqualTo(Reaction.PLAIN);
+        assertThat(event.repeats()).isEqualTo(3);
         assertThat(AnthropicStubs.requestsFor(ANTHROPIC, message)).isEmpty();
     }
 

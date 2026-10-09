@@ -61,7 +61,7 @@ class ReactionDeliveryTest extends IntegrationTest {
 
         try (TestSocket socket = connect(device)) {
             socket.next();
-            publish(tipId, device.id(), reaction, T0);
+            publish(tipId, device.id(), reaction, 4, T0);
 
             assertThat(socket.nextJson())
                     .containsExactlyInAnyOrderEntriesOf(Map.of(
@@ -71,10 +71,15 @@ class ReactionDeliveryTest extends IntegrationTest {
                             tipId.toString(),
                             "reaction",
                             reaction.name(),
+                            "repeats",
+                            4,
                             "at",
                             "2026-10-13T14:02:11Z"));
             awaitSentCount(tipId, 1);
-            assertThat(row(tipId)).containsEntry("acked_at", null).containsEntry("last_sent_at", T0);
+            assertThat(row(tipId))
+                    .containsEntry("acked_at", null)
+                    .containsEntry("last_sent_at", T0)
+                    .containsEntry("repeats", 4);
         }
     }
 
@@ -112,7 +117,7 @@ class ReactionDeliveryTest extends IntegrationTest {
 
         try (TestSocket socket = connect(device)) {
             socket.next();
-            publish(tipId, device.id(), Reaction.REQUEST, T0);
+            publish(tipId, device.id(), Reaction.REQUEST, 3, T0);
             socket.next();
             awaitSentCount(tipId, 1);
 
@@ -122,7 +127,9 @@ class ReactionDeliveryTest extends IntegrationTest {
                 resendJob.resend();
                 socket.sync();
                 while (socket.pending() > 0) {
-                    assertThat(socket.nextJson()).containsEntry("id", tipId.toString());
+                    assertThat(socket.nextJson())
+                            .containsEntry("id", tipId.toString())
+                            .containsEntry("repeats", 3);
                     resentAtSecond.add((long) second);
                 }
             }
@@ -181,9 +188,9 @@ class ReactionDeliveryTest extends IntegrationTest {
         UUID acked = UUID.randomUUID();
         UUID older = UUID.randomUUID();
         UUID newer = UUID.randomUUID();
-        publish(newer, device.id(), Reaction.REQUEST, T0.minusSeconds(10));
+        publish(newer, device.id(), Reaction.REQUEST, 5, T0.minusSeconds(10));
         publish(tooOld, device.id(), Reaction.WARM, T0.minusSeconds(61));
-        publish(older, device.id(), Reaction.PLAIN, T0.minusSeconds(40));
+        publish(older, device.id(), Reaction.PLAIN, 2, T0.minusSeconds(40));
         publish(acked, device.id(), Reaction.WARM, T0.minusSeconds(50));
         jdbc.sql("UPDATE reaction_delivery SET acked_at = now() WHERE tip_id = ?")
                 .param(acked)
@@ -191,8 +198,14 @@ class ReactionDeliveryTest extends IntegrationTest {
 
         try (TestSocket socket = connect(device)) {
             assertThat(socket.nextJson()).containsEntry("type", "hello");
-            assertThat(socket.nextJson()).containsEntry("id", older.toString()).containsEntry("reaction", "PLAIN");
-            assertThat(socket.nextJson()).containsEntry("id", newer.toString()).containsEntry("reaction", "REQUEST");
+            assertThat(socket.nextJson())
+                    .containsEntry("id", older.toString())
+                    .containsEntry("reaction", "PLAIN")
+                    .containsEntry("repeats", 2);
+            assertThat(socket.nextJson())
+                    .containsEntry("id", newer.toString())
+                    .containsEntry("reaction", "REQUEST")
+                    .containsEntry("repeats", 5);
             socket.sync();
             assertThat(socket.pending()).isZero();
         }
@@ -214,7 +227,7 @@ class ReactionDeliveryTest extends IntegrationTest {
             socket.next();
             awaitSentCount(tipId, 1);
             transactions.executeWithoutResult(
-                    status -> events.publishEvent(new TipReacted(tipId, device.id(), Reaction.WARM, T0)));
+                    status -> events.publishEvent(new TipReacted(tipId, device.id(), Reaction.WARM, 1, T0)));
 
             await().during(Duration.ofMillis(500)).atMost(Duration.ofSeconds(2)).until(() -> socket.pending() == 0);
         }
@@ -270,10 +283,14 @@ class ReactionDeliveryTest extends IntegrationTest {
                         .equals((long) tipIds.size()));
     }
 
-    /** Publishes after commit, like the AI feature, and waits until the dispatcher stored the reaction. */
     private void publish(UUID tipId, UUID deviceId, Reaction reaction, Instant reactedAt) {
+        publish(tipId, deviceId, reaction, 1, reactedAt);
+    }
+
+    /** Publishes after commit, like the AI feature, and waits until the dispatcher stored the reaction. */
+    private void publish(UUID tipId, UUID deviceId, Reaction reaction, int repeats, Instant reactedAt) {
         transactions.executeWithoutResult(
-                status -> events.publishEvent(new TipReacted(tipId, deviceId, reaction, reactedAt)));
+                status -> events.publishEvent(new TipReacted(tipId, deviceId, reaction, repeats, reactedAt)));
         await().atMost(Duration.ofSeconds(10)).until(() -> rows(tipId) == 1);
     }
 

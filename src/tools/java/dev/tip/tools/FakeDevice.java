@@ -20,8 +20,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * A command line device that speaks the device channel exactly as the ESP32 firmware will: it connects
- * with the device secret, prints each reaction with a text picture of its LED pattern, acks it when it
- * starts playing, ignores repeats among the last 16 tip ids, and reconnects with the protocol backoff.
+ * with the device secret, acks each reaction as soon as it arrives, plays it after any reaction already
+ * playing or queued, prints it with a text picture of its LED pattern scaled by {@code repeats}, ignores
+ * repeats of the last 16 tip ids, and reconnects with the protocol backoff.
  * A rejected secret (401) stops it, like the firmware, which waits for a reboot.
  *
  * <pre>./gradlew fakeDevice --args="--url=ws://localhost:8080 --device=&lt;uuid&gt; --secret=&lt;secret&gt;"</pre>
@@ -52,7 +53,7 @@ public final class FakeDevice {
         this.secret = secret;
         this.out = out;
         this.backoff = backoff;
-        this.player = new Player(this::ack, out);
+        this.player = new Player(out);
     }
 
     public static void main(String[] args) {
@@ -134,11 +135,24 @@ public final class FakeDevice {
                     message.path("serverTime").asString(""));
         } else if (type.equals("reaction")) {
             handleReaction(
-                    message.path("id").asString(""), message.path("reaction").asString(""));
+                    message.path("id").asString(""), message.path("reaction").asString(""), repeats(message));
         }
     }
 
-    private void handleReaction(String tipId, String reaction) {
+    /** A missing or non integer {@code repeats} means 1; any other value is clamped to 1 to 5. */
+    static int repeats(JsonNode message) {
+        JsonNode repeats = message.path("repeats");
+        if (!repeats.isIntegralNumber()) {
+            return LedPattern.MIN_REPEATS;
+        }
+        return LedPattern.clampRepeats(repeats.bigIntegerValue());
+    }
+
+    /**
+     * Acks on receipt, before playback: resends come 5 seconds apart and a pattern can run up to 10
+     * seconds, so an ack after playback would bring resends mid pattern.
+     */
+    private void handleReaction(String tipId, String reaction, int repeats) {
         LedPattern pattern;
         try {
             UUID.fromString(tipId);
@@ -151,7 +165,8 @@ public final class FakeDevice {
             ack(tipId);
             return;
         }
-        Player.Reaction dropped = player.enqueue(new Player.Reaction(tipId, pattern));
+        ack(tipId);
+        Player.Reaction dropped = player.enqueue(new Player.Reaction(tipId, pattern, repeats));
         if (dropped != null) {
             out.println("Queue full, dropped tip " + dropped.tipId());
         }

@@ -48,10 +48,11 @@ class TipReactionWorker {
         AiTipRepository.Claim work = claim.get();
         TipReactions.Outcome outcome;
         if (classifier.isEmpty() || work.message() == null) {
-            outcome = TipReactions.Outcome.skipped();
+            outcome = TipReactions.Outcome.skipped(work.amountMinor(), work.currency());
         } else {
             try {
-                outcome = TipReactions.Outcome.classified(classifier.get().classify(work.message()));
+                outcome = TipReactions.Outcome.classified(
+                        classifier.get().classify(work.message()), work.amountMinor(), work.currency());
             } catch (RuntimeException e) {
                 String reason = e instanceof ClassificationFailed
                         ? e.getMessage()
@@ -62,14 +63,15 @@ class TipReactionWorker {
                     return;
                 }
                 log.warn("Classifying tip {} failed on the last attempt, reacting PLAIN: {}", tipId, reason);
-                outcome = TipReactions.Outcome.failed();
+                outcome = TipReactions.Outcome.failed(work.amountMinor(), work.currency());
             }
         }
         if (reactions.finish(tipId, work.deviceId(), claimedAt, outcome, now())) {
             log.info(
-                    "Tip {} reacts {} (kind {}, ai {}, flagged {})",
+                    "Tip {} reacts {} x{} (kind {}, ai {}, flagged {})",
                     tipId,
                     outcome.reaction(),
+                    outcome.repeats(),
                     outcome.kind(),
                     outcome.status(),
                     outcome.flagged());

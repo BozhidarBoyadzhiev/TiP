@@ -58,10 +58,10 @@ class FakeDeviceTest extends IntegrationTest {
             UUID tipId = UUID.randomUUID();
 
             transactions.executeWithoutResult(
-                    status -> events.publishEvent(new TipReacted(tipId, deviceId, Reaction.WARM, clock.instant())));
+                    status -> events.publishEvent(new TipReacted(tipId, deviceId, Reaction.WARM, 1, clock.instant())));
 
             await().atMost(Duration.ofSeconds(10)).until(() -> acked(tipId));
-            assertThat(output(bytes)).contains("WARM", "heartbeat x3", "tip " + tipId);
+            assertThat(output(bytes)).contains("WARM", "heartbeat x3", "repeats 1", "tip " + tipId);
         } finally {
             device.stop();
         }
@@ -79,8 +79,8 @@ class FakeDeviceTest extends IntegrationTest {
         try {
             await().atMost(Duration.ofSeconds(10)).until(() -> output(bytes).contains("Connected as \"Fake Panda\""));
             UUID tipId = UUID.randomUUID();
-            transactions.executeWithoutResult(
-                    status -> events.publishEvent(new TipReacted(tipId, deviceId, Reaction.PLAYFUL, clock.instant())));
+            transactions.executeWithoutResult(status ->
+                    events.publishEvent(new TipReacted(tipId, deviceId, Reaction.PLAYFUL, 1, clock.instant())));
             await().atMost(Duration.ofSeconds(10)).until(() -> acked(tipId));
 
             // As if the first ack was lost: the server sends the reaction again.
@@ -92,7 +92,41 @@ class FakeDeviceTest extends IntegrationTest {
 
             await().atMost(Duration.ofSeconds(10)).until(() -> acked(tipId));
             assertThat(output(bytes)).contains("Repeat of tip " + tipId + ", not played again, acked again");
-            assertThat(output(bytes).split("giggle 6 \\+ 6 flicks", -1)).hasSize(2);
+            assertThat(output(bytes).split("giggle x2", -1)).hasSize(2);
+        } finally {
+            device.stop();
+        }
+        assertThat(exit.get(10, TimeUnit.SECONDS)).isZero();
+    }
+
+    @Test
+    void acksOnReceiptBeforePlaybackAndPlaysQueuedReactionsInOrder() throws Exception {
+        String secret = TestData.randomSecret();
+        UUID deviceId = data.device(TestData.uniqueSlug(), "Fake Panda", secret);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        FakeDevice device = fakeDevice(deviceId, secret, bytes);
+        CompletableFuture<Integer> exit = CompletableFuture.supplyAsync(device::run);
+        try {
+            await().atMost(Duration.ofSeconds(10)).until(() -> output(bytes).contains("Connected as \"Fake Panda\""));
+            UUID longest = UUID.randomUUID();
+            UUID queued = UUID.randomUUID();
+
+            transactions.executeWithoutResult(status ->
+                    events.publishEvent(new TipReacted(longest, deviceId, Reaction.PLAYFUL, 5, clock.instant())));
+            await().atMost(Duration.ofSeconds(3)).until(() -> acked(longest));
+            transactions.executeWithoutResult(status ->
+                    events.publishEvent(new TipReacted(queued, deviceId, Reaction.PLAIN, 2, clock.instant())));
+
+            // The first pattern runs 9.17 s, so both acks arriving well within it means ack on receipt.
+            await().atMost(Duration.ofSeconds(3)).until(() -> acked(queued));
+            assertThat(output(bytes))
+                    .contains("giggle x6", "repeats 5", "tip " + longest)
+                    .doesNotContain("tip " + queued);
+
+            await().atMost(Duration.ofSeconds(15)).until(() -> output(bytes).contains("tip " + queued));
+            String played = output(bytes);
+            assertThat(played).contains("blink x2", "repeats 2");
+            assertThat(played.indexOf("tip " + longest)).isLessThan(played.indexOf("tip " + queued));
         } finally {
             device.stop();
         }

@@ -27,13 +27,16 @@ class ChannelMessages {
         return text(new Hello("hello", deviceName, time(serverTime)));
     }
 
-    TextMessage reaction(UUID tipId, Reaction reaction, Instant at) {
-        return text(new DeviceReaction("reaction", tipId.toString(), reaction.name(), time(at)));
+    TextMessage reaction(UUID tipId, Reaction reaction, int repeats, Instant at) {
+        return text(new DeviceReaction("reaction", tipId.toString(), reaction.name(), repeats, time(at)));
     }
 
-    /** What observers see: no tip id, amount, message or payer data. */
-    TextMessage observerReaction(Reaction reaction, Instant at) {
-        return text(new ObserverReaction("reaction", reaction.name(), time(at)));
+    /**
+     * What observers see: the reaction and its repeats, so the virtual panda plays what the LED plays. No
+     * tip id, amount, message, kind, flag or payer data.
+     */
+    TextMessage observerReaction(Reaction reaction, int repeats, Instant at) {
+        return text(new ObserverReaction("reaction", reaction.name(), repeats, time(at)));
     }
 
     /** The tip id of a well formed {@code ack}, or empty for anything else. */
@@ -59,9 +62,9 @@ class ChannelMessages {
 
     record Hello(String type, String deviceName, String serverTime) {}
 
-    record DeviceReaction(String type, String id, String reaction, String at) {}
+    record DeviceReaction(String type, String id, String reaction, int repeats, String at) {}
 
-    record ObserverReaction(String type, String reaction, String at) {}
+    record ObserverReaction(String type, String reaction, int repeats, String at) {}
 
     record Inbound(String type, String id) {}
 }

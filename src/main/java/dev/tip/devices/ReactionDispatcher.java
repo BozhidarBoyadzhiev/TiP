@@ -44,8 +44,8 @@ class ReactionDispatcher {
     @Async(WebSocketConfig.DELIVERY_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void on(TipReacted event) {
-        PendingReaction reaction =
-                new PendingReaction(event.tipId(), event.deviceId(), event.reaction(), event.reactedAt());
+        PendingReaction reaction = new PendingReaction(
+                event.tipId(), event.deviceId(), event.reaction(), event.repeats(), event.reactedAt());
         try {
             if (!deliveries.insert(reaction)) {
                 log.debug("Ignored a duplicate reaction for tip {}", event.tipId());
@@ -59,7 +59,8 @@ class ReactionDispatcher {
         if (!observers.isEmpty()) {
             devices.findById(event.deviceId())
                     .ifPresent(device -> observers.broadcast(
-                            device.slug(), messages.observerReaction(event.reaction(), event.reactedAt())));
+                            device.slug(),
+                            messages.observerReaction(event.reaction(), event.repeats(), event.reactedAt())));
         }
     }
 }

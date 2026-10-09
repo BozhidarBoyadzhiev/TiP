@@ -5,25 +5,22 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayDeque;
-import java.util.function.Consumer;
 
 /**
  * Plays reactions one after another, like the LED on the panda: a reaction that arrives while another
- * plays waits in a queue of 4, and the oldest waiting one is dropped when the queue is full. The ack is
- * sent when a reaction starts playing.
+ * plays waits in a queue of 4, and the oldest waiting one is dropped when the queue is full. Acks are not
+ * sent from here: the device acks on receipt, before playback.
  */
 final class Player implements Runnable {
 
     static final int QUEUE_SIZE = 4;
 
-    record Reaction(String tipId, LedPattern pattern) {}
+    record Reaction(String tipId, LedPattern pattern, int repeats) {}
 
     private final ArrayDeque<Reaction> queue = new ArrayDeque<>();
-    private final Consumer<String> ack;
     private final PrintStream out;
 
-    Player(Consumer<String> ack, PrintStream out) {
-        this.ack = ack;
+    Player(PrintStream out) {
         this.out = out;
     }
 
@@ -59,16 +56,17 @@ final class Player implements Runnable {
 
     private void play(Reaction reaction) throws InterruptedException {
         LedPattern pattern = reaction.pattern();
-        Duration length = pattern.length();
+        int repeats = reaction.repeats();
+        Duration length = pattern.length(repeats);
         out.printf(
-                "%s  %-8s  %-20s  %s  (%.2f s)  tip %s%n",
+                "%s  %-8s  %-13s  repeats %d  %s  (%.2f s)  tip %s%n",
                 LocalTime.now().truncatedTo(ChronoUnit.SECONDS),
                 pattern.name(),
-                pattern.label,
-                pattern.picture,
+                pattern.label + " x" + pattern.units(repeats),
+                repeats,
+                pattern.picture(repeats),
                 length.toMillis() / 1000.0,
                 reaction.tipId());
-        ack.accept(reaction.tipId());
         Thread.sleep(length);
     }
 }

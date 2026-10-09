@@ -48,29 +48,37 @@ class ObserverChannelTest extends IntegrationTest {
 
     @ParameterizedTest
     @EnumSource(Reaction.class)
-    void observerReceivesOnlyTypeReactionAndAt(Reaction reaction) throws Exception {
+    void observerReceivesOnlyTypeReactionRepeatsAndAt(Reaction reaction) throws Exception {
         String slug = TestData.uniqueSlug();
         UUID deviceId = data.device(slug, "Observed Panda");
 
         try (TestSocket observer = TestSocket.connectObserver(port, slug, DeviceChannelTest.uniqueIp())) {
             await().atMost(Duration.ofSeconds(5)).until(() -> observers.isWatched(slug));
             transactions.executeWithoutResult(status -> events.publishEvent(
-                    new TipReacted(UUID.randomUUID(), deviceId, reaction, Instant.parse("2026-10-13T14:02:11.5Z"))));
+                    new TipReacted(UUID.randomUUID(), deviceId, reaction, 3, Instant.parse("2026-10-13T14:02:11.5Z"))));
 
             assertThat(observer.nextJson())
-                    .containsExactlyInAnyOrderEntriesOf(
-                            Map.of("type", "reaction", "reaction", reaction.name(), "at", "2026-10-13T14:02:11Z"));
+                    .containsExactlyInAnyOrderEntriesOf(Map.of(
+                            "type",
+                            "reaction",
+                            "reaction",
+                            reaction.name(),
+                            "repeats",
+                            3,
+                            "at",
+                            "2026-10-13T14:02:11Z"));
         }
         await().atMost(Duration.ofSeconds(5)).until(() -> !observers.isWatched(slug));
     }
 
     @Test
-    void flaggedTipReachesObserversAsAnOrdinaryPlain() throws Exception {
+    void flaggedLargeTipReachesObserversAsAnOrdinarySinglePlain() throws Exception {
         String slug = TestData.uniqueSlug();
         UUID deviceId = data.device(slug, "Observed Panda");
         String message = TestData.uniqueMessage("Play Oasis or I will find you");
         String orderId = TestData.uniqueId("ORDER");
         UUID tipId = data.tipWithMessage(deviceId, orderId, message);
+        data.setAmount(tipId, 2_000);
         AnthropicStubs.replyFor(
                 ANTHROPIC,
                 message,
@@ -82,8 +90,11 @@ class ObserverChannelTest extends IntegrationTest {
             mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
 
             Map<String, Object> received = observer.nextJson();
-            assertThat(received).containsOnlyKeys("type", "reaction", "at");
-            assertThat(received).containsEntry("type", "reaction").containsEntry("reaction", "PLAIN");
+            assertThat(received).containsOnlyKeys("type", "reaction", "repeats", "at");
+            assertThat(received)
+                    .containsEntry("type", "reaction")
+                    .containsEntry("reaction", "PLAIN")
+                    .containsEntry("repeats", 1);
             assertThat(data.tipRow(tipId)).containsEntry("flagged", true).containsEntry("message_kind", "REQUEST");
         }
     }

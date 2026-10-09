@@ -116,6 +116,12 @@ public class TestData {
         return id;
     }
 
+    public void setAmount(UUID tipId, long amountMinor) {
+        jdbc.sql("UPDATE tip SET amount_minor = ? WHERE id = ?")
+                .params(amountMinor, tipId)
+                .update();
+    }
+
     public void setCaptureId(UUID tipId, String captureId) {
         jdbc.sql("UPDATE tip SET paypal_capture_id = ? WHERE id = ?")
                 .params(captureId, tipId)

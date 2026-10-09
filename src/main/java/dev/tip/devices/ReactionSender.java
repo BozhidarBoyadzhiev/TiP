@@ -37,7 +37,8 @@ class ReactionSender {
 
     void send(WebSocketSession session, PendingReaction reaction) {
         try {
-            session.sendMessage(messages.reaction(reaction.tipId(), reaction.reaction(), reaction.reactedAt()));
+            session.sendMessage(
+                    messages.reaction(reaction.tipId(), reaction.reaction(), reaction.repeats(), reaction.reactedAt()));
         } catch (IOException | RuntimeException e) {
             log.debug("Sending reaction {} to device {} failed", reaction.tipId(), reaction.deviceId(), e);
             return;

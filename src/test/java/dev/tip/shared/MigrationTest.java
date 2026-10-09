@@ -117,6 +117,34 @@ class MigrationTest extends IntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    void existingDeliveriesRepeatOnceAndRepeatsStayWithin1To5() {
+        String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
+        migrate(schema, "4");
+        UUID ownerId = insertOwner(schema);
+        UUID deviceId = UUID.randomUUID();
+        jdbc.sql("INSERT INTO " + schema + ".device (id, slug, display_name, owner_id, secret_hash, created_at)"
+                        + " VALUES (?, 'old-panda', 'Old', ?, decode(repeat('ab', 32), 'hex'), now())")
+                .params(deviceId, ownerId)
+                .update();
+        UUID tipId = insertReactedTip(schema, deviceId, "WARM", "DONE");
+
+        migrate(schema, "5");
+
+        assertThat(jdbc.sql("SELECT repeats FROM " + schema + ".reaction_delivery WHERE tip_id = ?")
+                        .param(tipId)
+                        .query(Integer.class)
+                        .single())
+                .isOne();
+        for (int invalid : new int[] {0, 6}) {
+            assertThatThrownBy(
+                            () -> jdbc.sql("UPDATE " + schema + ".reaction_delivery SET repeats = ? WHERE tip_id = ?")
+                                    .params(invalid, tipId)
+                                    .update())
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        }
+    }
+
     /** A captured tip with the given reaction, plus its delivery row. */
     private UUID insertReactedTip(String schema, UUID deviceId, String reaction, String aiStatus) {
         UUID id = UUID.randomUUID();

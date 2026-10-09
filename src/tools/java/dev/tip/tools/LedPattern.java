@@ -1,43 +1,73 @@
 package dev.tip.tools;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Stream;
 
-/** The reaction patterns of {@code docs/DEVICE_PROTOCOL.md}, with a text picture of each. */
+/**
+ * The reaction patterns of {@code docs/DEVICE_PROTOCOL.md}, with a text picture of each. A pattern is a
+ * unit played {@code base + (repeats - 1)} times, with a fixed gap between units.
+ */
 enum LedPattern {
-    WARM("heartbeat x3", "_/^\\_ _/^\\_ _/^\\_", repeat(3, 400, 600, 200)),
-    PLAYFUL("giggle 6 + 6 flicks", "^v^v^v^v^v^v   ^v^v^v^v^v^v", giggle()),
-    REQUEST("noted x2", "/^^^^\\_ /^^^^\\", List.of(300, 500, 300, 300, 300, 500, 300)),
-    PLAIN("one solid blink", "[#######]", List.of(700));
+    WARM("heartbeat", "_/^\\_", " ", 3, List.of(400, 600, 200), 0),
+    PLAYFUL("giggle", "^v^v^v^v^v^v", "   ", 2, giggle(), 250),
+    REQUEST("noted", "/^^^^\\", "_ ", 2, List.of(300, 500, 300), 300),
+    PLAIN("blink", "[#######]", " ", 1, List.of(700), 300);
 
-    /** Step lengths in milliseconds: fades, on, off and pauses, in order. */
-    private final List<Integer> stepsMillis;
+    static final int MIN_REPEATS = 1;
+    static final int MAX_REPEATS = 5;
 
     final String label;
-    final String picture;
+    private final String unitPicture;
+    private final String gapPicture;
+    private final int baseUnits;
 
-    LedPattern(String label, String picture, List<Integer> stepsMillis) {
+    /** Step lengths of one unit in milliseconds: fades, on, off and pauses, in order. */
+    private final List<Integer> unitMillis;
+
+    private final int gapMillis;
+
+    LedPattern(
+            String label,
+            String unitPicture,
+            String gapPicture,
+            int baseUnits,
+            List<Integer> unitMillis,
+            int gapMillis) {
         this.label = label;
-        this.picture = picture;
-        this.stepsMillis = stepsMillis;
+        this.unitPicture = unitPicture;
+        this.gapPicture = gapPicture;
+        this.baseUnits = baseUnits;
+        this.unitMillis = unitMillis;
+        this.gapMillis = gapMillis;
     }
 
-    Duration length() {
-        return Duration.ofMillis(
-                stepsMillis.stream().mapToInt(Integer::intValue).sum());
+    /** Values outside 1 to 5 are clamped, not rejected. */
+    static int clampRepeats(BigInteger repeats) {
+        return repeats.max(BigInteger.valueOf(MIN_REPEATS))
+                .min(BigInteger.valueOf(MAX_REPEATS))
+                .intValue();
     }
 
-    private static List<Integer> repeat(int times, Integer... steps) {
-        return Collections.nCopies(times, List.of(steps)).stream()
+    int units(int repeats) {
+        return baseUnits + repeats - 1;
+    }
+
+    Duration length(int repeats) {
+        int units = units(repeats);
+        int unit = unitMillis.stream().mapToInt(Integer::intValue).sum();
+        return Duration.ofMillis((long) units * unit + (long) (units - 1) * gapMillis);
+    }
+
+    String picture(int repeats) {
+        return String.join(gapPicture, Collections.nCopies(units(repeats), unitPicture));
+    }
+
+    /** Six flicks of 60 ms rising, 90 ms falling and a 70 ms gap. */
+    private static List<Integer> giggle() {
+        return Collections.nCopies(6, List.of(60, 90, 70)).stream()
                 .flatMap(List::stream)
                 .toList();
-    }
-
-    /** Six flicks of 60 ms rising, 90 ms falling and a 70 ms gap, a 250 ms pause, then six more. */
-    private static List<Integer> giggle() {
-        List<Integer> flicks = repeat(6, 60, 90, 70);
-        return Stream.of(flicks, List.of(250), flicks).flatMap(List::stream).toList();
     }
 }

@@ -13,6 +13,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import tools.jackson.databind.json.JsonMapper;
 
 class FakeDevicePartsTest {
 
@@ -52,21 +56,69 @@ class FakeDevicePartsTest {
 
     @Test
     void patternsHaveTheProtocolLengths() {
-        assertThat(LedPattern.WARM.length()).isEqualTo(Duration.ofMillis(3600));
-        assertThat(LedPattern.PLAYFUL.length()).isEqualTo(Duration.ofMillis(2890));
-        assertThat(LedPattern.REQUEST.length()).isEqualTo(Duration.ofMillis(2500));
-        assertThat(LedPattern.PLAIN.length()).isEqualTo(Duration.ofMillis(700));
+        assertThat(LedPattern.WARM.length(1)).isEqualTo(Duration.ofMillis(3600));
+        assertThat(LedPattern.PLAYFUL.length(1)).isEqualTo(Duration.ofMillis(2890));
+        assertThat(LedPattern.REQUEST.length(1)).isEqualTo(Duration.ofMillis(2500));
+        assertThat(LedPattern.PLAIN.length(1)).isEqualTo(Duration.ofMillis(700));
+
+        assertThat(LedPattern.WARM.length(5)).isEqualTo(Duration.ofMillis(8400));
+        assertThat(LedPattern.PLAYFUL.length(5)).isEqualTo(Duration.ofMillis(9170));
+        assertThat(LedPattern.REQUEST.length(5)).isEqualTo(Duration.ofMillis(8100));
+        assertThat(LedPattern.PLAIN.length(5)).isEqualTo(Duration.ofMillis(4700));
+        assertThat(LedPattern.PLAIN.length(2)).as("a 300 ms gap between blinks").isEqualTo(Duration.ofMillis(1700));
+    }
+
+    @ParameterizedTest
+    @EnumSource(LedPattern.class)
+    void everyPatternAddsOneUnitPerRepeatAndStaysWithin10Seconds(LedPattern pattern) {
+        for (int repeats = 2; repeats <= LedPattern.MAX_REPEATS; repeats++) {
+            assertThat(pattern.units(repeats)).isEqualTo(pattern.units(1) + repeats - 1);
+            assertThat(pattern.length(repeats)).isGreaterThan(pattern.length(repeats - 1));
+        }
+        assertThat(pattern.length(LedPattern.MAX_REPEATS)).isLessThanOrEqualTo(Duration.ofSeconds(10));
+    }
+
+    @Test
+    void picturesAtOneRepeatAreTheProtocolPatterns() {
+        assertThat(LedPattern.WARM.units(1)).isEqualTo(3);
+        assertThat(LedPattern.PLAYFUL.units(1)).isEqualTo(2);
+        assertThat(LedPattern.REQUEST.units(1)).isEqualTo(2);
+        assertThat(LedPattern.PLAIN.units(1)).isEqualTo(1);
+        assertThat(LedPattern.WARM.picture(1)).isEqualTo("_/^\\_ _/^\\_ _/^\\_");
+        assertThat(LedPattern.REQUEST.picture(1)).isEqualTo("/^^^^\\_ /^^^^\\");
+        assertThat(LedPattern.PLAIN.picture(3)).isEqualTo("[#######] [#######] [#######]");
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+            delimiter = '|',
+            value = {
+                "{}|1",
+                "{\"repeats\":null}|1",
+                "{\"repeats\":\"3\"}|1",
+                "{\"repeats\":2.5}|1",
+                "{\"repeats\":0}|1",
+                "{\"repeats\":-7}|1",
+                "{\"repeats\":1}|1",
+                "{\"repeats\":3}|3",
+                "{\"repeats\":5}|5",
+                "{\"repeats\":6}|5",
+                "{\"repeats\":99999999999999999999}|5"
+            })
+    void missingRepeatsMeansOneAndOtherValuesAreClamped(String json, int repeats) {
+        assertThat(FakeDevice.repeats(JsonMapper.builder().build().readTree(json)))
+                .isEqualTo(repeats);
     }
 
     @Test
     void playerQueueKeeps4AndDropsTheOldest() {
-        Player player = new Player(id -> {}, new PrintStream(new ByteArrayOutputStream()));
+        Player player = new Player(new PrintStream(new ByteArrayOutputStream()));
         for (int i = 1; i <= Player.QUEUE_SIZE; i++) {
-            assertThat(player.enqueue(new Player.Reaction("tip-" + i, LedPattern.PLAIN)))
+            assertThat(player.enqueue(new Player.Reaction("tip-" + i, LedPattern.PLAIN, 1)))
                     .isNull();
         }
 
-        Player.Reaction dropped = player.enqueue(new Player.Reaction("tip-5", LedPattern.PLAIN));
+        Player.Reaction dropped = player.enqueue(new Player.Reaction("tip-5", LedPattern.PLAIN, 1));
 
         assertThat(dropped.tipId()).isEqualTo("tip-1");
         assertThat(player.waiting()).isEqualTo(Player.QUEUE_SIZE);

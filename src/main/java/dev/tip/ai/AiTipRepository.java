@@ -32,13 +32,17 @@ class AiTipRepository {
                         WHERE id = :id AND status = 'CAPTURED'
                           AND (ai_status = 'PENDING' OR (ai_status = 'PROCESSING' AND ai_claimed_at < :staleBefore))
                           AND ai_attempts < :maxAttempts
-                        RETURNING device_id, message, ai_attempts""")
+                        RETURNING device_id, message, ai_attempts, amount_minor, currency""")
                 .param("id", tipId)
                 .param("now", utc(now))
                 .param("staleBefore", utc(staleBefore))
                 .param("maxAttempts", TipReactionWorker.MAX_ATTEMPTS)
                 .query((rs, row) -> new Claim(
-                        rs.getObject("device_id", UUID.class), rs.getString("message"), rs.getInt("ai_attempts")))
+                        rs.getObject("device_id", UUID.class),
+                        rs.getString("message"),
+                        rs.getInt("ai_attempts"),
+                        rs.getLong("amount_minor"),
+                        rs.getString("currency")))
                 .optional();
     }
 
@@ -74,21 +78,22 @@ class AiTipRepository {
     /**
      * A worker that crashed during the last allowed attempt leaves the tip PROCESSING with no attempts
      * left. Once that claim expires, the tip fails as PLAIN so the panda still reacts. Returns the
-     * device id when this call made the change.
+     * tip's device and amount when this call made the change.
      */
-    Optional<UUID> failExhausted(UUID tipId, Instant staleBefore, Instant reactedAt) {
+    Optional<Exhausted> failExhausted(UUID tipId, Instant staleBefore, Instant reactedAt) {
         return jdbc.sql("""
                         UPDATE tip SET message_kind = NULL, reaction = 'PLAIN', flagged = false,
                                        flag_reason = NULL, owner_note = NULL,
                                        ai_status = 'FAILED', reaction_at = :reactedAt
                         WHERE id = :id AND status = 'CAPTURED' AND ai_status = 'PROCESSING'
                           AND ai_claimed_at < :staleBefore AND ai_attempts >= :maxAttempts
-                        RETURNING device_id""")
+                        RETURNING device_id, amount_minor, currency""")
                 .param("id", tipId)
                 .param("staleBefore", utc(staleBefore))
                 .param("reactedAt", utc(reactedAt))
                 .param("maxAttempts", TipReactionWorker.MAX_ATTEMPTS)
-                .query((rs, row) -> rs.getObject("device_id", UUID.class))
+                .query((rs, row) -> new Exhausted(
+                        rs.getObject("device_id", UUID.class), rs.getLong("amount_minor"), rs.getString("currency")))
                 .optional();
     }
 
@@ -110,5 +115,8 @@ class AiTipRepository {
         return instant.atOffset(ZoneOffset.UTC);
     }
 
-    record Claim(UUID deviceId, String message, int attempts) {}
+    /** {@code amountMinor} is the amount the server created the PayPal order for, which is what was charged. */
+    record Claim(UUID deviceId, String message, int attempts, long amountMinor, String currency) {}
+
+    record Exhausted(UUID deviceId, long amountMinor, String currency) {}
 }
