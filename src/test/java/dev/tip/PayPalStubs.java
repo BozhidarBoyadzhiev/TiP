@@ -57,6 +57,20 @@ public final class PayPalStubs {
                 .willReturn(json(200, order(orderId, "COMPLETED", captureId, captureStatus))));
     }
 
+    /** Like {@link #captureCompleted} with a random response delay, so racing callers finish in any order. */
+    public static void captureCompletedWithJitter(
+            WireMockServer server, String orderId, String captureId, int maxDelayMillis) {
+        server.stubFor(post(urlPathEqualTo(capturePath(orderId)))
+                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "COMPLETED"))
+                        .withUniformRandomDelay(0, maxDelayMillis)));
+    }
+
+    public static void verifyWebhookWithJitter(WireMockServer server, int maxDelayMillis) {
+        server.stubFor(post(urlPathEqualTo(VERIFY_WEBHOOK_PATH))
+                .willReturn(
+                        json(200, "{\"verification_status\":\"SUCCESS\"}").withUniformRandomDelay(0, maxDelayMillis)));
+    }
+
     public static void verifyWebhook(WireMockServer server, String verificationStatus) {
         server.stubFor(post(urlPathEqualTo(VERIFY_WEBHOOK_PATH))
                 .willReturn(json(200, "{\"verification_status\":\"" + verificationStatus + "\"}")));

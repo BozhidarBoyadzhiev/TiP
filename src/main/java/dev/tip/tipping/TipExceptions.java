@@ -41,6 +41,27 @@ final class TipExceptions {
         }
     }
 
+    static final class WebhookNotVerified extends DomainException {
+        WebhookNotVerified() {
+            super(HttpStatus.BAD_REQUEST, "WEBHOOK_NOT_VERIFIED", "The webhook signature could not be verified.");
+        }
+    }
+
+    static final class WebhookMalformed extends DomainException {
+        WebhookMalformed() {
+            super(HttpStatus.BAD_REQUEST, "WEBHOOK_MALFORMED", "The webhook event is missing required fields.");
+        }
+    }
+
+    static final class WebhookVerificationUnavailable extends DomainException {
+        WebhookVerificationUnavailable() {
+            super(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "WEBHOOK_VERIFICATION_UNAVAILABLE",
+                    "The webhook could not be verified right now. Please retry.");
+        }
+    }
+
     static final class RateLimited extends DomainException {
         RateLimited() {
             super(
