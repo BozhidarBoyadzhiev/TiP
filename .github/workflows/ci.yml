@@ -12,6 +12,13 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Testcontainers image for the tests. The same tag is in
+      # src/test/java/dev/tip/TestcontainersConfiguration.java,
+      # src/test/java/dev/tip/shared/ConfigurationValidationTest.java and docker-compose.yml.
+      # Change them together.
+      POSTGRES_IMAGE: postgres:16-alpine
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -19,6 +26,20 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
+      # Pulled up front with retries, so a registry hiccup fails fast here instead of hanging every test.
+      - name: Pull PostgreSQL image
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if docker pull "$POSTGRES_IMAGE"; then
+              exit 0
+            fi
+            echo "docker pull failed (attempt $attempt of 3)"
+            if [ "$attempt" -lt 3 ]; then
+              sleep 15
+            fi
+          done
+          exit 1
       - name: Build
         run: ./gradlew build --no-daemon
 
