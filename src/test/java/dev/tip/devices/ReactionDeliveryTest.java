@@ -305,7 +305,13 @@ class ReactionDeliveryTest extends IntegrationTest {
 
     private record TestDevice(UUID id, String secret) {}
 
+    /**
+     * Returns once the server has finished the connect: it sends hello before it registers the session
+     * and replays, so a reaction published right after hello could otherwise be sent twice.
+     */
     private TestSocket connect(TestDevice device) {
-        return TestSocket.connectDevice(port, device.id(), device.secret());
+        TestSocket socket = TestSocket.connectDevice(port, device.id(), device.secret());
+        socket.sync();
+        return socket;
     }
 }
