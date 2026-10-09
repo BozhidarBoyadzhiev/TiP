@@ -1,23 +1,17 @@
 "use strict";
 
 // The virtual panda: watches /ws/observe/{slug} and plays the LED patterns of docs/DEVICE_PROTOCOL.md
-// with the same timings as the physical panda.
+// with the same timings as the physical panda, scaled by the reaction's repeats.
 (function () {
     const QUEUE_SIZE = 4;
+    const MIN_REPEATS = 1;
+    const MAX_REPEATS = 5;
     const BACKOFF_SECONDS = [1, 2, 4, 8, 16, 30];
     const JITTER = 0.2;
     const FLICK_PERIOD_MS = 1000;
     const FLICK_MS = 30;
 
     // Each step is [duration ms, level at start, level at end], levels 0 (off) to 1 (full, duty 255).
-    function repeat(times, steps) {
-        let all = [];
-        for (let i = 0; i < times; i++) {
-            all = all.concat(steps);
-        }
-        return all;
-    }
-
     // Six quick flicks with uneven peaks (duty 255, 140, 230, 110, 255, 170), each rising over 60 ms,
     // falling over 90 ms and followed by a 70 ms gap.
     const GIGGLE = [255, 140, 230, 110, 255, 170].flatMap((duty) => [
@@ -32,30 +26,39 @@
         [300, 1, 0],
     ];
 
+    // A pattern plays its unit baseUnits + (repeats - 1) times, with gapMs of darkness between units.
     const REACTIONS = {
         WARM: {
             caption: "Warm message",
             colour: "#ff9eb5",
-            steps: repeat(3, [
+            unit: [
                 [400, 0, 1],
                 [600, 1, 0],
                 [200, 0, 0],
-            ]),
+            ],
+            baseUnits: 3,
+            gapMs: 0,
         },
         PLAYFUL: {
             caption: "Playful message",
             colour: "#ffcf4d",
-            steps: GIGGLE.concat([[250, 0, 0]], GIGGLE),
+            unit: GIGGLE,
+            baseUnits: 2,
+            gapMs: 250,
         },
         REQUEST: {
             caption: "Request noted",
             colour: "#6fa8ff",
-            steps: NOTED.concat([[300, 0, 0]], NOTED),
+            unit: NOTED,
+            baseUnits: 2,
+            gapMs: 300,
         },
         PLAIN: {
             caption: "Tip received",
             colour: "#fff4e0",
-            steps: [[700, 1, 1]],
+            unit: [[700, 1, 1]],
+            baseUnits: 1,
+            gapMs: 300,
         },
     };
 
@@ -78,6 +81,23 @@
     function slugFromPath() {
         const parts = window.location.pathname.split("/").filter(Boolean);
         return parts.length >= 2 && parts[0] === "p" ? decodeURIComponent(parts[1]) : null;
+    }
+
+    // A missing or non integer repeats means 1; other values are clamped to 1 to 5.
+    function repeatsOf(value) {
+        return Number.isInteger(value) ? Math.min(MAX_REPEATS, Math.max(MIN_REPEATS, value)) : MIN_REPEATS;
+    }
+
+    function stepsFor(reaction, repeats) {
+        const units = reaction.baseUnits + repeats - 1;
+        let steps = [];
+        for (let i = 0; i < units; i++) {
+            if (i > 0 && reaction.gapMs > 0) {
+                steps.push([reaction.gapMs, 0, 0]);
+            }
+            steps = steps.concat(reaction.unit);
+        }
+        return steps;
     }
 
     function duration(steps) {
@@ -125,9 +145,10 @@
     }
 
     function startNext(now) {
-        const name = state.queue.shift();
-        const reaction = REACTIONS[name];
-        state.playing = { reaction: reaction, start: now, length: duration(reaction.steps) };
+        const next = state.queue.shift();
+        const reaction = REACTIONS[next.name];
+        const steps = stepsFor(reaction, next.repeats);
+        state.playing = { steps: steps, start: now, length: duration(steps) };
         setColour(reaction.colour);
         showCaption(reaction.caption);
     }
@@ -138,8 +159,8 @@
         }
     }
 
-    // Plays the current reaction; with reduced motion it holds the light on for the pattern's length
-    // instead of fading or flicking. With nothing playing and no connection, it gives the status flick.
+    // Plays the current reaction; with reduced motion it holds the light on for the scaled pattern's
+    // length instead of fading or flicking. With nothing playing and no connection, it gives the status flick.
     function tick(now) {
         state.frame = null;
         if (state.playing && now - state.playing.start >= state.playing.length) {
@@ -150,7 +171,7 @@
         }
         if (state.playing) {
             const elapsed = now - state.playing.start;
-            setLed(reducedMotion.matches ? 1 : levelAt(state.playing.reaction.steps, elapsed));
+            setLed(reducedMotion.matches ? 1 : levelAt(state.playing.steps, elapsed));
             ensureLoop();
             return;
         }
@@ -176,7 +197,7 @@
             return;
         }
         if (message && message.type === "reaction" && Object.hasOwn(REACTIONS, message.reaction)) {
-            enqueue(message.reaction);
+            enqueue({ name: message.reaction, repeats: repeatsOf(message.repeats) });
         }
     }
 

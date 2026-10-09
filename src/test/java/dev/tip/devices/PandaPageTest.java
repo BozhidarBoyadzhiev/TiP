@@ -69,6 +69,8 @@ class PandaPageTest extends IntegrationTest {
                 .contains("WARM:", "PLAYFUL:", "REQUEST:", "PLAIN:")
                 .contains("\"Warm message\"", "\"Playful message\"", "\"Request noted\"", "\"Tip received\"")
                 .contains("[255, 140, 230, 110, 255, 170]")
+                .contains("baseUnits: 3", "baseUnits: 2", "baseUnits: 1", "gapMs: 250", "gapMs: 300")
+                .contains("repeatsOf(message.repeats)")
                 .doesNotContain("POSITIVE", "NEGATIVE", "NEUTRAL", "Rude message");
     }
 
