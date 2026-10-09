@@ -45,6 +45,17 @@ class TipPageTest extends IntegrationTest {
     }
 
     @Test
+    void messageBoxInvitesAnyKindOfMessageUpTo280Characters() throws Exception {
+        mvc.perform(get("/t/demo-panda"))
+                .andExpect(
+                        content().string(containsString("<label for=\"message\">Leave a message (optional)</label>")))
+                .andExpect(content().string(containsString("maxlength=\"280\"")))
+                .andExpect(content().string(containsString("0 / 280")))
+                .andExpect(content()
+                        .string(containsString("placeholder=\"Say something nice, make a request, or just tip.\"")));
+    }
+
+    @Test
     void pageAssetsArePublic() throws Exception {
         mvc.perform(get("/js/tip.js")).andExpect(status().isOk());
         mvc.perform(get("/css/tip.css")).andExpect(status().isOk());

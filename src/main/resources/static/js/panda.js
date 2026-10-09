@@ -18,29 +18,43 @@
         return all;
     }
 
-    const STROBE = repeat(12, [
-        [60, 1, 1],
-        [60, 0, 0],
+    // Six quick flicks with uneven peaks (duty 255, 140, 230, 110, 255, 170), each rising over 60 ms,
+    // falling over 90 ms and followed by a 70 ms gap.
+    const GIGGLE = [255, 140, 230, 110, 255, 170].flatMap((duty) => [
+        [60, 0, duty / 255],
+        [90, duty / 255, 0],
+        [70, 0, 0],
     ]);
 
+    const NOTED = [
+        [300, 0, 1],
+        [500, 1, 1],
+        [300, 1, 0],
+    ];
+
     const REACTIONS = {
-        POSITIVE: {
-            caption: "Kind message",
-            colour: "#ff6b8b",
+        WARM: {
+            caption: "Warm message",
+            colour: "#ff9eb5",
             steps: repeat(3, [
                 [400, 0, 1],
                 [600, 1, 0],
                 [200, 0, 0],
             ]),
         },
-        NEGATIVE: {
-            caption: "Rude message",
-            colour: "#ff3b2f",
-            steps: STROBE.concat([[250, 0, 0]], STROBE),
+        PLAYFUL: {
+            caption: "Playful message",
+            colour: "#ffcf4d",
+            steps: GIGGLE.concat([[250, 0, 0]], GIGGLE),
         },
-        NEUTRAL: {
+        REQUEST: {
+            caption: "Request noted",
+            colour: "#6fa8ff",
+            steps: NOTED.concat([[300, 0, 0]], NOTED),
+        },
+        PLAIN: {
             caption: "Tip received",
-            colour: "#ffb347",
+            colour: "#fff4e0",
             steps: [[700, 1, 1]],
         },
     };
@@ -125,7 +139,7 @@
     }
 
     // Plays the current reaction; with reduced motion it holds the light on for the pattern's length
-    // instead of fading or strobing. With nothing playing and no connection, it gives the status flick.
+    // instead of fading or flicking. With nothing playing and no connection, it gives the status flick.
     function tick(now) {
         state.frame = null;
         if (state.playing && now - state.playing.start >= state.playing.length) {
@@ -141,7 +155,7 @@
             return;
         }
         if (!state.connected && !state.stopped && !reducedMotion.matches) {
-            setColour(REACTIONS.NEUTRAL.colour);
+            setColour(REACTIONS.PLAIN.colour);
             setLed(now % FLICK_PERIOD_MS < FLICK_MS ? 1 : 0);
             ensureLoop();
             return;

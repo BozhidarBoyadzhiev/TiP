@@ -61,6 +61,18 @@ class PandaPageTest extends IntegrationTest {
     }
 
     @Test
+    void pandaPlaysTheFourReactionsWithTheirCaptions() throws Exception {
+        String script =
+                mvc.perform(get("/js/panda.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .contains("WARM:", "PLAYFUL:", "REQUEST:", "PLAIN:")
+                .contains("\"Warm message\"", "\"Playful message\"", "\"Request noted\"", "\"Tip received\"")
+                .contains("[255, 140, 230, 110, 255, 170]")
+                .doesNotContain("POSITIVE", "NEGATIVE", "NEUTRAL", "Rude message");
+    }
+
+    @Test
     void tipSuccessScreenLinksToThePanda() throws Exception {
         mvc.perform(get("/t/demo-panda")).andExpect(content().string(containsString("Watch the panda")));
         mvc.perform(get("/js/tip.js")).andExpect(content().string(containsString("\"/p/\" + encodeURIComponent")));
