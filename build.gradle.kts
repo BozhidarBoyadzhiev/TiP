@@ -58,3 +58,20 @@ spotless {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// Local runs read .env (KEY=value lines) as environment variables, the way the app is configured in production.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    val envFile = file(".env")
+    if (envFile.exists()) {
+        envFile.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+            .forEach { line ->
+                val key = line.substringBefore("=").trim()
+                val value = line.substringAfter("=").trim()
+                if (value.isNotEmpty()) {
+                    environment(key, value)
+                }
+            }
+    }
+}
