@@ -78,6 +78,9 @@ class TipService {
 
     TipStatus capture(UUID tipId) {
         Tip tip = tips.findById(tipId).orElseThrow(TipExceptions.TipNotFound::new);
+        if (tip.status().closed()) {
+            throw new TipExceptions.TipClosed();
+        }
         if (!tip.status().capturable()) {
             return tip.status();
         }

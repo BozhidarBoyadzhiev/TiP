@@ -16,6 +16,7 @@
         PAYPAL_CAPTURE_FAILED: "PayPal could not complete the payment. You have not been charged twice. Please try again.",
         PAYPAL_ORDER_NOT_FOUND: "PayPal could not find this payment. Please start again.",
         TIP_NOT_FOUND: "This tip could not be found. Please start again.",
+        TIP_CLOSED: "This tip can no longer be completed. Please start again.",
     };
     const GENERIC_ERROR = "Something went wrong. Please try again.";
 

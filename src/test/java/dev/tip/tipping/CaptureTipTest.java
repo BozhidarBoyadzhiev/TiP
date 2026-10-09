@@ -3,8 +3,10 @@ package dev.tip.tipping;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +21,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -137,6 +140,38 @@ class CaptureTipTest extends IntegrationTest {
                 .andExpect(jsonPath("$.status").value("REFUNDED"));
 
         PAYPAL.verify(0, postRequestedFor(urlPathEqualTo(PayPalStubs.capturePath(orderId))));
+    }
+
+    @Test
+    void failedAndAbandonedTipsAreClosedWith409WithoutCallingPayPal() throws Exception {
+        UUID failed = data.tip(deviceId, "FAILED", TestData.uniqueId("ORDER"), Instant.now());
+        UUID abandoned = data.tip(deviceId, "ABANDONED", TestData.uniqueId("ORDER"), Instant.now());
+
+        capture(failed)
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("TIP_CLOSED"));
+        capture(abandoned)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TIP_CLOSED"));
+
+        assertThat(PAYPAL.findAll(postRequestedFor(urlPathMatching("/v2/checkout/orders/.*/capture"))))
+                .isEmpty();
+    }
+
+    @Test
+    void pendingAndCapturedTipsKeepReturningTheirStatus() throws Exception {
+        UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());
+        String pendingOrder = TestData.uniqueId("ORDER");
+        UUID pending = data.tip(deviceId, "PENDING", pendingOrder, Instant.now());
+        PayPalStubs.capturePending(PAYPAL, pendingOrder, captureId);
+
+        capture(captured)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CAPTURED"));
+        capture(pending)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
     }
 
     @Test

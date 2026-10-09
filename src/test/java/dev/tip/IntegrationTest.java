@@ -12,30 +12,41 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Base for tests that run the whole app on a random port against PostgreSQL from Testcontainers, with
- * PayPal stubbed by one WireMock server shared by every test class.
+ * PayPal and Anthropic stubbed by WireMock servers shared by every test class. Anthropic answers NEUTRAL
+ * unless a test stubs something more specific.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, TestData.class, CapturedEvents.class})
+@Import({TestcontainersConfiguration.class, TestData.class, CapturedEvents.class, ReactedEvents.class})
 public abstract class IntegrationTest {
 
     protected static final WireMockServer PAYPAL =
             new WireMockServer(WireMockConfiguration.options().dynamicPort());
 
+    protected static final WireMockServer ANTHROPIC =
+            new WireMockServer(WireMockConfiguration.options().dynamicPort());
+
     static {
         PAYPAL.start();
-        Runtime.getRuntime().addShutdownHook(new Thread(PAYPAL::stop));
+        ANTHROPIC.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            PAYPAL.stop();
+            ANTHROPIC.stop();
+        }));
     }
 
     @DynamicPropertySource
-    static void payPalBaseUrl(DynamicPropertyRegistry registry) {
+    static void stubBaseUrls(DynamicPropertyRegistry registry) {
         registry.add("PAYPAL_BASE_URL", PAYPAL::baseUrl);
+        registry.add("ANTHROPIC_BASE_URL", ANTHROPIC::baseUrl);
     }
 
     @BeforeEach
-    void resetPayPal() {
+    void resetStubs() {
         PAYPAL.resetAll();
         PayPalStubs.token(PAYPAL);
+        ANTHROPIC.resetAll();
+        AnthropicStubs.fallback(ANTHROPIC);
     }
 }

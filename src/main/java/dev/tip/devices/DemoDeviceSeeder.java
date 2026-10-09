@@ -1,6 +1,9 @@
 package dev.tip.devices;
 
+import dev.tip.owners.api.OwnerProvisioning;
+import java.security.MessageDigest;
 import java.time.Clock;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,18 +12,31 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Creates the device named by {@code TIP_DEMO_DEVICE_SLUG} on startup when it does not exist yet. */
+/**
+ * On startup, creates the demo owner when missing and makes sure the demo device exists, belongs to
+ * that owner and has the hash of {@code TIP_DEMO_DEVICE_SECRET}, so changing the variable rotates the
+ * secret. Running it again with the same settings changes nothing.
+ */
 @Component
 class DemoDeviceSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDeviceSeeder.class);
 
-    private final DemoDeviceProperties properties;
+    private final DemoOwnerProperties ownerProperties;
+    private final DemoDeviceProperties deviceProperties;
+    private final OwnerProvisioning owners;
     private final DeviceRepository devices;
     private final Clock clock;
 
-    DemoDeviceSeeder(DemoDeviceProperties properties, DeviceRepository devices, Clock clock) {
-        this.properties = properties;
+    DemoDeviceSeeder(
+            DemoOwnerProperties ownerProperties,
+            DemoDeviceProperties deviceProperties,
+            OwnerProvisioning owners,
+            DeviceRepository devices,
+            Clock clock) {
+        this.ownerProperties = ownerProperties;
+        this.deviceProperties = deviceProperties;
+        this.owners = owners;
         this.devices = devices;
         this.clock = clock;
     }
@@ -28,10 +44,38 @@ class DemoDeviceSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (!properties.enabled() || devices.existsBySlug(properties.slug())) {
+        Optional<UUID> ownerId = ownerProperties.enabled()
+                ? Optional.of(owners.ensureOwner(
+                        ownerProperties.email(), ownerProperties.password(), ownerProperties.displayName()))
+                : Optional.empty();
+        if (!deviceProperties.enabled()) {
             return;
         }
-        devices.save(new Device(UUID.randomUUID(), properties.slug(), properties.displayName(), clock.instant()));
-        log.info("Created demo device {}", properties.slug());
+        UUID owner = ownerId.orElseThrow(() -> new IllegalStateException(
+                "TIP_DEMO_DEVICE_SLUG is set, so TIP_DEMO_OWNER_EMAIL must be set too: every device needs an owner"));
+        byte[] secretHash = DeviceSecrets.hash(
+                DeviceSecrets.decode(deviceProperties.secret()).orElseThrow());
+
+        Optional<Device> existing = devices.findBySlug(deviceProperties.slug());
+        if (existing.isEmpty()) {
+            devices.save(new Device(
+                    UUID.randomUUID(),
+                    deviceProperties.slug(),
+                    deviceProperties.displayName(),
+                    owner,
+                    secretHash,
+                    clock.instant()));
+            log.info("Created demo device {}", deviceProperties.slug());
+            return;
+        }
+        Device device = existing.get();
+        if (!device.ownerId().equals(owner)) {
+            device.assignTo(owner);
+            log.info("Assigned demo device {} to owner {}", device.slug(), owner);
+        }
+        if (!MessageDigest.isEqual(device.secretHash(), secretHash)) {
+            device.replaceSecretHash(secretHash);
+            log.info("Rotated the secret of demo device {}", device.slug());
+        }
     }
 }

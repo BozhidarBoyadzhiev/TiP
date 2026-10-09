@@ -8,5 +8,5 @@ interface DeviceRepository extends JpaRepository<Device, UUID> {
 
     Optional<Device> findBySlug(String slug);
 
-    boolean existsBySlug(String slug);
+    boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 }

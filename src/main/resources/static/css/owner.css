@@ -1,0 +1,30 @@
+.field {
+    margin-bottom: 16px;
+}
+
+button.primary,
+button.secondary {
+    width: 100%;
+    min-height: 48px;
+    font: inherit;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+button.primary {
+    background: var(--accent);
+    color: var(--surface);
+}
+
+button.secondary {
+    background: var(--surface);
+    color: var(--accent);
+}
+
+button[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+}

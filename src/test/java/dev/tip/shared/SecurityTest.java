@@ -1,26 +1,95 @@
 package dev.tip.shared;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.tip.IntegrationTest;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.ApplicationContext;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 class SecurityTest extends IntegrationTest {
 
     @Autowired
     MockMvc mvc;
 
+    @Autowired
+    ApplicationContext context;
+
+    @LocalServerPort
+    int port;
+
     @Test
     void unknownPathsAreDenied() throws Exception {
         mvc.perform(get("/admin")).andExpect(status().isForbidden());
         mvc.perform(post("/api/private/things")).andExpect(status().isForbidden());
         mvc.perform(get("/actuator/env")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deniedPathIsProblemDetailsEvenForABrowser() throws Exception {
+        expectProblem(mvc.perform(get("/admin").accept(MediaType.TEXT_HTML)), 403, "FORBIDDEN")
+                .andExpect(jsonPath("$.instance").value("/admin"));
+    }
+
+    @Test
+    void unknownPublicPathIsProblemDetails404() throws Exception {
+        expectProblem(mvc.perform(get("/api/public/no-such-endpoint")), 404, "NOT_FOUND");
+    }
+
+    @Test
+    void unauthenticatedOwnerApiIsProblemDetails401() throws Exception {
+        expectProblem(
+                mvc.perform(post("/api/owner/tips/{tipId}/refund", UUID.randomUUID())
+                        .with(csrf())),
+                401,
+                "UNAUTHORIZED");
+    }
+
+    @Test
+    void requestRejectedByTheContainerIsProblemDetailsToo() throws Exception {
+        HttpResponse<String> response = HttpClient.newHttpClient()
+                .send(
+                        HttpRequest.newBuilder(URI.create(
+                                        "http://localhost:" + port + "/api/public/devices/demo-panda;jsessionid=x"))
+                                .header("Accept", "text/html")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.headers().firstValue("Content-Type"))
+                .hasValueSatisfying(type -> assertThat(type).startsWith(MediaType.APPLICATION_PROBLEM_JSON_VALUE));
+        assertThat(response.body())
+                .contains("\"code\":\"BAD_REQUEST\"")
+                .doesNotContain("timestamp")
+                .doesNotContain("\"path\"")
+                .doesNotContain("Exception");
+    }
+
+    @Test
+    void springCreatesNoInMemoryUserWithAGeneratedPassword() {
+        assertThat(context.getBeansOfType(InMemoryUserDetailsManager.class)).isEmpty();
+        assertThat(context.getBeansOfType(UserDetailsService.class).values())
+                .singleElement()
+                .satisfies(service -> assertThat(service.getClass().getName()).startsWith("dev.tip.owners."));
     }
 
     @Test
@@ -40,5 +109,23 @@ class SecurityTest extends IntegrationTest {
                                 "Content-Security-Policy", org.hamcrest.Matchers.not(containsString("unsafe-inline"))))
                 .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
                 .andExpect(header().string("Strict-Transport-Security", containsString("max-age=31536000")));
+    }
+
+    @Test
+    void ownerPagesCarrySecurityHeadersToo() throws Exception {
+        mvc.perform(get("/owner/login").secure(true))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Security-Policy", containsString("frame-ancestors 'none'")))
+                .andExpect(header().string("Strict-Transport-Security", containsString("max-age=31536000")));
+    }
+
+    private static ResultActions expectProblem(ResultActions result, int status, String code) throws Exception {
+        return result.andExpect(status().is(status))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(status))
+                .andExpect(jsonPath("$.code").value(code))
+                .andExpect(jsonPath("$.timestamp").doesNotExist())
+                .andExpect(jsonPath("$.path").doesNotExist())
+                .andExpect(jsonPath("$.trace").doesNotExist());
     }
 }

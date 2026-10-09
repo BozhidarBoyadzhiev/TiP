@@ -49,8 +49,10 @@ class PayPalWebhookProcessor {
         boolean changed = switch (event.eventType()) {
             case PayPalWebhookEvent.CAPTURE_COMPLETED -> transitions.capture(tipId.get(), event.resourceId());
             case PayPalWebhookEvent.CAPTURE_PENDING -> transitions.pending(tipId.get(), event.resourceId());
-            case PayPalWebhookEvent.CAPTURE_DENIED -> transitions.fail(tipId.get());
+            case PayPalWebhookEvent.CAPTURE_DENIED, PayPalWebhookEvent.CAPTURE_DECLINED ->
+                transitions.fail(tipId.get());
             case PayPalWebhookEvent.CAPTURE_REFUNDED -> transitions.refund(tipId.get());
+            case PayPalWebhookEvent.CAPTURE_REVERSED -> transitions.reverse(tipId.get());
             default -> false;
         };
         log.info(
@@ -74,12 +76,17 @@ class PayPalWebhookProcessor {
             case PayPalWebhookEvent.CAPTURE_COMPLETED,
                     PayPalWebhookEvent.CAPTURE_PENDING,
                     PayPalWebhookEvent.CAPTURE_DENIED,
-                    PayPalWebhookEvent.CAPTURE_REFUNDED -> true;
+                    PayPalWebhookEvent.CAPTURE_DECLINED,
+                    PayPalWebhookEvent.CAPTURE_REFUNDED,
+                    PayPalWebhookEvent.CAPTURE_REVERSED -> true;
             default -> false;
         };
     }
 
-    /** By {@code custom_id} (our tip id), then the related order id, then the refunded capture id. */
+    /**
+     * By {@code custom_id} (our tip id), then the related order id, then the refunded capture id for a
+     * refund, or the resource id as our capture id for a capture event.
+     */
     private Optional<UUID> findTip(PayPalWebhookEvent event) {
         Optional<UUID> byCustomId = event.customTipId().filter(tips::existsById);
         if (byCustomId.isPresent()) {
@@ -91,6 +98,11 @@ class PayPalWebhookProcessor {
                 return byOrder;
             }
         }
-        return Optional.ofNullable(event.refundedCaptureId()).flatMap(tips::findIdByPaypalCaptureId);
+        Optional<UUID> byRefundedCapture =
+                Optional.ofNullable(event.refundedCaptureId()).flatMap(tips::findIdByPaypalCaptureId);
+        if (byRefundedCapture.isPresent() || event.eventType().equals(PayPalWebhookEvent.CAPTURE_REFUNDED)) {
+            return byRefundedCapture;
+        }
+        return Optional.ofNullable(event.resourceId()).flatMap(tips::findIdByPaypalCaptureId);
     }
 }

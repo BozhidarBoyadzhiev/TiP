@@ -21,7 +21,9 @@ record PayPalWebhookEvent(
     static final String CAPTURE_COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
     static final String CAPTURE_PENDING = "PAYMENT.CAPTURE.PENDING";
     static final String CAPTURE_DENIED = "PAYMENT.CAPTURE.DENIED";
+    static final String CAPTURE_DECLINED = "PAYMENT.CAPTURE.DECLINED";
     static final String CAPTURE_REFUNDED = "PAYMENT.CAPTURE.REFUNDED";
+    static final String CAPTURE_REVERSED = "PAYMENT.CAPTURE.REVERSED";
 
     private static final String CAPTURES_PATH = "/captures/";
 

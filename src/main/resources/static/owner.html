@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>TiP owner</title>
+    <link rel="stylesheet" href="/css/tip.css">
+    <link rel="stylesheet" href="/css/owner.css">
+</head>
+<body>
+<main class="card">
+    <h1>Signed in as {{DISPLAY_NAME}}</h1>
+    <p class="hint">Your dashboard is on its way.</p>
+
+    <form method="post" action="/owner/logout">
+        <input type="hidden" name="{{CSRF_PARAMETER}}" value="{{CSRF_TOKEN}}">
+        <button type="submit" class="secondary">Sign out</button>
+    </form>
+</main>
+</body>
+</html>

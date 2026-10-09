@@ -26,6 +26,18 @@ final class TipExceptions {
         }
     }
 
+    static final class TipClosed extends DomainException {
+        TipClosed() {
+            super(HttpStatus.CONFLICT, "TIP_CLOSED", "This tip can no longer be completed. Please start again.");
+        }
+    }
+
+    static final class TipNotRefundable extends DomainException {
+        TipNotRefundable() {
+            super(HttpStatus.CONFLICT, "TIP_NOT_REFUNDABLE", "Only captured tips can be refunded.");
+        }
+    }
+
     static final class InstrumentDeclined extends DomainException {
         InstrumentDeclined() {
             super(

@@ -52,6 +52,11 @@ interface TipRepository extends JpaRepository<Tip, UUID> {
 
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE tip SET status = 'REVERSED' WHERE id = :id AND status = 'CAPTURED'", nativeQuery = true)
+    int markReversed(UUID id);
+
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
             value = "UPDATE tip SET status = 'ABANDONED' WHERE status = 'CREATED' AND created_at < :cutoff",
             nativeQuery = true)

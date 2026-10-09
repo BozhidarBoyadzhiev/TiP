@@ -15,6 +15,24 @@ public final class PayPalStubs {
 
     private PayPalStubs() {}
 
+    public static String refundPath(String captureId) {
+        return "/v2/payments/captures/" + captureId + "/refund";
+    }
+
+    public static void refund(WireMockServer server, String captureId, String refundId, String status) {
+        server.stubFor(post(urlPathEqualTo(refundPath(captureId))).willReturn(json(201, refundBody(refundId, status))));
+    }
+
+    public static void refundWithJitter(
+            WireMockServer server, String captureId, String refundId, String status, int maxDelayMillis) {
+        server.stubFor(post(urlPathEqualTo(refundPath(captureId)))
+                .willReturn(json(201, refundBody(refundId, status)).withUniformRandomDelay(0, maxDelayMillis)));
+    }
+
+    public static void refundError(WireMockServer server, String captureId, int status, String name, String issue) {
+        server.stubFor(post(urlPathEqualTo(refundPath(captureId))).willReturn(json(status, error(name, issue))));
+    }
+
     public static String capturePath(String orderId) {
         return "/v2/checkout/orders/" + orderId + "/capture";
     }
@@ -81,6 +99,12 @@ public final class PayPalStubs {
                 {"name":"%s","details":[{"issue":"%s","description":"stubbed"}],
                  "message":"stubbed","debug_id":"dbg1","links":[]}
                 """.formatted(name, issue);
+    }
+
+    private static String refundBody(String refundId, String status) {
+        return """
+                {"id":"%s","status":"%s","amount":{"currency_code":"GBP","value":"2.00"},"links":[]}
+                """.formatted(refundId, status);
     }
 
     private static String order(String orderId, String orderStatus, String captureId, String captureStatus) {

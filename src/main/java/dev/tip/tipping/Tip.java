@@ -68,8 +68,16 @@ class Tip {
         return id;
     }
 
+    UUID deviceId() {
+        return deviceId;
+    }
+
     TipStatus status() {
         return status;
+    }
+
+    String paypalCaptureId() {
+        return paypalCaptureId;
     }
 
     String paypalOrderId() {

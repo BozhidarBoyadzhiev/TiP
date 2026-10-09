@@ -14,6 +14,9 @@ public interface PayPalGateway {
     /** Reads an order and reports the state of its capture, used to reconcile an already captured order. */
     CaptureResult lookupOrder(String orderId);
 
+    /** Fully refunds a capture. Sends {@code PayPal-Request-Id: refund-<tipId>}. */
+    RefundResult refundCapture(UUID tipId, String captureId);
+
     /** Verifies a webhook signature against the exact raw body PayPal sent. */
     WebhookVerification verifyWebhook(WebhookTransmission transmission, String rawBody);
 }

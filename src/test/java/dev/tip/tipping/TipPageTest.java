@@ -52,8 +52,10 @@ class TipPageTest extends IntegrationTest {
 
     @Test
     void pageNeverUsesInnerHtml() throws Exception {
-        mvc.perform(get("/js/tip.js"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("innerHTML"))));
+        for (String script : new String[] {"/js/tip.js", "/js/owner-login.js"}) {
+            mvc.perform(get(script))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(org.hamcrest.Matchers.not(containsString("innerHTML"))));
+        }
     }
 }

@@ -139,6 +139,60 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
+    void declinedWebhookFailsTheTipLikeDenied() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        UUID denied = data.tip(deviceId, "PENDING", TestData.uniqueId("ORDER"), Instant.now());
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.DECLINED", captureId, tipId.toString(), orderId))
+                .andExpect(status().isOk());
+        webhook(WebhookEvents.capture(
+                        TestData.uniqueId("WH"),
+                        "PAYMENT.CAPTURE.DENIED",
+                        TestData.uniqueId("CAPTURE"),
+                        denied.toString(),
+                        null))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("FAILED");
+        assertThat(data.tipStatus(denied)).isEqualTo("FAILED");
+        assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    @Test
+    void reversedWebhookMovesCapturedToReversed() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());
+        data.setCaptureId(captured, captureId);
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, captured.toString(), null))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(captured)).isEqualTo("REVERSED");
+    }
+
+    @Test
+    void reversalIsMatchedByCaptureIdWithoutCustomId() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());
+        data.setCaptureId(captured, captureId);
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, null, null))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(captured)).isEqualTo("REVERSED");
+    }
+
+    @Test
+    void reversalDoesNotTouchATipThatWasNeverCaptured() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, tipId.toString(), orderId))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+    }
+
+    @Test
     void refundedWebhookMovesCapturedToRefunded() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
         UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());

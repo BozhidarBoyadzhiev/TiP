@@ -20,15 +20,24 @@ class Device {
     @Column(name = "display_name", nullable = false, length = 80)
     private String displayName;
 
+    @Column(name = "owner_id", nullable = false)
+    private UUID ownerId;
+
+    /** SHA-256 of the device secret's 32 decoded bytes. */
+    @Column(name = "secret_hash", nullable = false)
+    private byte[] secretHash;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     protected Device() {}
 
-    Device(UUID id, String slug, String displayName, Instant createdAt) {
+    Device(UUID id, String slug, String displayName, UUID ownerId, byte[] secretHash, Instant createdAt) {
         this.id = id;
         this.slug = slug;
         this.displayName = displayName;
+        this.ownerId = ownerId;
+        this.secretHash = secretHash.clone();
         this.createdAt = createdAt;
     }
 
@@ -42,5 +51,21 @@ class Device {
 
     String displayName() {
         return displayName;
+    }
+
+    UUID ownerId() {
+        return ownerId;
+    }
+
+    byte[] secretHash() {
+        return secretHash.clone();
+    }
+
+    void assignTo(UUID ownerId) {
+        this.ownerId = ownerId;
+    }
+
+    void replaceSecretHash(byte[] secretHash) {
+        this.secretHash = secretHash.clone();
     }
 }

@@ -48,4 +48,10 @@ class TipTransitions {
     public boolean refund(UUID tipId) {
         return tips.markRefunded(tipId) == 1;
     }
+
+    /** A chargeback: PayPal took a captured payment back. */
+    @Transactional
+    public boolean reverse(UUID tipId) {
+        return tips.markReversed(tipId) == 1;
+    }
 }
