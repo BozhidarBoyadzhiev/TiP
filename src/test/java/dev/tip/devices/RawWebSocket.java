@@ -6,6 +6,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -17,6 +19,7 @@ import java.util.Map;
 final class RawWebSocket implements AutoCloseable {
 
     private static final int TIMEOUT_MILLIS = 10_000;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final Socket socket;
     private final InputStream in;
@@ -45,7 +48,9 @@ final class RawWebSocket implements AutoCloseable {
                 .append("\r\n")
                 .append("Upgrade: websocket\r\n")
                 .append("Connection: Upgrade\r\n")
-                .append("Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n")
+                .append("Sec-WebSocket-Key: ")
+                .append(handshakeKey())
+                .append("\r\n")
                 .append("Sec-WebSocket-Version: 13\r\n");
         extraHeaders.forEach(
                 (name, value) -> request.append(name).append(": ").append(value).append("\r\n"));
@@ -66,6 +71,13 @@ final class RawWebSocket implements AutoCloseable {
         }
         String body = status == 101 ? "" : readBody(in, headers);
         return new RawWebSocket(socket, status, headers, body);
+    }
+
+    /** The RFC 6455 handshake nonce: 16 random bytes, Base64 encoded, fresh for every handshake. */
+    private static String handshakeKey() {
+        byte[] nonce = new byte[16];
+        RANDOM.nextBytes(nonce);
+        return Base64.getEncoder().encodeToString(nonce);
     }
 
     /** The next frame from the server: opcode and payload. Server frames are never masked. */
