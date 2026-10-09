@@ -1,6 +1,6 @@
 # TiP agent rules
 
-TiP (Tip integrated Panda) is an NFC tipping device built for the PayPal AI Hackathon. A cardboard panda holds a coin with an NFC tag inside. A phone tap opens a tip page, the tipper pays with PayPal and can leave a message, Claude reads the message, and the panda reacts with its LED. Owners get a dashboard with their tips, AI summaries and moderation.
+TiP (Tip integrated Panda) is an NFC tipping device built for the PayPal AI Hackathon. A cardboard panda holds a coin with an NFC tag inside. A phone tap opens a tip page, the tipper pays with PayPal and can leave a message, Claude reads what kind of message it is (warm, playful, a request, or plain), and the panda plays a light pattern for that kind. Abusive messages are flagged and get the plain blink, so trolls get no reaction. Owners get a dashboard with their tips, AI summaries, notes on requests and feedback, and moderation.
 
 Before any task, read `docs/ARCHITECTURE.md`, `docs/DEVICE_PROTOCOL.md` and `CODEBASE.md`.
 

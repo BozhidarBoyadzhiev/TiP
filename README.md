@@ -1,7 +1,7 @@
 # TiP
 
 TiP (Tip integrated Panda) is an NFC tipping device: a cardboard panda holds a coin with an NFC tag, a phone tap opens a tip page, and the tipper pays with PayPal and can leave a message.
-The backend takes the payment through PayPal Orders v2, confirms it through verified webhooks, and has Claude read the message so the panda reacts with its LED. Owners sign in to refund tips.
+The backend takes the payment through PayPal Orders v2, confirms it through verified webhooks, and has Claude read what kind of message it is (warm, playful, a request, or plain) so the panda plays a light pattern for it. Abusive messages are flagged and get the plain blink, so trolls get no show. Owners sign in to refund tips.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 
 2. Fill `.env`. Every variable is explained in `.env.example`. `.env` is git ignored; never commit it.
    - `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from your sandbox app.
-   - `ANTHROPIC_API_KEY`, or `TIP_AI_ENABLED=false` to run without Claude (every tip then reacts `NEUTRAL`).
+   - `ANTHROPIC_API_KEY`, or `TIP_AI_ENABLED=false` to run without Claude (every tip then reacts `PLAIN`).
    - `TIP_DEMO_OWNER_EMAIL`, `TIP_DEMO_OWNER_PASSWORD` (12 or more characters) and `TIP_DEMO_OWNER_NAME` to get an owner login.
    - `TIP_DEMO_DEVICE_SLUG`, `TIP_DEMO_DEVICE_NAME` and `TIP_DEMO_DEVICE_SECRET` to get a device owned by that owner.
 
@@ -55,7 +55,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
-7. Watch the virtual panda at `<TIP_PUBLIC_BASE_URL>/p/<your demo slug>` (the page must be opened from that origin). It plays the same light patterns as the physical one. The rude message strobe can be disabled with your operating system's reduce motion setting (`prefers-reduced-motion`): the panda then holds a steady light instead of flashing.
+7. Watch the virtual panda at `<TIP_PUBLIC_BASE_URL>/p/<your demo slug>` (the page must be opened from that origin). It plays the same light patterns as the physical one. With your operating system's reduce motion setting (`prefers-reduced-motion`) the panda holds a steady light in the reaction's colour instead of fading and flicking.
 
 The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes or is clearly not random (all bytes the same, or fewer than 16 distinct byte values).
 
@@ -77,9 +77,9 @@ The virtual panda and the fake device play the same reactions as the physical pa
    ./gradlew fakeDevice --args="--url=ws://localhost:8080 --device=<demo device id>"
    ```
 
-   It prints `Connected as "<device name>"`, then one line per reaction with a text picture of the LED pattern, and acks each one like the real device. It reconnects with the protocol backoff when the app restarts, and stops on a wrong secret (401).
+   It prints `Connected as "<device name>"`, then one line per reaction with a text picture of the LED pattern, and acks each one like the real device, including repeats it does not play again. It reconnects with the protocol backoff when the app restarts, and stops on a wrong secret (401).
 5. Tip from a phone. The phone must reach the app over HTTPS for PayPal, so open `https://<your-ngrok-host>/t/demo-panda` (see Testing webhooks locally). The success screen links to the virtual panda.
-6. Watch both react: the virtual panda glows with a caption ("Kind message", "Rude message" or "Tip received") and the fake device prints the pattern.
+6. Watch both react: the virtual panda glows with a caption ("Warm message", "Playful message", "Request noted" or "Tip received") and the fake device prints the pattern.
 
 Use your own port in both URLs if you set `SERVER_PORT`.
 

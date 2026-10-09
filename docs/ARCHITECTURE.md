@@ -2,9 +2,11 @@
 
 ## What it is
 
-TiP turns a physical object into a PayPal tip jar that reacts. A street performer, a small shop or a delivery driver puts a TiP device on the counter. A customer taps it with their phone, picks an amount, optionally writes a message and pays with PayPal. Claude reads the message. The device reacts with a light pattern, and the owner sees every tip, an AI summary of the day, and flagged messages they can refund.
+TiP turns a physical object into a PayPal tip jar that reacts. A street performer, a small shop or a delivery driver puts a TiP device on the counter. A customer taps it with their phone, picks an amount, optionally writes a message and pays with PayPal. Claude reads the message and decides what kind it is: warm, playful, a request (or feedback the owner can act on), or plain. The device plays a light pattern for that kind. The owner sees every tip, an AI summary of the day, short notes on requests and feedback, and flagged messages they can refund.
 
-A plain PayPal QR code already takes money. What it cannot do is react, filter abuse, or tell the owner what people are saying. That is the gap TiP fills.
+The panda reacts to the kind of message, never to abuse. Almost nobody pays to insult someone, and the few who do are trolls, for whom a dramatic reaction is a reward: so a flagged message plays the same plain blink as a tip without a message, and the troll gets nothing to film.
+
+A plain PayPal QR code already takes money. What it cannot do is react, filter abuse, or tell the owner what people are saying and asking for. That is the gap TiP fills.
 
 ## Components
 
@@ -32,7 +34,7 @@ One deployable with feature packages. Features talk through `api` subpackages an
 4. The page calls `POST /api/public/tips/{tipId}/capture`. The server looks up the order id itself and captures it.
 5. PayPal also sends `PAYMENT.CAPTURE.COMPLETED` to `/webhooks/paypal`.
 6. Whichever of step 4 or 5 moves the tip from `CREATED` to `CAPTURED` first publishes `TipCaptured`, after the transaction commits.
-7. The `ai` feature classifies the message off the request thread and stores the reaction.
+7. The `ai` feature classifies the message off the request thread and stores its kind, the reaction (`PLAIN` when flagged, otherwise the kind), the flag and, for an unflagged request, a short owner note.
 8. The `devices` feature stores a delivery row, pushes the reaction to the device channel and to any observers of that device, and resends it until the device acknowledges it.
 
 ## Tip states
@@ -76,16 +78,16 @@ WHERE id = :id AND status = 'CAPTURED'
 
 ```
 PENDING ──claim──▶ PROCESSING ──▶ DONE      (classified)
-   ▲                   │      ──▶ SKIPPED   (no message, or AI disabled: NEUTRAL, no API call)
-   └── attempt failed ─┘      ──▶ FAILED    (third failure: NEUTRAL, not flagged)
+   ▲                   │      ──▶ SKIPPED   (no message, or AI disabled: PLAIN, no kind, no API call)
+   └── attempt failed ─┘      ──▶ FAILED    (third failure: PLAIN, no kind, not flagged)
        (attempts < 3)
 ```
 
 Zero rows means another worker has the tip or it is finished. The final write is conditional on `ai_status = 'PROCESSING'` and the worker's own `ai_claimed_at`, so a slow worker whose claim expired and was taken over cannot overwrite the newer result. Only the final write that changes the row sets `reaction_at` and publishes `TipReacted`, after commit, so every captured tip gets exactly one reaction event.
 
-**Crash between capture and AI.** If the process dies after the capture commits, the tip stays `CAPTURED` with `ai_status = PENDING`. If it dies during a call, the tip stays `PROCESSING` until its claim expires after two minutes. A recovery job runs every 30 seconds and runs the same flow for both. A tip whose worker died on the third attempt is failed as `NEUTRAL` by the same job once that claim expires.
+**Crash between capture and AI.** If the process dies after the capture commits, the tip stays `CAPTURED` with `ai_status = PENDING`. If it dies during a call, the tip stays `PROCESSING` until its claim expires after two minutes. A recovery job runs every 30 seconds and runs the same flow for both. A tip whose worker died on the third attempt is failed as `PLAIN` by the same job once that claim expires.
 
-**AI slow or down.** Claude calls have a 10 second timeout and SDK retries are off; the attempt counter is the retry. A timeout, an API error or a response outside the schema puts the tip back to `PENDING` for the recovery job, up to three attempts. After the third failure the tip gets `NEUTRAL` with `ai_status = FAILED`. The payment already happened, so the device must still confirm it.
+**AI slow or down.** Claude calls have a 10 second timeout and SDK retries are off; the attempt counter is the retry. A timeout, an API error or a response outside the schema puts the tip back to `PENDING` for the recovery job, up to three attempts. After the third failure the tip gets `PLAIN` with `ai_status = FAILED`. The payment already happened, so the device must still confirm it.
 
 **Refund response and webhook race.** An owner's refund calls PayPal with `PayPal-Request-Id: refund-<tipId>`. A `COMPLETED` answer and the `PAYMENT.CAPTURE.REFUNDED` webhook both try the conditional `CAPTURED` to `REFUNDED` update, so exactly one makes the transition. A `PENDING` answer leaves the tip `CAPTURED` and the webhook finishes it.
 
@@ -93,7 +95,7 @@ Zero rows means another worker has the tip or it is finished. The final write is
 
 **Duplicate reactions.** `reaction_delivery` has the tip id as its primary key and the dispatcher inserts with `ON CONFLICT (tip_id) DO NOTHING`. Only the insert that creates the row sends, so a repeated `TipReacted` neither stores nor sends twice.
 
-**Lost acks.** Delivery is at least once. A reaction without an ack is sent again 5 seconds after its last send, up to 3 times, while it is under 60 seconds old. The device drops repeats by tip id. An ack is a conditional update on the session's own device, so a device cannot acknowledge another device's tip:
+**Lost acks.** Delivery is at least once. A reaction without an ack is sent again 5 seconds after its last send, up to 3 times, while it is under 60 seconds old. The device does not play repeats again, by tip id, but acks every reaction it receives, so a lost ack costs one resend, not three. An ack is a conditional update on the session's own device, so a device cannot acknowledge another device's tip:
 
 ```sql
 UPDATE reaction_delivery SET acked_at = :now
@@ -117,10 +119,10 @@ WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
 | Table | Key columns |
 |---|---|
 | `device` | `id` uuid, `slug` unique, `display_name`, `owner_id`, `secret_hash`, `created_at` |
-| `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `reaction` null, `flagged` bool, `ai_status`, `created_at`, `captured_at` |
+| `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `message_kind` null (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reaction` null (same values, `PLAIN` when flagged), `flagged` bool, `flag_reason` null, `owner_note` varchar(100) null (unflagged requests only), `ai_status`, `created_at`, `captured_at` |
 | `paypal_webhook_event` | `event_id` unique, `event_type`, `resource_id`, `received_at` |
 | `owner` | `id`, `email` unique and lowercase, `password_hash`, `display_name`, `created_at` |
-| `reaction_delivery` | `tip_id` primary key, `device_id`, `reaction`, `reacted_at`, `sent_count`, `last_sent_at` null, `acked_at` null; partial index on (`device_id`, `reacted_at`) where `acked_at` is null |
+| `reaction_delivery` | `tip_id` primary key, `device_id`, `reaction` (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reacted_at`, `sent_count`, `last_sent_at` null, `acked_at` null; partial index on (`device_id`, `reacted_at`) where `acked_at` is null |
 
 `reaction_delivery` belongs to `devices`, so delivery state is a table of its own instead of more columns on `tip`. It has no foreign key to `tip`, because `devices` does not own that table.
 
@@ -159,8 +161,8 @@ Owners sign in with email and password through a session based form login. Passw
 | Replayed webhook | Unique event id. A replay is a no op. |
 | Spamming tip creation | Rate limit per client IP. Creating a tip costs us one PayPal API call and no AI call. |
 | Running up the AI bill | AI only runs after a captured payment. Every AI call is paid for by a real tip. |
-| Prompt injection in the message | The message is wrapped as untrusted data, the model must return a fixed schema, and anything outside the allowed labels becomes `NEUTRAL`. The worst a successful injection can do is pick the wrong light pattern. Summaries are only shown to the owner and the model has no tools. |
-| Abusive messages | AI flags them. Flagged messages are hidden from public views and the owner can refund the tip. |
+| Prompt injection in the message | The message is wrapped as untrusted data, the model must return a fixed schema checked again in Java, and anything outside it is a failed attempt that ends as `PLAIN`. The worst a successful injection can do is pick the wrong light pattern or write a misleading owner note, which the owner reads as a note, never as an instruction. Summaries are only shown to the owner and the model has no tools. |
+| Abusive messages | AI flags them. A flagged message plays the plain blink, the same as a tip without a message, so abuse gets no reward and nothing to film. Observers cannot tell it apart from any other `PLAIN`. Flagged messages are hidden from public views, carry no owner note, and the owner can refund the tip. |
 | Stored XSS through messages | Output is always rendered with `textContent`. A strict Content Security Policy that allows only our origin and the PayPal SDK domains. |
 | Someone impersonates a device | Each device has a 256 bit random secret, sent over TLS, stored as a SHA-256 hash and compared in constant time. SHA-256 is right here, not bcrypt, because the secret is random with full entropy and cannot be brute forced. Bcrypt exists to slow down guessing of human passwords. |
 | Someone watches a device's observer feed | The observer channel carries only the reaction label and a timestamp. No amounts, no messages, no payer data. |

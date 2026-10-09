@@ -8,7 +8,7 @@ I'm joining a two person team building TiP for the PayPal AI Hackathon (deadline
 
 ## The project
 
-TiP (Tip integrated Panda) is an NFC tipping device. A cardboard panda holds a coin with an NFC tag. Someone taps it with their phone, a tip page opens, they pick an amount, optionally write a message and pay with PayPal. Claude reads the message and the panda's LED reacts: a slow heartbeat for kind messages, a harsh strobe for rude ones, one blink for a plain tip. Owners get a dashboard with their tips, an AI summary and moderation (flagged messages, refunds).
+TiP (Tip integrated Panda) is an NFC tipping device. A cardboard panda holds a coin with an NFC tag. Someone taps it with their phone, a tip page opens, they pick an amount, optionally write a message and pay with PayPal. Claude reads what kind of message it is and the panda's LED reacts: a slow heartbeat for warm messages, a quick giggle of flicks for playful ones, two long glows for a request or feedback, one blink for a plain tip. Abusive messages are flagged and get the same plain blink, so trolls get nothing to film. Owners get a dashboard with their tips, an AI summary, short owner notes on requests and feedback ("Request: something by Oasis"), and moderation (flagged messages, refunds).
 
 Stack: Java 21, Spring Boot, PostgreSQL with Flyway, PayPal Orders v2 in sandbox, Anthropic Java SDK with Claude Haiku, JUnit 5 with Testcontainers and WireMock, Gradle, GitHub Actions, Render. ESP32 firmware with PlatformIO.
 
@@ -18,7 +18,7 @@ The repo is on GitHub. It contains `CLAUDE.md` (rules every coding agent follows
 
 - **The lead** is a Claude chat on my teammate's account. It acts as tech lead. It makes the architecture and design decisions, writes every task as a brief or GitHub issue, and reviews every report and pull request. Everything gets reported to it.
 - **My teammate (the owner)** runs the lead chat and his own coding agent. He builds the core (payments, device connection, AI, firmware), pushes, merges and deploys.
-- **Me.** I own one feature at a time, starting with the owner dashboard backend: tip history API, AI daily summary and the list of flagged messages. I run my own coding agent (Claude Code) on my own branch.
+- **Me.** I own one feature at a time, starting with the owner dashboard backend: tip history API, AI daily summary, the list of owner notes (requests and feedback) and the list of flagged messages. I run my own coding agent (Claude Code) on my own branch.
 - **You (this chat)** are my tutor. You are not the lead.
 
 My loop for every issue:
