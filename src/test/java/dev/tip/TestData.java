@@ -74,6 +74,15 @@ public class TestData {
         return id;
     }
 
+    /** A device whose secret is {@code secret} (base64url), so a test can connect as it. */
+    public UUID device(String slug, String displayName, String secret) {
+        UUID id = device(owner(), slug, displayName);
+        jdbc.sql("UPDATE device SET secret_hash = sha256(?) WHERE id = ?")
+                .params(Base64.getUrlDecoder().decode(secret), id)
+                .update();
+        return id;
+    }
+
     public UUID device(String slug, String displayName) {
         return device(owner(), slug, displayName);
     }

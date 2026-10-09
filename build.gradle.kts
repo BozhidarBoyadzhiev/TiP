@@ -25,6 +25,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("com.paypal.sdk:paypal-server-sdk:2.4.0")
     implementation("com.anthropic:anthropic-java:2.71.0")

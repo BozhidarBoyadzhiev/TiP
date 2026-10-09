@@ -26,6 +26,9 @@ class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/public/**")
                         .permitAll()
+                        // WebSocket handshakes authenticate in their own handshake interceptors.
+                        .requestMatchers(HttpMethod.GET, "/ws/**")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/webhooks/paypal")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health")
