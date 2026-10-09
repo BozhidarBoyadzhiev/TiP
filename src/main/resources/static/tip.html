@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>Tip the panda</title>
+    <link rel="stylesheet" href="/css/tip.css">
+    <script src="/js/tip.js" defer nonce="{{CSP_NONCE}}"></script>
+</head>
+<body>
+<main class="card">
+    <section id="loading" aria-live="polite">
+        <p>Loading…</p>
+    </section>
+
+    <section id="tip-form" hidden>
+        <h1 id="title">Tip the panda</h1>
+
+        <fieldset class="amounts">
+            <legend>Choose an amount</legend>
+            <div id="presets" class="presets"></div>
+            <label for="custom-amount" class="custom-label">Or enter your own (<span id="currency-code"></span>)</label>
+            <input id="custom-amount" name="custom-amount" type="text" inputmode="decimal" autocomplete="off"
+                   aria-describedby="amount-hint">
+            <p id="amount-hint" class="hint"></p>
+        </fieldset>
+
+        <label for="message">Message for the panda (optional)</label>
+        <textarea id="message" name="message" rows="3" maxlength="280" aria-describedby="message-count"></textarea>
+        <p id="message-count" class="hint" aria-live="polite">0 / 280</p>
+
+        <p id="form-error" class="error" role="alert" hidden></p>
+
+        <div id="paypal-buttons" class="paypal"></div>
+    </section>
+
+    <section id="success" hidden tabindex="-1">
+        <h1>Thank you. The panda got your tip.</h1>
+    </section>
+
+    <section id="pending" hidden tabindex="-1">
+        <h1>Your payment is processing.</h1>
+        <p>PayPal is still confirming it. The panda will react once it does.</p>
+    </section>
+
+    <section id="fatal" hidden tabindex="-1">
+        <h1>Sorry</h1>
+        <p id="fatal-message" role="alert"></p>
+    </section>
+</main>
+</body>
+</html>

@@ -34,8 +34,10 @@ class SecurityTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Security-Policy", containsString("default-src 'self'")))
                 .andExpect(header().string("Content-Security-Policy", containsString("frame-ancestors 'none'")))
+                .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self' 'nonce-")))
+                .andExpect(header().string("Content-Security-Policy", containsString("https://*.paypal.com")))
                 .andExpect(header().string(
-                                "Content-Security-Policy", containsString("script-src 'self' https://*.paypal.com")))
+                                "Content-Security-Policy", org.hamcrest.Matchers.not(containsString("unsafe-inline"))))
                 .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
                 .andExpect(header().string("Strict-Transport-Security", containsString("max-age=31536000")));
     }

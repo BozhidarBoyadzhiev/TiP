@@ -1,0 +1,116 @@
+:root {
+    --ink: #1d1d1f;
+    --muted: #5f6368;
+    --accent: #0b57d0;
+    --error: #b3261e;
+    --surface: #ffffff;
+    --background: #f3f4f6;
+    --radius: 12px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--background);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 16px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.card {
+    width: 100%;
+    max-width: 440px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+h1 {
+    font-size: 1.5rem;
+    margin: 0 0 16px;
+    overflow-wrap: anywhere;
+}
+
+fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0 0 20px;
+}
+
+legend,
+label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.presets {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.presets button {
+    min-height: 48px;
+    font-size: 1.1rem;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.presets button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--surface);
+}
+
+input,
+textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 1rem;
+    padding: 12px;
+    border: 1px solid #c4c7c5;
+    border-radius: var(--radius);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+}
+
+textarea {
+    resize: vertical;
+}
+
+.custom-label {
+    font-weight: 400;
+}
+
+.hint {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 6px 0 16px;
+}
+
+.error {
+    color: var(--error);
+    font-weight: 600;
+}
+
+.paypal {
+    margin-top: 8px;
+    min-height: 48px;
+}
