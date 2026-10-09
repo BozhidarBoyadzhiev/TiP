@@ -23,20 +23,24 @@ class AiConfig {
         return executor;
     }
 
+    /** SDK retries stay off: the attempt counter on the tip is the retry. Also used by {@link EvalClassifier}. */
+    static AnthropicClient buildClient(AiProperties properties) {
+        return AnthropicOkHttpClient.builder()
+                .apiKey(properties.apiKey())
+                .baseUrl(properties.baseUrl())
+                .timeout(properties.timeout())
+                .maxRetries(0)
+                .build();
+    }
+
     /** Only built while AI is enabled, so the app starts without a key when it is not. */
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnBooleanProperty(name = "tip.ai.enabled", matchIfMissing = true)
     static class ClaudeConfig {
 
-        /** SDK retries stay off: the attempt counter on the tip is the retry. */
         @Bean
         AnthropicClient anthropicClient(AiProperties properties) {
-            return AnthropicOkHttpClient.builder()
-                    .apiKey(properties.apiKey())
-                    .baseUrl(properties.baseUrl())
-                    .timeout(properties.timeout())
-                    .maxRetries(0)
-                    .build();
+            return buildClient(properties);
         }
 
         @Bean

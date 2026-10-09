@@ -18,8 +18,14 @@ repositories {
     mavenCentral()
 }
 
-// Command line tools for local testing, such as the fake device. Kept out of the app jar.
-val tools: SourceSet by sourceSets.creating
+// Command line tools for local testing, such as the fake device and the AI eval. Kept out of the app jar.
+// They see the app's classes so the AI eval runs the production classifier, not a copy of it.
+val tools: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+configurations["toolsImplementation"].extendsFrom(configurations.implementation.get())
+configurations["toolsRuntimeOnly"].extendsFrom(configurations.runtimeOnly.get())
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -35,8 +41,6 @@ dependencies {
     implementation("com.bucket4j:bucket4j_jdk17-core:8.21.0")
     implementation("com.github.ben-manes.caffeine:caffeine")
     runtimeOnly("org.postgresql:postgresql")
-
-    "toolsImplementation"("tools.jackson.core:jackson-databind")
 
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
@@ -89,5 +93,14 @@ tasks.register<JavaExec>("fakeDevice") {
     description = "Runs a fake panda on the device channel. Pass --args=\"--url=ws://localhost:8080 --device=<uuid>\"."
     classpath = tools.runtimeClasspath
     mainClass = "dev.tip.tools.FakeDevice"
+    environment(dotEnv())
+}
+
+// Calls the real Claude API, so it is never part of build, check or CI. Run it by hand.
+tasks.register<JavaExec>("aiEval") {
+    group = "application"
+    description = "Runs the labelled messages in src/tools/resources/ai-eval-cases.jsonl through the real model."
+    classpath = tools.runtimeClasspath
+    mainClass = "dev.tip.tools.AiEval"
     environment(dotEnv())
 }
