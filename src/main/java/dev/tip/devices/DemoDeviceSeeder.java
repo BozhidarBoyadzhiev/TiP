@@ -69,14 +69,10 @@ class DemoDeviceSeeder implements ApplicationRunner {
 
         Optional<Device> existing = devices.findBySlug(deviceProperties.slug());
         if (existing.isEmpty()) {
+            UUID id = UUID.randomUUID();
             devices.save(new Device(
-                    UUID.randomUUID(),
-                    deviceProperties.slug(),
-                    deviceProperties.displayName(),
-                    owner,
-                    secretHash,
-                    clock.instant()));
-            log.info("Created demo device {}", deviceProperties.slug());
+                    id, deviceProperties.slug(), deviceProperties.displayName(), owner, secretHash, clock.instant()));
+            log.info("Created demo device {} with id {}", deviceProperties.slug(), id);
             return;
         }
         Device device = existing.get();
@@ -88,5 +84,6 @@ class DemoDeviceSeeder implements ApplicationRunner {
             device.replaceSecretHash(secretHash);
             log.info("Rotated the secret of demo device {}", device.slug());
         }
+        log.info("Demo device {} has id {}", device.slug(), device.id());
     }
 }

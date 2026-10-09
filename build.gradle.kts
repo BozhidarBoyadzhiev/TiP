@@ -18,6 +18,9 @@ repositories {
     mavenCentral()
 }
 
+// Command line tools for local testing, such as the fake device. Kept out of the app jar.
+val tools: SourceSet by sourceSets.creating
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -33,6 +36,8 @@ dependencies {
     implementation("com.github.ben-manes.caffeine:caffeine")
     runtimeOnly("org.postgresql:postgresql")
 
+    "toolsImplementation"("tools.jackson.core:jackson-databind")
+
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
@@ -45,6 +50,7 @@ dependencies {
     testImplementation("org.wiremock:wiremock-standalone:3.13.2")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     testImplementation("org.assertj:assertj-core")
+    testImplementation(tools.output)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -62,18 +68,26 @@ tasks.withType<Test> {
 }
 
 // Local runs read .env (KEY=value lines) as environment variables, the way the app is configured in production.
-tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+fun dotEnv(): Map<String, String> {
     val envFile = file(".env")
-    if (envFile.exists()) {
-        envFile.readLines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
-            .forEach { line ->
-                val key = line.substringBefore("=").trim()
-                val value = line.substringAfter("=").trim()
-                if (value.isNotEmpty()) {
-                    environment(key, value)
-                }
-            }
+    if (!envFile.exists()) {
+        return emptyMap()
     }
+    return envFile.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+        .associate { it.substringBefore("=").trim() to it.substringAfter("=").trim() }
+        .filterValues { it.isNotEmpty() }
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    environment(dotEnv())
+}
+
+tasks.register<JavaExec>("fakeDevice") {
+    group = "application"
+    description = "Runs a fake panda on the device channel. Pass --args=\"--url=ws://localhost:8080 --device=<uuid>\"."
+    classpath = tools.runtimeClasspath
+    mainClass = "dev.tip.tools.FakeDevice"
+    environment(dotEnv())
 }

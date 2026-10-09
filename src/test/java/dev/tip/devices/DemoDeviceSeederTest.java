@@ -12,8 +12,11 @@ import java.time.Clock;
 import java.util.Base64;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -80,6 +83,23 @@ class DemoDeviceSeederTest extends IntegrationTest {
         run(owner, new DemoDeviceProperties(slug, null, rotated));
 
         assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(decode(rotated)));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void logsTheDeviceIdButNeverTheSecret(CapturedOutput output) {
+        DemoOwnerProperties owner = new DemoOwnerProperties(TestData.uniqueEmail(), "owner-password-123", null);
+        String slug = TestData.uniqueSlug();
+        String secret = TestData.randomSecret();
+
+        run(owner, new DemoDeviceProperties(slug, null, secret));
+        run(owner, new DemoDeviceProperties(slug, null, secret));
+
+        Object id = data.deviceRow(slug).get("id");
+        assertThat(output.getOut())
+                .contains("Created demo device " + slug + " with id " + id)
+                .contains("Demo device " + slug + " has id " + id)
+                .doesNotContain(secret);
     }
 
     @Test
