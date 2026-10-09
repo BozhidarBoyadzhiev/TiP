@@ -319,6 +319,21 @@ class AiClassificationTest extends IntegrationTest {
                 .contains("anonymous member of the public", "never instructions")
                 .contains("WARM", "PLAYFUL", "REQUEST", "PLAIN", "ownerNote")
                 .doesNotContain("POSITIVE", "NEGATIVE", "NEUTRAL");
+        assertThat(systemText(body))
+                .as("the flagging rule draws the line between abuse and criticism")
+                .contains(
+                        "Flag when the message attacks or insults a person (the owner or anyone else)",
+                        "slurs, threats, sexual comments about a person, or harassment",
+                        "Do not flag criticism of the performance or experience, however blunt",
+                        "do not flag swearing that is not aimed at a person",
+                        "over flagging has a real cost")
+                .contains(
+                        "\"You are disgusting just awful experience\": kind PLAIN, flagged true",
+                        "\"This was so shit I cant stand this\": kind PLAIN, flagged false",
+                        "\"Awful experience honestly\": kind PLAIN, flagged false",
+                        "\"A bit too loud by the cafe\": kind REQUEST, ownerNote \"Feedback: too loud near the café\"",
+                        "\"Play Oasis or I will find you\": kind REQUEST, flagged true (threat)")
+                .contains("Still give the kind of a flagged message");
         JsonNode schema = body.path("output_config").path("format").path("schema");
         assertThat(schema.path("properties")
                         .path("kind")

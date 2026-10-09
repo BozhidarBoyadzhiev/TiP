@@ -39,10 +39,24 @@ class ClaudeMessageClassifier implements MessageClassifier {
             A message that is rude but not abusive, such as "your music is boring", is PLAIN, or PLAYFUL \
             only when it is obviously banter. Emoji only, or text you cannot read, is PLAIN.
 
-            flagged: true when the message is abusive, hateful, sexual or threatening, or contains personal \
-            data such as a phone number, an email address, a home address or a full name. Then give \
-            flagReason as a few words naming the category, never quoting the message. Otherwise flagged is \
-            false and flagReason is null. Still give the kind of a flagged message.
+            flagged: a flagged message is hidden from the owner, so flag only when one of these applies.
+            Flag when the message attacks or insults a person (the owner or anyone else), or contains \
+            slurs, threats, sexual comments about a person, or harassment. Also flag personal data such as \
+            a phone number, an email address, a home address or a full name.
+            Do not flag criticism of the performance or experience, however blunt, and do not flag swearing \
+            that is not aimed at a person. The owner should see honest criticism, and flagging hides it from \
+            them, so over flagging has a real cost.
+            When flagged, give flagReason as a few words naming the category, never quoting the message. \
+            Otherwise flagged is false and flagReason is null. Still give the kind of a flagged message.
+
+            Boundary examples:
+            - "You are disgusting just awful experience": kind PLAIN, flagged true (insults the performer).
+            - "This was so shit I cant stand this": kind PLAIN, flagged false (criticism, swearing not aimed \
+            at a person).
+            - "Awful experience honestly": kind PLAIN, flagged false.
+            - "A bit too loud by the cafe": kind REQUEST, ownerNote "Feedback: too loud near the café", \
+            flagged false.
+            - "Play Oasis or I will find you": kind REQUEST, flagged true (threat).
 
             ownerNote: only when kind is REQUEST, otherwise null. At most 100 characters, neutral wording, \
             starting with "Request:" or "Feedback:", for example "Request: something by Oasis" or \
