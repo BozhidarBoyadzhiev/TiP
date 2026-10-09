@@ -77,7 +77,7 @@ The virtual panda and the fake device play the same reactions as the physical pa
    ./gradlew fakeDevice --args="--url=ws://localhost:8080 --device=<demo device id>"
    ```
 
-   It prints `Connected as "<device name>"`, then one line per reaction with a text picture of the LED pattern, and acks each one like the real device, including repeats it does not play again. It reconnects with the protocol backoff when the app restarts, and stops on a wrong secret (401).
+   It prints `Connected as "<device name>"`, then one line per reaction with the unit count, the repeats and a text picture of the LED pattern, and acks each one on arrival like the real device, including repeats it does not play again. Bigger tips play longer patterns (repeats 1 to 5, see `docs/DEVICE_PROTOCOL.md`). It reconnects with the protocol backoff when the app restarts, and stops on a wrong secret (401).
 5. Tip from a phone. The phone must reach the app over HTTPS for PayPal, so open `https://<your-ngrok-host>/t/demo-panda` (see Testing webhooks locally). The success screen links to the virtual panda.
 6. Watch both react: the virtual panda glows with a caption ("Warm message", "Playful message", "Request noted" or "Tip received") and the fake device prints the pattern.
 
@@ -115,6 +115,16 @@ Docker must be running.
 
 This compiles, checks formatting with Spotless (fix with `./gradlew spotlessApply`), and runs the tests, including the ArchUnit boundary rules. Tests run against PostgreSQL in Testcontainers, and PayPal and Anthropic are stubbed with WireMock, so no test calls a real external service and no real key is needed.
 
+## Measuring the AI classifier
+
+`aiEval` runs about 30 labelled tip messages through the real Claude model with the app's own prompt, schema and parser, and prints every disagreement plus the accuracy for kind, flag and owner note. It calls the paid API, so it is never part of the build or CI; run it by hand after changing the prompt:
+
+```bash
+./gradlew aiEval
+```
+
+It reads `ANTHROPIC_API_KEY` and `TIP_AI_MODEL` from `.env` or the environment, like the app, and stops with a message when there is no key. The cases live in `src/tools/resources/ai-eval-cases.jsonl`, one JSON object per line with `message`, `kind`, `flagged` and `ownerNote` (whether the owner should see a note).
+
 ## Project layout
 
 ```
@@ -126,7 +136,7 @@ src/main/java/dev/tip/
   tipping/    tips, capture, refunds, state machine, webhooks, rate limit, scheduled job, tip page
   shared/     configuration, clock, security, problem details
 src/tools/java/dev/tip/tools/
-              fake device command line client (not in the app jar)
+              fake device and AI eval command line tools (not in the app jar)
 src/main/resources/
   db/migration/   Flyway migrations
   static/         tip page, virtual panda and owner pages (plain HTML, CSS, JS)
