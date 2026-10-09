@@ -219,6 +219,7 @@
             fatal(ERROR_MESSAGES.DEVICE_NOT_FOUND);
             return;
         }
+        el("watch-panda").href = "/p/" + encodeURIComponent(state.slug);
         let response;
         try {
             response = await fetch("/api/public/devices/" + encodeURIComponent(state.slug));

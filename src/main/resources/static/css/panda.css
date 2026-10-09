@@ -1,0 +1,218 @@
+:root {
+    --ink: #2b1d12;
+    --muted: #6b5644;
+    --background: #f4ead9;
+    --background-edge: #e6d4b8;
+    --card-edge: #8a6440;
+    --cut: #3a2616;
+    --led-colour: #ffb347;
+    --live: #2e7d32;
+    --waiting: #b26a00;
+    --pill: rgba(255, 255, 255, 0.75);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--background);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --ink: #f3e6d2;
+        --muted: #c9b39a;
+        --background: #1f1712;
+        --background-edge: #120d0a;
+        --live: #81c784;
+        --waiting: #ffb74d;
+        --pill: rgba(0, 0, 0, 0.45);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 16px;
+    background: radial-gradient(circle at 50% 40%, var(--background) 45%, var(--background-edge) 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.stage {
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+}
+
+h1 {
+    font-size: 1.5rem;
+    margin: 32px 0 8px;
+    overflow-wrap: anywhere;
+}
+
+.panda {
+    display: block;
+    width: 100%;
+    max-width: 380px;
+    height: auto;
+    margin: 0 auto;
+}
+
+.panda .edge {
+    fill: var(--card-edge);
+}
+
+.panda .cut {
+    fill: none;
+    stroke: var(--cut);
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+}
+
+.panda .part polygon:not(.edge):not(.cut),
+.panda .coin polygon:not(.edge):not(.cut) {
+    stroke: rgba(58, 38, 22, 0.28);
+    stroke-width: 0.8;
+    stroke-linejoin: round;
+}
+
+.panda .fold {
+    fill: none;
+    stroke: rgba(58, 38, 22, 0.45);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+}
+
+.panda .fold.dashed {
+    stroke-dasharray: 6 5;
+}
+
+.panda .coin-ring {
+    fill: none;
+    stroke: rgba(110, 72, 18, 0.55);
+    stroke-width: 1.5;
+    stroke-dasharray: 3 3;
+}
+
+.panda .shadow {
+    fill: rgba(43, 29, 18, 0.18);
+}
+
+.panda .eye {
+    fill: #f6ead6;
+}
+
+.panda .pupil,
+.panda .nose {
+    fill: #1e140c;
+}
+
+.panda .mouth {
+    fill: none;
+    stroke: #1e140c;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.panda .led-socket {
+    fill: #6b4a2a;
+    stroke: #3a2616;
+    stroke-width: 1.2;
+}
+
+.panda .led-core {
+    fill: var(--led-colour);
+}
+
+.panda .led-stop-core {
+    stop-color: var(--led-colour);
+    stop-opacity: 1;
+}
+
+.panda .led-stop-mid {
+    stop-color: var(--led-colour);
+    stop-opacity: 0.55;
+}
+
+.panda .led-stop-edge {
+    stop-color: var(--led-colour);
+    stop-opacity: 0;
+}
+
+.caption {
+    min-height: 1.6em;
+    margin: 8px 0 4px;
+    font-size: 1.35rem;
+    font-weight: 700;
+}
+
+.caption.shown {
+    animation: caption-in 300ms ease-out;
+}
+
+@keyframes caption-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.notice {
+    font-weight: 600;
+}
+
+.hint {
+    color: var(--muted);
+    margin: 8px 0 0;
+}
+
+.status {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    margin: 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--pill);
+    font-size: 0.875rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--waiting);
+}
+
+.status[data-state="live"] .status-dot {
+    background: var(--live);
+}
+
+.status[data-state="connecting"] .status-dot,
+.status[data-state="reconnecting"] .status-dot {
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    50% {
+        opacity: 0.3;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .caption.shown,
+    .status-dot {
+        animation: none !important;
+    }
+}

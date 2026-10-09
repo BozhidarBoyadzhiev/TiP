@@ -1,5 +1,6 @@
 package dev.tip.shared;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -20,9 +21,11 @@ public final class SecurityDefaults {
 
     /**
      * Our origin plus the domains PayPal lists for its JS SDK. Inline scripts and styles run only with
-     * the per request nonce, which the SDK applies to what it injects.
+     * the per request nonce, which the SDK applies to what it injects. {@code connect-src} also names our
+     * own WebSocket origin, because older Safari does not count {@code ws:} or {@code wss:} as {@code
+     * 'self'}.
      */
-    static String contentSecurityPolicy(String nonce) {
+    static String contentSecurityPolicy(String nonce, String webSocketOrigin) {
         String nonceSource = "'nonce-" + nonce + "'";
         return String.join(
                 "; ",
@@ -30,7 +33,7 @@ public final class SecurityDefaults {
                 "script-src 'self' " + nonceSource + " " + PAYPAL_SOURCES,
                 "style-src 'self' " + nonceSource + " " + PAYPAL_SOURCES,
                 "img-src 'self' data: " + PAYPAL_SOURCES,
-                "connect-src 'self' " + PAYPAL_SOURCES,
+                "connect-src 'self' " + webSocketOrigin + " " + PAYPAL_SOURCES,
                 "frame-src " + PAYPAL_SOURCES,
                 "child-src " + PAYPAL_SOURCES,
                 "object-src 'none'",
@@ -39,11 +42,20 @@ public final class SecurityDefaults {
                 "frame-ancestors 'none'");
     }
 
+    /** The WebSocket origin of the request's own origin, after forwarded headers are applied. */
+    static String webSocketOrigin(HttpServletRequest request) {
+        boolean secure = "https".equalsIgnoreCase(request.getScheme());
+        int port = request.getServerPort();
+        boolean defaultPort = port == (secure ? 443 : 80) || port <= 0;
+        return (secure ? "wss://" : "ws://") + request.getServerName() + (defaultPort ? "" : ":" + port);
+    }
+
     /** Applies the shared headers and the problem details access denied handler. */
     public static HttpSecurity apply(HttpSecurity http, ProblemWriter problems) throws Exception {
         return http.addFilterBefore(new CspNonce(), HeaderWriterFilter.class)
                 .headers(headers -> headers.addHeaderWriter((request, response) -> response.setHeader(
-                                "Content-Security-Policy", contentSecurityPolicy(CspNonce.of(request))))
+                                "Content-Security-Policy",
+                                contentSecurityPolicy(CspNonce.of(request), webSocketOrigin(request))))
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                         .httpStrictTransportSecurity(
                                 hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000)))

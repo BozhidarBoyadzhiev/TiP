@@ -55,6 +55,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
+7. Watch the virtual panda at `http://localhost:8080/p/<your demo slug>`. It plays the same light patterns as the physical one. The rude message strobe can be disabled with your operating system's reduce motion setting (`prefers-reduced-motion`): the panda then holds a steady light instead of flashing.
 
 The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes or is clearly not random (all bytes the same, or fewer than 16 distinct byte values).
 
