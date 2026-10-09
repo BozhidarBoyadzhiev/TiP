@@ -25,6 +25,9 @@ import tools.jackson.databind.json.JsonMapper;
 /** A real WebSocket client ({@link StandardWebSocketClient}) that records what it receives. */
 final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
 
+    /** {@code TIP_PUBLIC_BASE_URL} in the test profile. */
+    static final String PUBLIC_ORIGIN = "http://localhost:8080";
+
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -41,9 +44,11 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
         return connect(URI.create("ws://localhost:" + port + "/ws/device/" + deviceId), headers);
     }
 
-    static TestSocket connectObserver(int port, String slug, String origin) {
+    /** An observer with the app's public origin, from its own client IP. */
+    static TestSocket connectObserver(int port, String slug, String clientIp) {
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
-        headers.setOrigin(origin);
+        headers.setOrigin(PUBLIC_ORIGIN);
+        headers.set("X-Forwarded-For", clientIp);
         return connect(URI.create("ws://localhost:" + port + "/ws/observe/" + slug), headers);
     }
 

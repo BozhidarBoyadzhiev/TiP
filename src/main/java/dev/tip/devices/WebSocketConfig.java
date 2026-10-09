@@ -1,5 +1,7 @@
 package dev.tip.devices;
 
+import dev.tip.shared.TipProperties;
+import java.net.URI;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -16,6 +18,10 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
  * header, which that check allows. Cross site WebSocket hijacking cannot reach this endpoint anyway: a
  * browser cannot set an {@code Authorization} header on a WebSocket, so a page on another site has no
  * way to present the device secret.
+ *
+ * <p>The observer channel is public and read only. It allows only the origin in {@code
+ * TIP_PUBLIC_BASE_URL}, where the virtual panda page is served, plus clients that send no origin at all,
+ * such as a display script.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSocket
@@ -23,6 +29,7 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 class WebSocketConfig implements WebSocketConfigurer {
 
     static final String DEVICE_PATH = "/ws/device/";
+    static final String OBSERVER_PATH = "/ws/observe/";
 
     static final String DELIVERY_EXECUTOR = "deliveryExecutor";
 
@@ -33,15 +40,24 @@ class WebSocketConfig implements WebSocketConfigurer {
 
     private final DeviceChannelHandler deviceHandler;
     private final DeviceHandshakeInterceptor deviceInterceptor;
+    private final ObserverChannelHandler observerHandler;
+    private final ObserverHandshakeInterceptor observerInterceptor;
     private final ProblemHandshakeHandler handshakeHandler;
+    private final TipProperties tipProperties;
 
     WebSocketConfig(
             DeviceChannelHandler deviceHandler,
             DeviceHandshakeInterceptor deviceInterceptor,
-            ProblemHandshakeHandler handshakeHandler) {
+            ObserverChannelHandler observerHandler,
+            ObserverHandshakeInterceptor observerInterceptor,
+            ProblemHandshakeHandler handshakeHandler,
+            TipProperties tipProperties) {
         this.deviceHandler = deviceHandler;
         this.deviceInterceptor = deviceInterceptor;
+        this.observerHandler = observerHandler;
+        this.observerInterceptor = observerInterceptor;
         this.handshakeHandler = handshakeHandler;
+        this.tipProperties = tipProperties;
     }
 
     @Override
@@ -49,6 +65,16 @@ class WebSocketConfig implements WebSocketConfigurer {
         registry.addHandler(deviceHandler, DEVICE_PATH + "*")
                 .setHandshakeHandler(handshakeHandler)
                 .addInterceptors(deviceInterceptor);
+        registry.addHandler(observerHandler, OBSERVER_PATH + "*")
+                .setHandshakeHandler(handshakeHandler)
+                .setAllowedOrigins(publicOrigin(tipProperties.publicBaseUrl()))
+                .addInterceptors(observerInterceptor);
+    }
+
+    /** The origin of the public base URL: scheme, host and port, without a path or trailing slash. */
+    static String publicOrigin(String publicBaseUrl) {
+        URI uri = URI.create(publicBaseUrl.strip());
+        return uri.getScheme() + "://" + uri.getRawAuthority();
     }
 
     /**

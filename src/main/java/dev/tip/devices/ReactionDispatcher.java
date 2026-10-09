@@ -22,11 +22,23 @@ class ReactionDispatcher {
     private final ReactionDeliveryRepository deliveries;
     private final DeviceSessions sessions;
     private final ReactionSender sender;
+    private final ObserverSessions observers;
+    private final DeviceRepository devices;
+    private final ChannelMessages messages;
 
-    ReactionDispatcher(ReactionDeliveryRepository deliveries, DeviceSessions sessions, ReactionSender sender) {
+    ReactionDispatcher(
+            ReactionDeliveryRepository deliveries,
+            DeviceSessions sessions,
+            ReactionSender sender,
+            ObserverSessions observers,
+            DeviceRepository devices,
+            ChannelMessages messages) {
         this.deliveries = deliveries;
         this.sessions = sessions;
         this.sender = sender;
+        this.observers = observers;
+        this.devices = devices;
+        this.messages = messages;
     }
 
     @Async(WebSocketConfig.DELIVERY_EXECUTOR)
@@ -44,5 +56,10 @@ class ReactionDispatcher {
             return;
         }
         sessions.find(event.deviceId()).ifPresent(session -> sender.send(session, reaction));
+        if (!observers.isEmpty()) {
+            devices.findById(event.deviceId())
+                    .ifPresent(device -> observers.broadcast(
+                            device.slug(), messages.observerReaction(event.reaction(), event.reactedAt())));
+        }
     }
 }
