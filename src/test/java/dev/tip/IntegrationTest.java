@@ -21,6 +21,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import({TestcontainersConfiguration.class, TestData.class, CapturedEvents.class, ReactedEvents.class})
 public abstract class IntegrationTest {
 
+    /** The demo device's secret, generated per test run so no secret is committed. */
+    protected static final String DEMO_DEVICE_SECRET = TestData.randomSecret();
+
     protected static final WireMockServer PAYPAL =
             new WireMockServer(WireMockConfiguration.options().dynamicPort());
 
@@ -40,6 +43,7 @@ public abstract class IntegrationTest {
     static void stubBaseUrls(DynamicPropertyRegistry registry) {
         registry.add("PAYPAL_BASE_URL", PAYPAL::baseUrl);
         registry.add("ANTHROPIC_BASE_URL", ANTHROPIC::baseUrl);
+        registry.add("TIP_DEMO_DEVICE_SECRET", () -> DEMO_DEVICE_SECRET);
     }
 
     @BeforeEach

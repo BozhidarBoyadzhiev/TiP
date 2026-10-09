@@ -22,6 +22,9 @@ class DemoDeviceSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDeviceSeeder.class);
 
+    static final String GENERATE_HINT = "Generate 32 random bytes as base64url with"
+            + " `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='` or the PowerShell command in README.md.";
+
     private final DemoOwnerProperties ownerProperties;
     private final DemoDeviceProperties deviceProperties;
     private final OwnerProvisioning owners;
@@ -53,8 +56,16 @@ class DemoDeviceSeeder implements ApplicationRunner {
         }
         UUID owner = ownerId.orElseThrow(() -> new IllegalStateException(
                 "TIP_DEMO_DEVICE_SLUG is set, so TIP_DEMO_OWNER_EMAIL must be set too: every device needs an owner"));
-        byte[] secretHash = DeviceSecrets.hash(
-                DeviceSecrets.decode(deviceProperties.secret()).orElseThrow());
+        byte[] secret = DeviceSecrets.decode(deviceProperties.secret()).orElseThrow();
+        if (DeviceSecrets.allBytesIdentical(secret)) {
+            throw new IllegalStateException(
+                    "TIP_DEMO_DEVICE_SECRET decodes to 32 identical bytes, so it is not random. " + GENERATE_HINT);
+        }
+        if (!DeviceSecrets.looksRandom(secret)) {
+            throw new IllegalStateException("TIP_DEMO_DEVICE_SECRET has fewer than " + DeviceSecrets.MIN_DISTINCT_BYTES
+                    + " distinct byte values among its 32, so it is not random. " + GENERATE_HINT);
+        }
+        byte[] secretHash = DeviceSecrets.hash(secret);
 
         Optional<Device> existing = devices.findBySlug(deviceProperties.slug());
         if (existing.isEmpty()) {

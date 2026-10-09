@@ -13,6 +13,8 @@ final class DeviceSecrets {
 
     static final int SECRET_BYTES = 32;
 
+    static final int MIN_DISTINCT_BYTES = 16;
+
     private DeviceSecrets() {}
 
     /** The decoded secret, or empty when it is not base64url or not exactly 32 bytes. */
@@ -26,6 +28,31 @@ final class DeviceSecrets {
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * False when the decoded secret is clearly not random: every byte the same, or fewer than {@link
+     * #MIN_DISTINCT_BYTES} distinct byte values. 32 random bytes almost always hold about 30 distinct
+     * values, so this only catches broken generators, such as a command that printed 32 zero bytes.
+     */
+    static boolean looksRandom(byte[] secret) {
+        return distinctValues(secret) >= MIN_DISTINCT_BYTES;
+    }
+
+    static boolean allBytesIdentical(byte[] secret) {
+        return distinctValues(secret) == 1;
+    }
+
+    private static long distinctValues(byte[] secret) {
+        boolean[] seen = new boolean[256];
+        long distinct = 0;
+        for (byte b : secret) {
+            if (!seen[b & 0xff]) {
+                seen[b & 0xff] = true;
+                distinct++;
+            }
+        }
+        return distinct;
     }
 
     static byte[] hash(byte[] secret) {

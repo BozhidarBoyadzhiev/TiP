@@ -9,7 +9,6 @@ import dev.tip.owners.api.OwnerProvisioning;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -44,7 +43,7 @@ class DemoDeviceSeederTest extends IntegrationTest {
         assertThat(passwordEncoder.matches("test-owner-password", (String) owner.get("password_hash")))
                 .isTrue();
         assertThat(device).containsEntry("owner_id", owner.get("id"));
-        assertThat((byte[]) device.get("secret_hash")).isEqualTo(sha256(new byte[32]));
+        assertThat((byte[]) device.get("secret_hash")).isEqualTo(sha256(decode(DEMO_DEVICE_SECRET)));
     }
 
     @Test
@@ -52,7 +51,8 @@ class DemoDeviceSeederTest extends IntegrationTest {
         String email = TestData.uniqueEmail();
         String slug = TestData.uniqueSlug();
         DemoOwnerProperties owner = new DemoOwnerProperties(email.toUpperCase(), "first-password-123", "Seeded Owner");
-        DemoDeviceProperties device = new DemoDeviceProperties(slug, "Seeded Panda", secret(1));
+        String secret = TestData.randomSecret();
+        DemoDeviceProperties device = new DemoDeviceProperties(slug, "Seeded Panda", secret);
 
         run(owner, device);
         Map<String, Object> ownerRow = data.ownerRow(email);
@@ -67,18 +67,19 @@ class DemoDeviceSeederTest extends IntegrationTest {
         assertThat(deviceRow)
                 .containsEntry("owner_id", ownerRow.get("id"))
                 .containsEntry("display_name", "Seeded Panda");
-        assertThat((byte[]) deviceRow.get("secret_hash")).isEqualTo(sha256(bytes(1)));
+        assertThat((byte[]) deviceRow.get("secret_hash")).isEqualTo(sha256(decode(secret)));
     }
 
     @Test
     void changedDeviceSecretReplacesTheStoredHash() {
         DemoOwnerProperties owner = new DemoOwnerProperties(TestData.uniqueEmail(), "owner-password-123", null);
         String slug = TestData.uniqueSlug();
-        run(owner, new DemoDeviceProperties(slug, null, secret(1)));
+        run(owner, new DemoDeviceProperties(slug, null, TestData.randomSecret()));
+        String rotated = TestData.randomSecret();
 
-        run(owner, new DemoDeviceProperties(slug, null, secret(2)));
+        run(owner, new DemoDeviceProperties(slug, null, rotated));
 
-        assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(bytes(2)));
+        assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(decode(rotated)));
     }
 
     @Test
@@ -86,19 +87,18 @@ class DemoDeviceSeederTest extends IntegrationTest {
         String slug = TestData.uniqueSlug();
         data.device(slug, "Unclaimed Panda");
         String email = TestData.uniqueEmail();
+        String secret = TestData.randomSecret();
 
-        run(
-                new DemoOwnerProperties(email, "owner-password-123", null),
-                new DemoDeviceProperties(slug, null, secret(3)));
+        run(new DemoOwnerProperties(email, "owner-password-123", null), new DemoDeviceProperties(slug, null, secret));
 
         assertThat(data.deviceRow(slug))
                 .containsEntry("owner_id", data.ownerRow(email).get("id"));
-        assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(bytes(3)));
+        assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(decode(secret)));
     }
 
     @Test
     void demoDeviceWithoutDemoOwnerIsRefused() {
-        DemoDeviceProperties device = new DemoDeviceProperties(TestData.uniqueSlug(), null, secret(4));
+        DemoDeviceProperties device = new DemoDeviceProperties(TestData.uniqueSlug(), null, TestData.randomSecret());
 
         assertThatThrownBy(() -> run(new DemoOwnerProperties(null, null, null), device))
                 .isInstanceOf(IllegalStateException.class)
@@ -109,8 +109,54 @@ class DemoDeviceSeederTest extends IntegrationTest {
     void passwordIsHiddenFromToString() {
         assertThat(new DemoOwnerProperties("a@example.com", "secret-password-1", "A").toString())
                 .doesNotContain("secret-password-1");
-        assertThat(new DemoDeviceProperties("demo-panda", null, secret(5)).toString())
-                .doesNotContain(secret(5));
+        String secret = TestData.randomSecret();
+        assertThat(new DemoDeviceProperties("demo-panda", null, secret).toString())
+                .doesNotContain(secret);
+    }
+
+    @Test
+    void secretOfIdenticalBytesIsRefusedWithAHowTo() {
+        DemoDeviceProperties device = new DemoDeviceProperties(TestData.uniqueSlug(), null, encode(new byte[32]));
+
+        assertThatThrownBy(() -> run(validOwner(), device))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("32 identical bytes")
+                .hasMessageContaining("openssl rand -base64 32");
+        assertThat(devices.findBySlug(device.slug())).isEmpty();
+    }
+
+    @Test
+    void secretWithFewerThan16DistinctBytesIsRefusedWithAHowTo() {
+        DemoDeviceProperties device = new DemoDeviceProperties(TestData.uniqueSlug(), null, encode(cycling(15)));
+
+        assertThatThrownBy(() -> run(validOwner(), device))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("fewer than 16 distinct byte values")
+                .hasMessageContaining("openssl rand -base64 32");
+        assertThat(devices.findBySlug(device.slug())).isEmpty();
+    }
+
+    @Test
+    void secretWithExactly16DistinctBytesIsAccepted() {
+        DemoDeviceProperties device = new DemoDeviceProperties(TestData.uniqueSlug(), null, encode(cycling(16)));
+
+        run(validOwner(), device);
+
+        assertThat(devices.findBySlug(device.slug())).isPresent();
+    }
+
+    @Test
+    void realRandomSecretIsAccepted() {
+        String secret = TestData.randomSecret();
+        DemoDeviceProperties device = new DemoDeviceProperties(TestData.uniqueSlug(), null, secret);
+
+        run(validOwner(), device);
+
+        assertThat((byte[]) data.deviceRow(device.slug()).get("secret_hash")).isEqualTo(sha256(decode(secret)));
+    }
+
+    private static DemoOwnerProperties validOwner() {
+        return new DemoOwnerProperties(TestData.uniqueEmail(), "owner-password-123", null);
     }
 
     private void run(DemoOwnerProperties owner, DemoDeviceProperties device) {
@@ -118,14 +164,21 @@ class DemoDeviceSeederTest extends IntegrationTest {
         transactions.executeWithoutResult(status -> seeder.run(new DefaultApplicationArguments()));
     }
 
-    private static byte[] bytes(int fill) {
+    /** 32 bytes cycling through {@code distinct} values. */
+    private static byte[] cycling(int distinct) {
         byte[] bytes = new byte[32];
-        Arrays.fill(bytes, (byte) fill);
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) (i % distinct);
+        }
         return bytes;
     }
 
-    private static String secret(int fill) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes(fill));
+    private static String encode(byte[] bytes) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static byte[] decode(String secret) {
+        return Base64.getUrlDecoder().decode(secret);
     }
 
     private static byte[] sha256(byte[] bytes) {

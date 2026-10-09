@@ -20,10 +20,8 @@ class ProblemErrorController implements ErrorController {
     @RequestMapping("${server.error.path:/error}")
     ResponseEntity<ProblemDetail> error(HttpServletRequest request) {
         HttpStatus status = statusOf(request);
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                status,
-                status.is5xxServerError() ? "Something went wrong. Please try again." : status.getReasonPhrase() + ".");
-        problem.setProperty("code", status.is5xxServerError() ? "INTERNAL_ERROR" : status.name());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, GenericProblems.detail(status));
+        problem.setProperty("code", GenericProblems.code(status));
         Object uri = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
         if (uri instanceof String path) {
             try {

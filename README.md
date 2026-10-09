@@ -25,13 +25,13 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
    - `TIP_DEMO_OWNER_EMAIL`, `TIP_DEMO_OWNER_PASSWORD` (12 or more characters) and `TIP_DEMO_OWNER_NAME` to get an owner login.
    - `TIP_DEMO_DEVICE_SLUG`, `TIP_DEMO_DEVICE_NAME` and `TIP_DEMO_DEVICE_SECRET` to get a device owned by that owner.
 
-   Generate the device secret (32 random bytes, base64url) in PowerShell:
+   Generate the device secret (32 random bytes, base64url) in Windows PowerShell 5.1 or PowerShell 7:
 
    ```powershell
-   $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Fill($b); [Convert]::ToBase64String($b).TrimEnd('=').Replace('+','-').Replace('/','_')
+   $b = New-Object byte[] 32; $r = [Security.Cryptography.RandomNumberGenerator]::Create(); $r.GetBytes($b); $r.Dispose(); [Convert]::ToBase64String($b).TrimEnd('=').Replace('+','-').Replace('/','_')
    ```
 
-   Or with OpenSSL:
+   Or on macOS and Linux:
 
    ```bash
    openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
@@ -56,7 +56,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
 
-The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes.
+The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes or is clearly not random (all bytes the same, or fewer than 16 distinct byte values).
 
 ## Testing webhooks locally
 

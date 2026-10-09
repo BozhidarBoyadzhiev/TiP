@@ -3,6 +3,7 @@ package dev.tip;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,6 +33,13 @@ public class TestData {
 
     public static String uniqueId(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 13).toUpperCase();
+    }
+
+    /** A fresh device secret: 32 random bytes, base64url without padding, as the README makes one. */
+    public static String randomSecret() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     public static String uniqueEmail() {

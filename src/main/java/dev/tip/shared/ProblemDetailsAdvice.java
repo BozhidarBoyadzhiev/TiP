@@ -73,11 +73,14 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
         return ResponseEntity.badRequest().body(validationProblem(errors));
     }
 
+    /** Errors the framework raised get a fixed detail, so its wording about internals never reaches a client. */
     @Override
     protected ResponseEntity<Object> createResponseEntity(
             @Nullable Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         if (body instanceof ProblemDetail problem && problem.getProperties() == null) {
-            problem.setProperty("code", HttpStatus.valueOf(statusCode.value()).name());
+            HttpStatus status = HttpStatus.valueOf(statusCode.value());
+            problem.setDetail(GenericProblems.detail(status));
+            problem.setProperty("code", GenericProblems.code(status));
         }
         return super.createResponseEntity(body, headers, statusCode, request);
     }

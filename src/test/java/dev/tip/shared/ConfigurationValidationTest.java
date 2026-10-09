@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.anthropic.client.AnthropicClient;
+import dev.tip.TestData;
 import dev.tip.TipApplication;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -85,6 +86,7 @@ class ConfigurationValidationTest {
                 .profiles("test")
                 .properties(
                         "spring.main.web-application-type=none",
+                        "TIP_DEMO_DEVICE_SECRET=" + TestData.randomSecret(),
                         "spring.datasource.url=" + POSTGRES.getJdbcUrl(),
                         "spring.datasource.username=" + POSTGRES.getUsername(),
                         "spring.datasource.password=" + POSTGRES.getPassword());

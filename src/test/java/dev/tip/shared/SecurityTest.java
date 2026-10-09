@@ -56,6 +56,48 @@ class SecurityTest extends IntegrationTest {
     }
 
     @Test
+    void notFoundDetailIsFixedWhateverRaisedIt() throws Exception {
+        String body = expectProblem(mvc.perform(get("/t/owner/login")), 404, "NOT_FOUND")
+                .andExpect(jsonPath("$.detail").value("The requested resource was not found."))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(body).doesNotContainIgnoringCase("static resource");
+    }
+
+    @Test
+    void unknownPathOverRealHttpHasNoFrameworkWording() throws Exception {
+        HttpResponse<String> response = HttpClient.newHttpClient()
+                .send(
+                        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/t/owner/login"))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(404);
+        assertThat(response.body())
+                .contains("\"detail\":\"The requested resource was not found.\"")
+                .contains("\"code\":\"NOT_FOUND\"")
+                .doesNotContainIgnoringCase("static")
+                .doesNotContainIgnoringCase("No resource")
+                .doesNotContain("Exception");
+    }
+
+    @Test
+    void methodNotAllowedDetailIsFixed() throws Exception {
+        String body = expectProblem(
+                        mvc.perform(get("/api/public/tips/{tipId}/capture", UUID.randomUUID())),
+                        405,
+                        "METHOD_NOT_ALLOWED")
+                .andExpect(jsonPath("$.detail").value("This method is not allowed for the requested resource."))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(body).doesNotContain("Request method").doesNotContain("'GET'");
+    }
+
+    @Test
     void unauthenticatedOwnerApiIsProblemDetails401() throws Exception {
         expectProblem(
                 mvc.perform(post("/api/owner/tips/{tipId}/refund", UUID.randomUUID())
