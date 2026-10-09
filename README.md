@@ -55,9 +55,33 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
-7. Watch the virtual panda at `http://localhost:8080/p/<your demo slug>`. It plays the same light patterns as the physical one. The rude message strobe can be disabled with your operating system's reduce motion setting (`prefers-reduced-motion`): the panda then holds a steady light instead of flashing.
+7. Watch the virtual panda at `<TIP_PUBLIC_BASE_URL>/p/<your demo slug>` (the page must be opened from that origin). It plays the same light patterns as the physical one. The rude message strobe can be disabled with your operating system's reduce motion setting (`prefers-reduced-motion`): the panda then holds a steady light instead of flashing.
 
 The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes or is clearly not random (all bytes the same, or fewer than 16 distinct byte values).
+
+## See it work without hardware
+
+The virtual panda and the fake device play the same reactions as the physical panda, so the whole flow runs on a laptop and a phone.
+
+1. Run the app as in Local setup, with the demo owner and demo device set in `.env`.
+2. Find the demo device id. The app logs it at startup, never the secret:
+
+   ```
+   Demo device demo-panda has id 5b1f0c2e-8d4a-4c3e-9a71-2f6e0b9d4c18
+   ```
+
+3. Open `<TIP_PUBLIC_BASE_URL>/p/demo-panda` on the laptop. The corner says **Live** once it is connected. The panda's WebSocket only accepts the origin in `TIP_PUBLIC_BASE_URL`, so when that is your ngrok URL, open the panda through ngrok too: on `localhost` it stays on **Reconnecting**.
+4. Run the fake device in a second terminal. It reads `TIP_DEMO_DEVICE_SECRET` from `.env`, so the secret stays out of your shell history (`--secret=<secret>` works too):
+
+   ```bash
+   ./gradlew fakeDevice --args="--url=ws://localhost:8080 --device=<demo device id>"
+   ```
+
+   It prints `Connected as "<device name>"`, then one line per reaction with a text picture of the LED pattern, and acks each one like the real device. It reconnects with the protocol backoff when the app restarts, and stops on a wrong secret (401).
+5. Tip from a phone. The phone must reach the app over HTTPS for PayPal, so open `https://<your-ngrok-host>/t/demo-panda` (see Testing webhooks locally). The success screen links to the virtual panda.
+6. Watch both react: the virtual panda glows with a caption ("Kind message", "Rude message" or "Tip received") and the fake device prints the pattern.
+
+Use your own port in both URLs if you set `SERVER_PORT`.
 
 ## Testing webhooks locally
 
@@ -96,14 +120,16 @@ This compiles, checks formatting with Spotless (fix with `./gradlew spotlessAppl
 ```
 src/main/java/dev/tip/
   ai/         Claude classification of tip messages, exactly once per tip, recovery job
-  devices/    devices, device secrets, demo seeder, public device config endpoint
+  devices/    devices, device secrets, demo seeder, device and observer WebSocket channels, reaction delivery, virtual panda page
   owners/     owner accounts, login, owner pages
   paypal/     PayPal gateway: Orders v2 and refunds through the PayPal Server SDK, webhook verification
   tipping/    tips, capture, refunds, state machine, webhooks, rate limit, scheduled job, tip page
   shared/     configuration, clock, security, problem details
+src/tools/java/dev/tip/tools/
+              fake device command line client (not in the app jar)
 src/main/resources/
   db/migration/   Flyway migrations
-  static/         tip page and owner pages (plain HTML, CSS, JS)
+  static/         tip page, virtual panda and owner pages (plain HTML, CSS, JS)
 docs/             architecture and device protocol
 ```
 

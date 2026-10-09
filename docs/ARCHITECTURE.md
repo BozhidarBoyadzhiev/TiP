@@ -33,7 +33,7 @@ One deployable with feature packages. Features talk through `api` subpackages an
 5. PayPal also sends `PAYMENT.CAPTURE.COMPLETED` to `/webhooks/paypal`.
 6. Whichever of step 4 or 5 moves the tip from `CREATED` to `CAPTURED` first publishes `TipCaptured`, after the transaction commits.
 7. The `ai` feature classifies the message off the request thread and stores the reaction.
-8. The `devices` feature pushes the reaction to the device channel and to any observers of that device.
+8. The `devices` feature stores a delivery row, pushes the reaction to the device channel and to any observers of that device, and resends it until the device acknowledges it.
 
 ## Tip states
 
@@ -89,7 +89,26 @@ Zero rows means another worker has the tip or it is finished. The final write is
 
 **Refund response and webhook race.** An owner's refund calls PayPal with `PayPal-Request-Id: refund-<tipId>`. A `COMPLETED` answer and the `PAYMENT.CAPTURE.REFUNDED` webhook both try the conditional `CAPTURED` to `REFUNDED` update, so exactly one makes the transition. A `PENDING` answer leaves the tip `CAPTURED` and the webhook finishes it.
 
-**Device offline.** Reactions are stored on the tip. When a device reconnects, it receives reactions from the last 60 seconds that it has not acknowledged. Older ones are dropped, because a light reacting to a tip from an hour ago means nothing to anyone standing there.
+**Device offline.** Every reaction gets a `reaction_delivery` row. When a device reconnects, it receives reactions from the last 60 seconds that it has not acknowledged, oldest first. Older ones are dropped, because a light reacting to a tip from an hour ago means nothing to anyone standing there.
+
+**Duplicate reactions.** `reaction_delivery` has the tip id as its primary key and the dispatcher inserts with `ON CONFLICT (tip_id) DO NOTHING`. Only the insert that creates the row sends, so a repeated `TipReacted` neither stores nor sends twice.
+
+**Lost acks.** Delivery is at least once. A reaction without an ack is sent again 5 seconds after its last send, up to 3 times, while it is under 60 seconds old. The device drops repeats by tip id. An ack is a conditional update on the session's own device, so a device cannot acknowledge another device's tip:
+
+```sql
+UPDATE reaction_delivery SET acked_at = :now
+WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
+```
+
+**Reconnect race.** A device whose WiFi drops may reconnect before the server notices the old connection is gone. The new session replaces the old one in the registry, and the old one is closed with 4000. Its close callback runs later and removes the entry only if it still holds that same session (`remove(deviceId, session)`), so a late close can never evict the new connection.
+
+**Concurrent sends.** The dispatcher, the resend job, the keepalive and the connect replay can all send to one session at the same time. A raw WebSocket session is not safe for that, so every stored session is wrapped in Spring's `ConcurrentWebSocketSessionDecorator` (5 second send limit, 64 KB buffer). A session that cannot keep up is closed rather than blocking the senders.
+
+**Dead connections.** A device that loses power leaves a half open TCP connection the server cannot see. The server pings every session every 20 seconds and closes a session that has not answered for 45 seconds, two missed pings, with 1001. The device then gets its reactions through replay when it is back.
+
+**Deploys.** On shutdown the server closes every device and observer session with 1001 (going away), so devices reconnect with their backoff to the new instance instead of waiting for a dead connection to time out.
+
+**Delivery dispatch is in memory.** The dispatcher runs after commit on its own virtual thread executor. Run synchronously on the publisher's thread, it would hold the committed transaction's connection while taking a second one, and enough simultaneous reactions exhaust the pool. Known limit: a reaction handed to that executor is lost if the process dies before the task runs. The tip is safe, it is captured and its reaction is stored on it; only that one light pattern is missed. A reaction already in `reaction_delivery` survives a restart through replay on connect.
 
 **Single instance.** WebSocket sessions live in an in-memory registry, so the backend runs as one instance. For several instances, dispatch would go through PostgreSQL `LISTEN/NOTIFY` or Redis pub/sub. This is a deliberate limit for the hackathon, not an oversight.
 
@@ -101,6 +120,28 @@ Zero rows means another worker has the tip or it is finished. The final write is
 | `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `reaction` null, `flagged` bool, `ai_status`, `created_at`, `captured_at` |
 | `paypal_webhook_event` | `event_id` unique, `event_type`, `resource_id`, `received_at` |
 | `owner` | `id`, `email` unique and lowercase, `password_hash`, `display_name`, `created_at` |
+| `reaction_delivery` | `tip_id` primary key, `device_id`, `reaction`, `reacted_at`, `sent_count`, `last_sent_at` null, `acked_at` null; partial index on (`device_id`, `reacted_at`) where `acked_at` is null |
+
+`reaction_delivery` belongs to `devices`, so delivery state is a table of its own instead of more columns on `tip`. It has no foreign key to `tip`, because `devices` does not own that table.
+
+## Device channels
+
+```
+TipReacted (after commit) ──▶ ReactionDispatcher (delivery executor)
+                                 1. INSERT reaction_delivery ON CONFLICT DO NOTHING ── no row: duplicate, stop
+                                 2. device connected? send reaction, sent_count + 1
+                                 3. broadcast {type, reaction, at} to the device's observers
+ReactionResendJob (every 1 s) ──▶ unacked, sent_count < 4, last send 5 s ago, under 60 s old ──▶ send again
+Device connects ──▶ hello, register (closing a replaced session with 4000), replay unacked of the last 60 s
+Device acks ──▶ conditional UPDATE acked_at for its own device
+SessionKeepalive (every 20 s) ──▶ ping, or close with 1001 after 45 s without a pong
+```
+
+The device channel `/ws/device/{deviceId}` authenticates in a handshake interceptor: the bearer secret goes through `DeviceSecretVerifier`, and every failure is the same empty 401. Failed handshakes are limited to 10 per minute per IP. The channel keeps Spring's same origin check; the ESP32 sends no `Origin`, and a browser cannot set an `Authorization` header on a WebSocket, so a cross site page cannot use this endpoint.
+
+The observer channel `/ws/observe/{deviceSlug}` is public and read only: 404 for an unknown slug, at most 5 open connections per IP, and only the origin of `TIP_PUBLIC_BASE_URL`, where the virtual panda page `/p/{slug}` is served. Observers get live reactions only, never a replay, and never a tip id, amount, message or payer data.
+
+The registries are in memory: one `ConcurrentHashMap<UUID, WebSocketSession>` for devices and a map of concurrent sets by slug for observers.
 
 ## Owners
 

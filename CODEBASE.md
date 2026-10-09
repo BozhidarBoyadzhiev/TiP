@@ -7,10 +7,12 @@ Spring Boot 4 monolith, package by feature under `dev.tip`. A feature uses anoth
 | Package | What lives there |
 |---|---|
 | `dev.tip` | `TipApplication` (scheduling and config properties scan on) |
-| `shared` | `TipProperties` (`TIP_*` config), `ClockConfig` (UTC `Clock`), `SecurityConfig` (fallback filter chain: public paths, deny the rest with 403), `SecurityDefaults` (CSP, headers and problem details 401/403 handlers every chain applies), `ProblemWriter` (problem details outside MVC), `CspNonce` (per request CSP nonce filter), `DomainException` + `ProblemDetailsAdvice` (RFC 9457 errors), `ProblemErrorController` (replaces Boot's `/error`) |
+| `shared` | `TipProperties` (`TIP_*` config), `ClockConfig` (UTC `Clock`), `SecurityConfig` (fallback filter chain: public paths, deny the rest with 403), `SecurityDefaults` (CSP, headers and problem details 401/403 handlers every chain applies), `ProblemWriter` (problem details outside MVC), `CspNonce` (per request CSP nonce filter), `DomainException` + `ProblemDetailsAdvice` (RFC 9457 errors), `GenericProblems` (fixed detail and code for framework raised errors such as 404 and 405), `ProblemErrorController` (replaces Boot's `/error`) |
 | `owners` | `Owner` entity, `OwnerRepository`, `OwnerService` (the only `UserDetailsService`, implements `OwnerProvisioning`), `PasswordConfig` (`DelegatingPasswordEncoder`), `OwnerSecurityConfig` (form login chain for `/owner/**` and `/api/owner/**`), `LoginRateLimiter` + `LoginRateLimitFilter` (5 per minute per IP and per email), `OwnerPageController`, `OwnerEmails` (lowercase) |
 | `owners.api` | `OwnerPrincipal` (signed in owner, read with `@AuthenticationPrincipal`), `OwnerProvisioning` (create owner if missing) |
-| `devices` | `Device` entity (owner, secret hash), `DeviceRepository`, `DeviceService`, `DeviceSecrets` (decode and SHA-256), `DefaultDeviceSecretVerifier`, `DemoDeviceSeeder`, `DemoDeviceProperties`, `DemoOwnerProperties`, `DeviceController` |
+| `devices` | `Device` entity (owner, secret hash), `DeviceRepository`, `DeviceService`, `DeviceSecrets` (decode, SHA-256, randomness checks), `DefaultDeviceSecretVerifier`, `DemoDeviceSeeder` (logs the demo device id), `DemoDeviceProperties`, `DemoOwnerProperties`, `DeviceController`, `PandaPageController` |
+| `devices` channels | `WebSocketConfig` (raw WebSocket endpoints, delivery executor, container buffers), `DeviceHandshakeInterceptor` (bearer secret, uniform 401), `HandshakeFailureLimiter` (10 failed handshakes per minute per IP), `DeviceChannelHandler` (hello, replay, ack, size and invalid message limits), `DeviceSessions` (one session per device, replacement with 4000), `ObserverHandshakeInterceptor` (slug 404, `ObserverConnectionLimiter` 5 per IP), `ObserverChannelHandler`, `ObserverSessions` (concurrent sets by slug), `SessionKeepalive` (pings every 20 s, closes after 45 s without a pong, closes all on shutdown), `ProblemHandshakeHandler` (problem details for non upgrade requests), `ChannelMessages` (protocol JSON), `InvalidMessages`, `ClientIps`, `Uuids` (strict lowercase uuid) |
+| `devices` delivery | `ReactionDispatcher` (after commit `TipReacted` listener on the delivery executor), `ReactionDeliveryRepository` (insert, send, ack, replay and resend queries, each its own transaction), `ReactionSender` (send and record), `ReactionResendJob` (every second), `PendingReaction` |
 | `devices.api` | `DeviceDirectory` (lookup by slug, ownership check), `DeviceSecretVerifier` (constant time secret check, for Brief 03), `DeviceSummary`, `DeviceSlug` (slug pattern), `DeviceNotFoundException` |
 | `paypal` | `PayPalConfig` (SDK client, OkHttp host rewrite to `PAYPAL_BASE_URL`, `RestClient`), `PayPalOrders` (create, capture, get via SDK), `PayPalRefunds` (capture refund via SDK), `WebhookSignatureVerifier` (`RestClient`), `PayPalAccessTokens` (shares the SDK OAuth token), `DefaultPayPalGateway`, `PayPalProperties` |
 | `paypal.api` | `PayPalGateway`, `CreateOrderCommand`, `CreateOrderResult`, `CaptureResult`, `RefundResult`, `WebhookTransmission`, `WebhookVerification`, `PayPalPublicConfig` |
@@ -22,15 +24,18 @@ Spring Boot 4 monolith, package by feature under `dev.tip`. A feature uses anoth
 ## Security filter chains
 
 1. `OwnerSecurityConfig` (order 1) matches `/owner`, `/owner/**`, `/api/owner/**`. Form login, CSRF on, request cache off. Unauthenticated pages redirect to `/owner/login`; the API answers 401 problem details.
-2. `SecurityConfig` (lowest order) matches everything else. Public paths are listed; the rest is 403 problem details. CSRF ignored for `/api/public/**` and `/webhooks/**`.
+2. `SecurityConfig` (lowest order) matches everything else. Public paths are listed (including `/p/**` and `/ws/**`, whose handshake interceptors do their own checks); the rest is 403 problem details. CSRF ignored for `/api/public/**` and `/webhooks/**`.
 
-Both apply `SecurityDefaults`: CSP with nonce, HSTS, referrer policy, problem details for 403 (`FORBIDDEN`, `CSRF_TOKEN_INVALID`).
+Both apply `SecurityDefaults`: CSP with nonce (`connect-src` also names the request's own `ws:`/`wss:` origin), HSTS, referrer policy, problem details for 403 (`FORBIDDEN`, `CSRF_TOKEN_INVALID`).
 
 ## Endpoints
 
 | Method and path | Handler | Notes |
 |---|---|---|
-| `GET /t/{slug}` | `TipPageController` | `static/tip.html` with the request's CSP nonce |
+| `GET /t/{slug}` | `TipPageController` | `static/tip.html` with the request's CSP nonce; success screen links to `/p/{slug}` |
+| `GET /p/{slug}` | `PandaPageController` | `static/panda.html` (virtual panda, `panda.js`, `panda.css`) with the request's CSP nonce |
+| `GET /ws/device/{deviceId}` | `DeviceChannelHandler` | WebSocket, `Authorization: Bearer <secret>`; 401 for any failure, 429 after 10 failures a minute per IP |
+| `GET /ws/observe/{deviceSlug}` | `ObserverChannelHandler` | WebSocket, public and read only, origin of `TIP_PUBLIC_BASE_URL` only; 404 unknown slug, 429 for a 6th connection per IP |
 | `GET /api/public/devices/{slug}` | `DeviceController` | display name, currency, presets, bounds, PayPal client id |
 | `POST /api/public/devices/{slug}/tips` | `TipController` | `{amountMinor, currency, message}` → 201 `{tipId, paypalOrderId}`; 10 per minute per IP |
 | `POST /api/public/tips/{tipId}/capture` | `TipController` | → `{status}`; 422 `INSTRUMENT_DECLINED`; 409 `TIP_CLOSED` for `FAILED` and `ABANDONED` |
@@ -52,9 +57,13 @@ Everything else is denied. Every error, including those from Spring Security and
 - `paypal_webhook_event`: unique event_id, event_type, resource_id, received_at
 
 `V2__owners_ai_refunds.sql`:
-- `owner`: id, unique lowercase email, password_hash, display_name, created_at. Devices that existed before go to a placeholder owner `unclaimed@tip.invalid` that cannot sign in; the seeder takes the demo device over.
+- `owner`: id, unique lowercase email, password_hash, display_name, created_at. Devices that existed before go to a placeholder owner `unclaimed@tip.invalid` that cannot sign in; the seeder takes the demo device over and V3 removes the placeholder.
 - `device`: owner_id (not null, foreign key), secret_hash (32 bytes)
 - `tip`: status adds `REVERSED`; ai_claimed_at, ai_attempts, flag_reason, reaction_at; ai_status check constraint; partial index for unfinished AI work
+
+`V3__reaction_delivery.sql`:
+- `reaction_delivery`: tip_id primary key, device_id, reaction (check constrained), reacted_at, sent_count, last_sent_at, acked_at; partial index on (device_id, reacted_at) where acked_at is null. No foreign key to `tip`, which `devices` does not own.
+- Deletes the V2 placeholder owner when it owns no devices.
 
 ## How a tip flows
 
@@ -66,6 +75,21 @@ Everything else is denied. Every error, including those from Spring Security and
 6. `TipCapturedListener` runs `TipReactionWorker` on the AI executor: claim the tip with a conditional update, call Claude (or skip when there is no message or AI is disabled), then a final write conditional on the same claim sets the reaction and publishes `TipReacted` after commit. A failed attempt goes back to `PENDING`; the third failure stores `NEUTRAL` as `FAILED`. `AiRecoveryJob` reruns the flow for pending tips and expired claims.
 7. `AbandonedTipsJob` marks `CREATED` tips older than 6 hours `ABANDONED` every 10 minutes.
 
+## How a reaction reaches the panda
+
+1. `TipReactions` publishes `TipReacted` after commit. `ReactionDispatcher` handles it on the delivery executor (virtual threads), never on the publisher's thread, which still holds the committed transaction's connection.
+2. It inserts the `reaction_delivery` row with `ON CONFLICT (tip_id) DO NOTHING`; no row inserted means a duplicate, and nothing more happens.
+3. If the device has a session in `DeviceSessions`, `ReactionSender` sends `{type: reaction, id, reaction, at}` and records the send. Then `ObserverSessions` broadcasts `{type, reaction, at}` to the slug's observers.
+4. The device acks with `{type: ack, id}`; the update is conditional on the session's own device and `acked_at is null`.
+5. `ReactionResendJob` resends to connected devices every second: unacked, fewer than 4 sends, last send 5 s ago, under 60 s old. A device that connects gets `hello`, replaces any old session (closed with 4000) and gets its unacked reactions of the last 60 s, oldest first.
+6. `SessionKeepalive` pings every device and observer session every 20 s and closes those without a pong for 45 s with 1001. On shutdown it closes every session with 1001.
+
+The virtual panda (`/p/{slug}`) loads the device name from `/api/public/devices/{slug}`, opens `/ws/observe/{slug}` and plays the protocol's patterns on `requestAnimationFrame`, queue of 4, captions, connection status and backoff. With `prefers-reduced-motion` it holds a steady light.
+
+## Fake device
+
+`src/tools/java/dev/tip/tools` is its own Gradle source set (`tools`), not in the app jar. `./gradlew fakeDevice --args="--url=ws://localhost:8080 --device=<uuid> [--secret=<secret>]"` runs `FakeDevice`, which reads `.env` like `bootRun` and falls back to `TIP_DEMO_DEVICE_SECRET`. `FakeDevice` (JDK `HttpClient` WebSocket, listener, acks, stops on 401), `Player` (queue of 4, drop oldest, ack when playing starts), `LedPattern` (protocol timings and a text picture), `RecentIds` (last 16 tip ids), `Backoff` (1 to 30 s, up to 20 % jitter).
+
 ## How a refund flows
 
 1. A signed in owner posts `/api/owner/tips/{tipId}/refund` with the CSRF token.
@@ -74,8 +98,8 @@ Everything else is denied. Every error, including those from Spring Security and
 
 ## Startup seeding
 
-`DemoDeviceSeeder` creates the demo owner through `OwnerProvisioning` when the email is new, then creates the demo device or reassigns it to that owner and updates its secret hash from `TIP_DEMO_DEVICE_SECRET`.
+`DemoDeviceSeeder` creates the demo owner through `OwnerProvisioning` when the email is new, then creates the demo device or reassigns it to that owner and updates its secret hash from `TIP_DEMO_DEVICE_SECRET`. It refuses a secret that is clearly not random and logs the demo device id, never the secret.
 
 ## Tests
 
-`src/test/java/dev/tip`: `IntegrationTest` base (random port, Testcontainers PostgreSQL, shared WireMock servers for PayPal and Anthropic, Anthropic answers `NEUTRAL` by default), `PayPalStubs`, `AnthropicStubs`, `WebhookEvents`, `TestData`, `CapturedEvents` and `ReactedEvents` (after commit listeners). Feature tests sit in the matching package. Race tests: `CaptureWebhookRaceTest` (capture and webhook over real HTTP), `AiRaceTest` (capture listener and recovery job), `RefundWebhookRaceTest` (refund response and webhook). `AiDisabledTest` runs a context with AI off and no key. The test profile shortens the AI timeout to 2 s and moves the recovery job to once an hour so tests drive it.
+`src/test/java/dev/tip`: `IntegrationTest` base (random port, Testcontainers PostgreSQL, shared WireMock servers for PayPal and Anthropic, Anthropic answers `NEUTRAL` by default), `PayPalStubs`, `AnthropicStubs`, `WebhookEvents`, `TestData`, `CapturedEvents` and `ReactedEvents` (after commit listeners), `MutableClock` (the application `Clock` in tests, pinned and advanced by tests). Feature tests sit in the matching package. Race tests: `CaptureWebhookRaceTest` (capture and webhook over real HTTP), `AiRaceTest` (capture listener and recovery job), `RefundWebhookRaceTest` (refund response and webhook). `AiDisabledTest` runs a context with AI off and no key. Device channel tests (`DeviceChannelTest`, `ReactionDeliveryTest`, `ObserverChannelTest`, `KeepaliveTest`) use `TestSocket` (a real `StandardWebSocketClient` that records messages and can `sync` with a ping) and `RawWebSocket` (a plain socket client that shows handshake responses byte for byte and never answers pings); they set the client IP with `X-Forwarded-For`, drive time through the `MutableClock` bean and run the resend and keepalive jobs themselves. `PandaPageTest` covers the page and its CSP. `dev.tip.tools` tests run the fake device's parts and the fake device against the app; the test classpath includes the `tools` output. The test profile shortens the AI timeout to 2 s and moves the recovery job, the resend job and the keepalive to once an hour so tests drive them.
