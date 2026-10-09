@@ -13,9 +13,10 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 /**
- * The authenticated device channel. On connect the device gets {@code hello} and becomes the device's
- * one registered session. Inbound messages are size checked and parsed; anything that is not a well
- * formed {@code ack} is ignored, and a session that keeps sending such messages is closed.
+ * The authenticated device channel. On connect the device gets {@code hello}, becomes the device's one
+ * registered session, and gets its unacknowledged reactions of the last minute, oldest first. Inbound
+ * messages are size checked and parsed; an {@code ack} acknowledges one of the device's own reactions,
+ * anything else is ignored, and a session that keeps sending such messages is closed.
  */
 @Component
 class DeviceChannelHandler extends TextWebSocketHandler {
@@ -29,11 +30,20 @@ class DeviceChannelHandler extends TextWebSocketHandler {
 
     private final DeviceSessions sessions;
     private final ChannelMessages messages;
+    private final ReactionDeliveryRepository deliveries;
+    private final ReactionSender sender;
     private final Clock clock;
 
-    DeviceChannelHandler(DeviceSessions sessions, ChannelMessages messages, Clock clock) {
+    DeviceChannelHandler(
+            DeviceSessions sessions,
+            ChannelMessages messages,
+            ReactionDeliveryRepository deliveries,
+            ReactionSender sender,
+            Clock clock) {
         this.sessions = sessions;
         this.messages = messages;
+        this.deliveries = deliveries;
+        this.sender = sender;
         this.clock = clock;
     }
 
@@ -46,6 +56,10 @@ class DeviceChannelHandler extends TextWebSocketHandler {
         session.sendMessage(messages.hello(device.displayName(), clock.instant()));
         sessions.register(device.id(), session);
         log.info("Device {} connected", device.id());
+        for (PendingReaction reaction :
+                deliveries.unacked(device.id(), clock.instant().minus(ReactionSender.MAX_AGE))) {
+            sender.send(session, reaction);
+        }
     }
 
     @Override
@@ -56,7 +70,9 @@ class DeviceChannelHandler extends TextWebSocketHandler {
             return;
         }
         Optional<UUID> tipId = messages.ackedTipId(message.getPayload());
-        if (tipId.isEmpty()) {
+        if (tipId.isPresent()) {
+            deliveries.ack(tipId.get(), device(raw).id(), clock.instant());
+        } else {
             log.debug("Ignored an invalid message from device {}", device(raw).id());
             if (((InvalidMessages) raw.getAttributes().get(INVALID)).recordAndCheckLimit(clock.instant())) {
                 DeviceSessions.close(session, CloseStatus.POLICY_VIOLATION);
