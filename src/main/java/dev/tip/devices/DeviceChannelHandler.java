@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PongMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -32,6 +33,7 @@ class DeviceChannelHandler extends TextWebSocketHandler {
     private final ChannelMessages messages;
     private final ReactionDeliveryRepository deliveries;
     private final ReactionSender sender;
+    private final SessionKeepalive keepalive;
     private final Clock clock;
 
     DeviceChannelHandler(
@@ -39,11 +41,13 @@ class DeviceChannelHandler extends TextWebSocketHandler {
             ChannelMessages messages,
             ReactionDeliveryRepository deliveries,
             ReactionSender sender,
+            SessionKeepalive keepalive,
             Clock clock) {
         this.sessions = sessions;
         this.messages = messages;
         this.deliveries = deliveries;
         this.sender = sender;
+        this.keepalive = keepalive;
         this.clock = clock;
     }
 
@@ -53,6 +57,7 @@ class DeviceChannelHandler extends TextWebSocketHandler {
         WebSocketSession session = DeviceSessions.concurrent(raw);
         raw.getAttributes().put(CONCURRENT, session);
         raw.getAttributes().put(INVALID, new InvalidMessages());
+        keepalive.connected(raw);
         session.sendMessage(messages.hello(device.displayName(), clock.instant()));
         sessions.register(device.id(), session);
         log.info("Device {} connected", device.id());
@@ -78,6 +83,11 @@ class DeviceChannelHandler extends TextWebSocketHandler {
                 DeviceSessions.close(session, CloseStatus.POLICY_VIOLATION);
             }
         }
+    }
+
+    @Override
+    protected void handlePongMessage(WebSocketSession raw, PongMessage message) {
+        keepalive.ponged(raw);
     }
 
     @Override

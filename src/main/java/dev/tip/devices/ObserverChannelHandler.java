@@ -3,6 +3,7 @@ package dev.tip.devices;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PongMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -18,15 +19,18 @@ class ObserverChannelHandler extends TextWebSocketHandler {
     private static final String CONCURRENT = ObserverChannelHandler.class.getName() + ".concurrent";
 
     private final ObserverSessions observers;
+    private final SessionKeepalive keepalive;
 
-    ObserverChannelHandler(ObserverSessions observers) {
+    ObserverChannelHandler(ObserverSessions observers, SessionKeepalive keepalive) {
         this.observers = observers;
+        this.keepalive = keepalive;
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession raw) {
         WebSocketSession session = DeviceSessions.concurrent(raw);
         raw.getAttributes().put(CONCURRENT, session);
+        keepalive.connected(raw);
         observers.add(slug(raw), session);
     }
 
@@ -38,6 +42,11 @@ class ObserverChannelHandler extends TextWebSocketHandler {
     @Override
     protected void handleBinaryMessage(WebSocketSession raw, BinaryMessage message) {
         closeIfTooBig(raw, message);
+    }
+
+    @Override
+    protected void handlePongMessage(WebSocketSession raw, PongMessage message) {
+        keepalive.ponged(raw);
     }
 
     @Override
