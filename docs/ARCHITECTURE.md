@@ -34,8 +34,8 @@ One deployable with feature packages. Features talk through `api` subpackages an
 4. The page calls `POST /api/public/tips/{tipId}/capture`. The server looks up the order id itself and captures it.
 5. PayPal also sends `PAYMENT.CAPTURE.COMPLETED` to `/webhooks/paypal`.
 6. Whichever of step 4 or 5 moves the tip from `CREATED` to `CAPTURED` first publishes `TipCaptured`, after the transaction commits.
-7. The `ai` feature classifies the message off the request thread and stores its kind, the reaction (`PLAIN` when flagged, otherwise the kind), the flag and, for an unflagged request, a short owner note.
-8. The `devices` feature stores a delivery row, pushes the reaction to the device channel and to any observers of that device, and resends it until the device acknowledges it.
+7. The `ai` feature classifies the message off the request thread and stores its kind, the reaction (`PLAIN` when flagged, otherwise the kind), the flag and, for an unflagged request, a short owner note. In the same step it decides `repeats` (1 to 5) from the tip amount, always 1 when flagged, so bigger tips get a longer pattern.
+8. The `devices` feature stores a delivery row with the reaction and its repeats, pushes it to the device channel and to any observers of that device, and resends it until the device acknowledges it.
 
 ## Tip states
 
@@ -122,7 +122,7 @@ WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
 | `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `message_kind` null (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reaction` null (same values, `PLAIN` when flagged), `flagged` bool, `flag_reason` null, `owner_note` varchar(100) null (unflagged requests only), `ai_status`, `created_at`, `captured_at` |
 | `paypal_webhook_event` | `event_id` unique, `event_type`, `resource_id`, `received_at` |
 | `owner` | `id`, `email` unique and lowercase, `password_hash`, `display_name`, `created_at` |
-| `reaction_delivery` | `tip_id` primary key, `device_id`, `reaction` (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reacted_at`, `sent_count`, `last_sent_at` null, `acked_at` null; partial index on (`device_id`, `reacted_at`) where `acked_at` is null |
+| `reaction_delivery` | `tip_id` primary key, `device_id`, `reaction` (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `repeats` (1 to 5), `reacted_at`, `sent_count`, `last_sent_at` null, `acked_at` null; partial index on (`device_id`, `reacted_at`) where `acked_at` is null |
 
 `reaction_delivery` belongs to `devices`, so delivery state is a table of its own instead of more columns on `tip`. It has no foreign key to `tip`, because `devices` does not own that table.
 
@@ -132,7 +132,7 @@ WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
 TipReacted (after commit) ──▶ ReactionDispatcher (delivery executor)
                                  1. INSERT reaction_delivery ON CONFLICT DO NOTHING ── no row: duplicate, stop
                                  2. device connected? send reaction, sent_count + 1
-                                 3. broadcast {type, reaction, at} to the device's observers
+                                 3. broadcast {type, reaction, repeats, at} to the device's observers
 ReactionResendJob (every 1 s) ──▶ unacked, sent_count < 4, last send 5 s ago, under 60 s old ──▶ send again
 Device connects ──▶ hello, register (closing a replaced session with 4000), replay unacked of the last 60 s
 Device acks ──▶ conditional UPDATE acked_at for its own device
@@ -141,7 +141,7 @@ SessionKeepalive (every 20 s) ──▶ ping, or close with 1001 after 45 s with
 
 The device channel `/ws/device/{deviceId}` authenticates in a handshake interceptor: the bearer secret goes through `DeviceSecretVerifier`, and every failure is the same empty 401. Failed handshakes are limited to 10 per minute per IP. The channel keeps Spring's same origin check; the ESP32 sends no `Origin`, and a browser cannot set an `Authorization` header on a WebSocket, so a cross site page cannot use this endpoint.
 
-The observer channel `/ws/observe/{deviceSlug}` is public and read only: 404 for an unknown slug, at most 5 open connections per IP, and only the origin of `TIP_PUBLIC_BASE_URL`, where the virtual panda page `/p/{slug}` is served. Observers get live reactions only, never a replay, and never a tip id, amount, message or payer data.
+The observer channel `/ws/observe/{deviceSlug}` is public and read only: 404 for an unknown slug, at most 5 open connections per IP, and only the origin of `TIP_PUBLIC_BASE_URL`, where the virtual panda page `/p/{slug}` is served. Observers get live reactions only, never a replay: the reaction label and its repeats, so the virtual panda plays what the LED plays. Never a tip id, amount, message, message kind, flag or payer data. The repeats tier shows publicly that a bigger tip landed, which is intended.
 
 The registries are in memory: one `ConcurrentHashMap<UUID, WebSocketSession>` for devices and a map of concurrent sets by slug for observers.
 
@@ -162,10 +162,10 @@ Owners sign in with email and password through a session based form login. Passw
 | Spamming tip creation | Rate limit per client IP. Creating a tip costs us one PayPal API call and no AI call. |
 | Running up the AI bill | AI only runs after a captured payment. Every AI call is paid for by a real tip. |
 | Prompt injection in the message | The message is wrapped as untrusted data, the model must return a fixed schema checked again in Java, and anything outside it is a failed attempt that ends as `PLAIN`. The worst a successful injection can do is pick the wrong light pattern or write a misleading owner note, which the owner reads as a note, never as an instruction. Summaries are only shown to the owner and the model has no tools. |
-| Abusive messages | AI flags them. A flagged message plays the plain blink, the same as a tip without a message, so abuse gets no reward and nothing to film. Observers cannot tell it apart from any other `PLAIN`. Flagged messages are hidden from public views, carry no owner note, and the owner can refund the tip. |
+| Abusive messages | AI flags them. A flagged message plays a single plain blink whatever the amount, the same as a small tip without a message, so abuse gets no reward and nothing to film, and a big tip cannot buy a big reaction for an insult. Observers cannot tell it apart from any other `PLAIN`. Flagged messages are hidden from public views, carry no owner note, and the owner can refund the tip. |
 | Stored XSS through messages | Output is always rendered with `textContent`. A strict Content Security Policy that allows only our origin and the PayPal SDK domains. |
 | Someone impersonates a device | Each device has a 256 bit random secret, sent over TLS, stored as a SHA-256 hash and compared in constant time. SHA-256 is right here, not bcrypt, because the secret is random with full entropy and cannot be brute forced. Bcrypt exists to slow down guessing of human passwords. |
-| Someone watches a device's observer feed | The observer channel carries only the reaction label and a timestamp. No amounts, no messages, no payer data. |
+| Someone watches a device's observer feed | The observer channel carries only the reaction label, its repeats and a timestamp. Repeats reveal a coarse tier (1 to 5), on purpose, never the amount. A flagged tip always has repeats 1, so it looks like any small plain tip. No messages, kinds, flags or payer data. |
 | Tipping remotely through a shared URL | Accepted for v1. v2 rotates a one time token on the tag through the PN532 after every tip, so only someone physically at the device can tip. |
 | Secrets leak through the public repo | Secrets only in environment variables, `.env` in `.gitignore`, gitleaks scan in CI. |
 | Device skips TLS checks | Firmware verifies the server certificate with the ESP32 built in CA bundle. `setInsecure()` is never used. |
@@ -175,7 +175,9 @@ Owners sign in with email and password through a session based form login. Passw
 1. **Server side order creation and capture.** The browser never decides the amount or declares a payment complete.
 2. **Capture response and webhook both drive state.** The capture response is fast for the tipper's success screen. The webhook catches cases the browser never reports, like a closed tab or a delayed `PENDING` capture. The conditional update makes the double path safe.
 3. **Device opens an outbound WebSocket.** Devices sit behind home and shop routers with NAT, so the server cannot call them. Polling would cost battery and add delay. One long lived outbound connection reacts within a second and needs no open ports.
-4. **Separate observer channel.** The virtual panda for judges and any public display subscribe read only by slug. Nobody needs a device secret to watch, and the real device channel stays authenticated.
+4. **Separate observer channel.** The virtual panda for judges and any public display subscribe read only by slug. Nobody needs a device secret to watch, and the real device channel stays authenticated. It carries the reaction label and repeats, nothing more.
 5. **AI runs after commit and off the request thread.** The tipper's success screen never waits on a model.
 6. **PostgreSQL everywhere, including tests.** Testcontainers runs the same database the app runs in production, so tests catch constraint and locking behaviour an in-memory database would hide.
 7. **Monolith with feature packages.** One thing to deploy and run, with boundaries enforced by tests.
+8. **Reaction scales with the amount, in capped tiers.** `repeats` 1 to 5 from the amount charged, decided once with the reaction and stored with the delivery, so a replay sends what was decided. Flagged tips always get 1.
+9. **Ack means received.** Devices ack on receipt and queue playback, because patterns now run up to 10 seconds and resends come every 5. The connect order (hello, register, replay) stays, accepting a rare duplicate that the device acks and does not play, rather than delaying real reactions.

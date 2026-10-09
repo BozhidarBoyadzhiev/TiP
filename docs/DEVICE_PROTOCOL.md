@@ -31,10 +31,22 @@ Authorization: Bearer <deviceSecret>
 ### Server to device
 
 ```json
-{ "type": "reaction", "id": "<tipId>", "reaction": "WARM", "at": "2026-10-13T14:02:11Z" }
+{ "type": "reaction", "id": "<tipId>", "reaction": "WARM", "repeats": 3, "at": "2026-10-13T14:02:11Z" }
 ```
 
 `reaction` is one of `WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`, the same values on both channels. A flagged message always arrives as `PLAIN`.
+
+`repeats` is an integer from 1 to 5 that makes the pattern longer for bigger tips (see LED patterns). The server always sends it and stores it with the delivery, so a resend or a replay carries the same value. The server takes the amount charged in the major unit of its currency, rounds it half up to a whole number and maps it:
+
+| Rounded amount | `repeats` |
+|---|---|
+| 1 or less | 1 |
+| 2 | 2 |
+| 3 to 4 | 3 |
+| 5 to 9 | 4 |
+| 10 and up | 5 |
+
+A flagged tip always has `repeats` 1, whatever the amount, so it looks exactly like a plain 1 pound tip. A device treats a missing `repeats` as 1 and clamps values outside 1 to 5 instead of rejecting the message.
 
 ```json
 { "type": "hello", "deviceName": "Busker Panda", "serverTime": "2026-10-13T14:00:00Z" }
@@ -48,7 +60,7 @@ Sent once after a successful handshake.
 { "type": "ack", "id": "<tipId>" }
 ```
 
-Sent when the device starts playing a reaction, and right away for a repeat it does not play again.
+Ack means "received". The device sends it as soon as a reaction arrives, before playback starts, and also for a repeat it does not play again. Resends come 5 seconds apart and a pattern can run up to 10 seconds, or wait behind others in the queue, so an ack sent after playback would bring resends in the middle of a pattern.
 
 ### Delivery rules
 
@@ -56,7 +68,8 @@ Sent when the device starts playing a reaction, and right away for a repeat it d
 - The device keeps the last 16 tip ids it has played and does not play repeats again.
 - The device acks every reaction it receives, including repeats it does not play again. A lost ack otherwise leads to three needless resends.
 - On connect, the server sends unacknowledged reactions from the last 60 seconds, oldest first. Older ones are dropped.
-- If a reaction arrives while another is playing, the device queues it (queue size 4, drop oldest when full).
+- Playback is queued. A reaction that arrives while another is playing waits and plays after it, in order of arrival (queue size 4, drop oldest when full). It is acked on arrival, not when it plays.
+- A reaction that is published while a device is connecting may arrive twice: once live and once from the replay. This is expected. The device acks the repeat and does not play it again. The server keeps its connect order (hello, then register, then replay) on purpose: a rare duplicate costs one small message, while the alternative orderings delay a real reaction by up to 5 seconds.
 
 ### Keepalive
 
@@ -76,21 +89,35 @@ wss://<host>/ws/observe/{deviceSlug}
 - Receives only:
 
 ```json
-{ "type": "reaction", "reaction": "WARM", "at": "2026-10-13T14:02:11Z" }
+{ "type": "reaction", "reaction": "WARM", "repeats": 3, "at": "2026-10-13T14:02:11Z" }
 ```
 
-- No tip id, amount, message or payer data. Observers never send anything. Messages from observers are ignored.
+- `repeats` is the same value the device gets, so the virtual panda plays what the LED plays. It shows the tier of a tip publicly on purpose: the people standing around should see a big tip land. Missing means 1, out of range is clamped, as on the device channel.
+- No tip id, amount, message, message kind, flag or payer data. Observers never send anything. Messages from observers are ignored.
 
 ## LED patterns
 
 Single colour LED driven with PWM (ESP32 LEDC, 8 bit duty).
 
-| Reaction | Pattern | Total length |
-|---|---|---|
-| `WARM` | Heartbeat. Fade 0 to 255 over 400 ms, 255 to 0 over 600 ms, pause 200 ms. Repeat 3 times. | 3.6 s |
-| `PLAYFUL` | Giggle. Six quick flicks, each rising over 60 ms and falling over 90 ms with a 70 ms gap, peaks 255, 140, 230, 110, 255, 170. Pause 250 ms, then the six flicks again. | about 2.9 s |
-| `REQUEST` | Noted. Fade 0 to 255 over 300 ms, hold 500 ms, fade to 0 over 300 ms, pause 300 ms. Repeat once. | 2.5 s |
-| `PLAIN` | One solid blink. Full on 700 ms, then off. | 0.7 s |
+Each pattern is a unit played a number of times with a fixed gap between units. With `repeats` 1 a pattern plays its base number of units; each extra repeat adds one unit: the device plays `base + (repeats - 1)` units.
+
+| Reaction | Unit | Gap between units | Base units |
+|---|---|---|---|
+| `WARM` | Heartbeat. Fade 0 to 255 over 400 ms, 255 to 0 over 600 ms, pause 200 ms (1.2 s). | none, the unit ends in its pause | 3 |
+| `PLAYFUL` | Giggle. Six quick flicks, each rising over 60 ms and falling over 90 ms with a 70 ms gap, peaks 255, 140, 230, 110, 255, 170 (1.32 s). | 250 ms | 2 |
+| `REQUEST` | Noted. Fade 0 to 255 over 300 ms, hold 500 ms, fade to 0 over 300 ms (1.1 s). | 300 ms | 2 |
+| `PLAIN` | One solid blink. Full on 700 ms, then off. | 300 ms, so repeated blinks are distinguishable | 1 |
+
+Total length by `repeats`:
+
+| Reaction | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| `WARM` | 3.6 s (3 units) | 4.8 s | 6.0 s | 7.2 s | 8.4 s (7 units) |
+| `PLAYFUL` | 2.89 s (2 units) | 4.46 s | 6.03 s | 7.6 s | 9.17 s (6 units) |
+| `REQUEST` | 2.5 s (2 units) | 3.9 s | 5.3 s | 6.7 s | 8.1 s (6 units) |
+| `PLAIN` | 0.7 s (1 unit) | 1.7 s | 2.7 s | 3.7 s | 4.7 s (5 units) |
+
+No pattern runs longer than 10 seconds, so no gap had to be shortened. With `repeats` 1 the patterns are exactly the original ones.
 
 The three long patterns stay apart on a single colour LED by their shape: `WARM` is smooth and slow, `PLAYFUL` quick and jittery, `REQUEST` long flat holds. Abuse has no pattern of its own: a flagged message plays `PLAIN`, so a troll gets nothing worth filming.
 
