@@ -53,6 +53,8 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
    ./gradlew bootRun
    ```
 
+   It listens on 8080. A `PORT` environment variable changes that (Render sets it), and `SERVER_PORT` wins over `PORT`, so a `SERVER_PORT=8081` in `.env` keeps working whatever `PORT` says.
+
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
 7. Watch the virtual panda at `<TIP_PUBLIC_BASE_URL>/p/<your demo slug>` (the page must be opened from that origin). It plays the same light patterns as the physical one. With your operating system's reduce motion setting (`prefers-reduced-motion`) the panda holds a steady light in the reaction's colour instead of fading and flicking.
@@ -125,6 +127,10 @@ This compiles, checks formatting with Spotless (fix with `./gradlew spotlessAppl
 
 It reads `ANTHROPIC_API_KEY` and `TIP_AI_MODEL` from `.env` or the environment, like the app, and stops with a message when there is no key. The cases live in `src/tools/resources/ai-eval-cases.jsonl`, one JSON object per line with `message`, `kind` (one kind, or a list of the kinds accepted for a genuinely ambiguous message), `flagged` and `ownerNote` (`true`, `false`, or `"ifRequest"` when a note is expected only if the result is `REQUEST`).
 
+## Deploying
+
+The app runs on Render as a Docker web service with Render PostgreSQL. `docs/DEPLOYMENT.md` lists every environment variable, the health check path (`/actuator/health`), how CI deploys after a push to `main`, and a smoke test for after a deploy.
+
 ## Project layout
 
 ```
@@ -140,7 +146,7 @@ src/tools/java/dev/tip/tools/
 src/main/resources/
   db/migration/   Flyway migrations
   static/         tip page, virtual panda and owner pages (plain HTML, CSS, JS)
-docs/             architecture and device protocol
+docs/             architecture, device protocol and deployment
 ```
 
 `CODEBASE.md` maps the classes, endpoints, tables and the tip flow in more detail.
