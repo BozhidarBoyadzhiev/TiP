@@ -57,7 +57,7 @@ Briefs come from the lead, a Claude chat acting as tech lead. The humans relay t
 ## Finishing a task
 
 1. `./gradlew build` is green. For firmware changes, `pio run` and `pio test -e native` are green too.
-2. Update `CODEBASE.md`. It is a map of what exists, where it lives and how it connects. Not a diary.
+2. Update `CODEBASE.md`. It is a map of what exists, where it lives and how it connects. Not a diary. A change that makes `CODEBASE.md` inaccurate updates it in the same piece of work, even when the instruction says "no other changes".
 3. Update `README.md` if setup or run steps changed.
 4. Print your report as your final message, in exactly this format:
 
