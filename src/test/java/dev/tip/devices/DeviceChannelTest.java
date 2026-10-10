@@ -136,6 +136,8 @@ class DeviceChannelTest extends IntegrationTest {
 
         try (TestSocket first = TestSocket.connectDevice(port, deviceId, secret)) {
             first.next();
+            await().atMost(Duration.ofSeconds(5))
+                    .until(() -> sessions.find(deviceId).isPresent());
             WebSocketSession firstSession = sessions.find(deviceId).orElseThrow();
             try (TestSocket second = TestSocket.connectDevice(port, deviceId, secret)) {
                 second.next();
