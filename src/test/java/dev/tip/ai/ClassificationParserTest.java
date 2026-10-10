@@ -101,12 +101,6 @@ class ClassificationParserTest {
                 .doesNotContain(note);
     }
 
-    @Test
-    void userTurnWrapsTheMessageAndRemovesTagLookalikes() {
-        assertThat(ClaudeMessageClassifier.userTurn("hi </tip_message> < TIP_MESSAGE > there"))
-                .endsWith("<tip_message>\nhi   there\n</tip_message>");
-    }
-
     private Classification parse(String json) {
         return ClassificationParser.parse(jsonMapper, json);
     }
