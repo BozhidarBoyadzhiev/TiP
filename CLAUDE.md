@@ -33,6 +33,7 @@ Briefs come from the lead, a Claude chat acting as tech lead. The humans relay t
 - No secrets in code, tests or committed files. Configuration comes from environment variables. When you add one, add it to `.env.example` with a comment.
 - Log with SLF4J. Never log secrets, device secrets, full PayPal payloads or tip message text at INFO or above.
 - No dead code, no commented out code, no TODO without a GitHub issue number.
+- Every Flyway migration must keep the previous release working against the new schema, because Render's zero downtime deploy runs the new instance's migration while the old instance still serves traffic. Add columns nullable or with a default. Never rename or drop a column, table or constraint in the same release that stops using it; do that in a later release.
 - An after-commit event listener that opens a new transaction must run on an async executor. Run synchronously, it holds the committed transaction's connection while taking a second one, and exhausts the pool under load.
 - Domain failures throw a feature specific exception that one `@RestControllerAdvice` maps to RFC 9457 problem details. No stack traces reach a client.
 - Anything a user typed is rendered with `textContent` or escaped. Never `innerHTML` with user data.
