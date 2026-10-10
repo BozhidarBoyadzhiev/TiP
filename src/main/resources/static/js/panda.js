@@ -202,7 +202,7 @@
     function setUpBrand() {
         const brand = el("brand");
         const parts = brand.querySelectorAll("[data-text]");
-        parts.forEach((part, index) => {
+        parts.forEach((part) => {
             Array.from(part.dataset.text).forEach((character, position) => {
                 const letter = document.createElement("span");
                 letter.className = "l";
@@ -210,12 +210,13 @@
                 letter.style.setProperty("--d", String(position));
                 part.appendChild(letter);
             });
-            if (index < parts.length - 1) {
-                const space = document.createElement("span");
-                space.className = "sp";
-                part.appendChild(space);
-            }
         });
+        // The open width of each hidden part is its letters' width in the loaded font at the current size.
+        const measure = () => {
+            parts.forEach((part) => part.parentElement.style.setProperty("--w", part.scrollWidth + "px"));
+        };
+        document.fonts.ready.then(measure);
+        window.addEventListener("resize", measure);
         brand.addEventListener("click", () => {
             brand.setAttribute("aria-expanded", brand.getAttribute("aria-expanded") === "true" ? "false" : "true");
         });

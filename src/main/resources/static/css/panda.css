@@ -104,6 +104,10 @@ h1 {
     border-radius: 10px;
 }
 
+.brand > span {
+    flex-shrink: 0;
+}
+
 .brand .gold {
     color: var(--gold);
 }
@@ -121,17 +125,18 @@ h1 {
     transition: transform 0.45s cubic-bezier(0.3, 1.7, 0.5, 1);
 }
 
+/* panda.js measures each hidden part into --w, so the width opens to exactly its letters. Clipping only
+   the x axis keeps the box out of scroll container rules, so it stays on the text baseline. */
 .brand .rest {
-    display: inline-grid;
-    grid-template-columns: 0fr;
-    transition: grid-template-columns 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: inline-block;
+    width: 0;
+    overflow-x: clip;
+    overflow-y: visible;
+    transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), margin-right 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .brand .rest > span {
-    overflow: hidden;
-    min-width: 0;
-    padding-block: 0.2em;
-    margin-block: -0.2em;
+    display: inline-block;
 }
 
 .brand .l {
@@ -145,7 +150,16 @@ h1 {
 .brand:hover .rest,
 .brand:focus-visible .rest,
 .brand[aria-expanded="true"] .rest {
-    grid-template-columns: 1fr;
+    width: var(--w, auto);
+}
+
+.brand:hover .gold .rest,
+.brand:hover .pink .rest,
+.brand:focus-visible .gold .rest,
+.brand:focus-visible .pink .rest,
+.brand[aria-expanded="true"] .gold .rest,
+.brand[aria-expanded="true"] .pink .rest {
+    margin-right: 0.25em;
 }
 
 .brand:hover .l,
@@ -159,11 +173,6 @@ h1 {
 .brand:focus-visible .cap,
 .brand[aria-expanded="true"] .cap {
     transform: translateY(-0.06em) scale(1.06);
-}
-
-.brand .sp {
-    display: inline-block;
-    width: 0.28em;
 }
 
 .stage {
