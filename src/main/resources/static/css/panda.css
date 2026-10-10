@@ -151,14 +151,11 @@ h1 {
     transition-delay: calc(var(--d) * 28ms);
 }
 
-.brand:hover .rest,
 .brand:focus-visible .rest,
 .brand[aria-expanded="true"] .rest {
     width: var(--w, auto);
 }
 
-.brand:hover .gold .rest,
-.brand:hover .pink .rest,
 .brand:focus-visible .gold .rest,
 .brand:focus-visible .pink .rest,
 .brand[aria-expanded="true"] .gold .rest,
@@ -166,17 +163,36 @@ h1 {
     margin-right: 0.25em;
 }
 
-.brand:hover .l,
 .brand:focus-visible .l,
 .brand[aria-expanded="true"] .l {
     opacity: 1;
     transform: none;
 }
 
-.brand:hover .cap,
 .brand:focus-visible .cap,
 .brand[aria-expanded="true"] .cap {
     transform: translateY(-0.06em) scale(1.06);
+}
+
+/* Touch screens keep a sticky hover after a tap, which would hold the brand open; they use the tap toggle. */
+@media (hover: hover) {
+    .brand:hover .rest {
+        width: var(--w, auto);
+    }
+
+    .brand:hover .gold .rest,
+    .brand:hover .pink .rest {
+        margin-right: 0.25em;
+    }
+
+    .brand:hover .l {
+        opacity: 1;
+        transform: none;
+    }
+
+    .brand:hover .cap {
+        transform: translateY(-0.06em) scale(1.06);
+    }
 }
 
 .stage {
