@@ -156,7 +156,7 @@ class ClaudeMessageClassifier implements MessageClassifier {
                 + "\n</tip_message>";
     }
 
-    // Best effort, not a security boundary (schema, parser, flag override are); other-alphabet lookalikes: accepted gap.
+    // Best effort, not a security boundary (schema, parser, flag override are); other alphabets: accepted gap.
     /**
      * A bracketed span is a delimiter lookalike when its content, folded with NFKC and lowercased, starts
      * with {@code tipmessage} once everything but letters is dropped; with a slash anywhere it reads as a
