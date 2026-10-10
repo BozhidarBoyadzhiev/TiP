@@ -7,7 +7,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Font files never change, so browsers keep them for 30 days. CSS (fonts.css included) and JS change
+ * Font files, icons and the link preview image never change, so browsers keep them for 30 days. CSS (fonts.css included) and JS change
  * between deploys and their names are not versioned, so they are {@code no-cache}: a browser may store
  * them but revalidates with {@code Last-Modified} and gets a 304 when nothing changed. Setting the header
  * here keeps Spring Security from writing its {@code no-store} default. HTML pages stay {@code no-store},
@@ -20,6 +20,16 @@ class StaticCacheConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/fonts/*/*.woff2")
                 .addResourceLocations("classpath:/static/fonts/")
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic());
+        // Icons and the preview image never change either: a new version gets a new file name.
+        registry.addResourceHandler("/favicon.ico")
+                .addResourceLocations("classpath:/static/")
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic());
+        registry.addResourceHandler("/icons/**")
+                .addResourceLocations("classpath:/static/icons/")
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic());
+        registry.addResourceHandler("/images/**")
+                .addResourceLocations("classpath:/static/images/")
                 .setCacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic());
         registry.addResourceHandler("/fonts/*.css")
                 .addResourceLocations("classpath:/static/fonts/")

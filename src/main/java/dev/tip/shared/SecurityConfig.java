@@ -27,7 +27,15 @@ class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth.dispatcherTypeMatchers(DispatcherType.ERROR)
                         .permitAll()
                         .requestMatchers(
-                                HttpMethod.GET, "/t/**", "/p/**", "/css/**", "/js/**", "/fonts/**", "/favicon.ico")
+                                HttpMethod.GET,
+                                "/t/**",
+                                "/p/**",
+                                "/css/**",
+                                "/js/**",
+                                "/fonts/**",
+                                "/icons/**",
+                                "/images/**",
+                                "/favicon.ico")
                         .permitAll()
                         .requestMatchers("/api/public/**")
                         .permitAll()
