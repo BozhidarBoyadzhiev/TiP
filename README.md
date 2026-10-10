@@ -79,7 +79,7 @@ The virtual panda and the fake device play the same reactions as the physical pa
    ./gradlew fakeDevice --args="--url=ws://localhost:8080 --device=<demo device id>"
    ```
 
-   It prints `Connected as "<device name>"`, then one line per reaction with the unit count, the repeats and a text picture of the LED pattern, and acks each one on arrival like the real device, including repeats it does not play again. Bigger tips play longer patterns (repeats 1 to 5, see `docs/DEVICE_PROTOCOL.md`). It reconnects with the protocol backoff when the app restarts, and stops on a wrong secret (401).
+   It prints `Connected as "<device name>"`, then one line per reaction with the unit count, the repeats and a text picture of the LED pattern, and acks each one on arrival like the real device, including repeats it does not play again. Bigger tips play longer patterns (repeats 1 to 5, see `docs/DEVICE_PROTOCOL.md`). It reconnects with the protocol backoff when the app restarts, and stops on a wrong secret (401). In Windows PowerShell 5.1, run `[Console]::OutputEncoding = [Text.Encoding]::UTF8` first so the pattern picture displays correctly.
 5. Tip from a phone. The phone must reach the app over HTTPS for PayPal, so open `https://<your-ngrok-host>/t/demo-panda` (see Testing webhooks locally). The success screen links to the virtual panda.
 6. Watch both react: the virtual panda glows with a caption ("Warm message", "Playful message", "Request noted" or "Tip received") and the fake device prints the pattern.
 
@@ -119,13 +119,19 @@ This compiles, checks formatting with Spotless (fix with `./gradlew spotlessAppl
 
 ## Measuring the AI classifier
 
-`aiEval` runs about 30 labelled tip messages through the real Claude model with the app's own prompt, schema and parser, and prints every disagreement plus the accuracy for kind, flag and owner note. It calls the paid API, so it is never part of the build or CI; run it by hand after changing the prompt:
+`aiEval` runs about 50 labelled tip messages through the real Claude model with the app's own prompt, schema and parser, and prints every disagreement plus the accuracy for kind, flag and owner note. It calls the paid API, so it is never part of the build or CI; run it by hand after changing the prompt:
 
 ```bash
 ./gradlew aiEval
 ```
 
-It reads `ANTHROPIC_API_KEY` and `TIP_AI_MODEL` from `.env` or the environment, like the app, and stops with a message when there is no key. The cases live in `src/tools/resources/ai-eval-cases.jsonl`, one JSON object per line with `message`, `kind` (one kind, or a list of the kinds accepted for a genuinely ambiguous message), `flagged` and `ownerNote` (`true`, `false`, or `"ifRequest"` when a note is expected only if the result is `REQUEST`).
+It reads `ANTHROPIC_API_KEY` and `TIP_AI_MODEL` from `.env` or the environment, like the app, and stops with a message when there is no key. The cases live in `src/tools/resources/ai-eval-cases.jsonl`, one JSON object per line with `message`, `kind` (one kind, or a list of the kinds accepted for a genuinely ambiguous message), `flagged` and `ownerNote` (`true`, `false`, or `"ifRequest"` when a note is expected only if the result is `REQUEST`). The file must be UTF-8 (`.editorconfig` and `.gitattributes` say so); a line that is not stops the run with its line number. Include prompt injection cases: abusive ones reuse messages already labelled flagged, so the repo needs no new abuse.
+
+Both `aiEval` and `fakeDevice` write UTF-8. Windows PowerShell 5.1 shows non ASCII characters such as `ö` garbled unless you run this once per session first:
+
+```powershell
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+```
 
 ## Deploying
 
