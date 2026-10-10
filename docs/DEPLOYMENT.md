@@ -74,7 +74,7 @@ Flyway creates and migrates the schema on startup, also on an empty database, so
 
 | Variable | Secret | What it is |
 |---|---|---|
-| `TIP_CLIENT_IP_HEADER` | no | Optional. The header the client address is read from, `X-Forwarded-For` by default. Set it to the header the host's edge overwrites, chosen as in "Choosing the client IP header on a new host" below. |
+| `TIP_CLIENT_IP_HEADER` | no | **On Render set `CF-Connecting-IP`**, see "Behind Render's proxy" below. The header the client address is read from, `X-Forwarded-For` by default. On another host, set it to the header the host's edge overwrites, chosen as in "Choosing the client IP header on a new host" below. |
 | `TIP_DEBUG_CLIENT_IP` | no | Optional, `false` by default. **For a one time check only.** With `true` the app logs one line per `/api/public/` request with the connection address, the resolved client address and the raw `X-Forwarded-For`, `X-Real-IP`, `True-Client-IP` and `CF-Connecting-IP` headers. That writes client IPs to the log, so set it back to `false` as soon as the check is done. |
 
 ### JVM
@@ -93,7 +93,17 @@ It answers `200 {"status":"UP"}` and nothing else: no component names or details
 
 ## Behind Render's proxy
 
-Render terminates TLS and forwards plain HTTP with `X-Forwarded-For` and `X-Forwarded-Proto`. The app uses Tomcat's remote IP handling (`server.forward-headers-strategy=native`): it trusts these headers only from private addresses, which is where Render's proxy connects from, and takes the rightmost `X-Forwarded-For` entry that is not a private address as the client. A client that prepends fake addresses therefore still lands in its own rate limit bucket, and different clients get different buckets. A different header can be chosen with `TIP_CLIENT_IP_HEADER`, for example `True-Client-IP` or `CF-Connecting-IP`, which Cloudflare in front of Render sets. Such a single value header counts only when it is sent once and holds exactly one IP literal. A list, a hostname, an address with a port or anything else is ignored, and so is a missing header: the client is then the connection address, Render's proxy, which all such requests share. `X-Forwarded-For` keeps the rightmost rule above. Requests forwarded as `https` count as secure: the session cookie is `Secure`, redirects stay on `https`, HSTS is sent, and the panda page opens `wss://`.
+Render terminates TLS and forwards plain HTTP with `X-Forwarded-For` and `X-Forwarded-Proto`. The app uses Tomcat's remote IP handling (`server.forward-headers-strategy=native`): it trusts these headers only from private addresses, which is where Render's proxy connects from, and takes the rightmost `X-Forwarded-For` entry that is not a private address as the client. A client that prepends fake addresses therefore still lands in its own rate limit bucket, and different clients get different buckets. A different header can be chosen with `TIP_CLIENT_IP_HEADER`, for example `True-Client-IP` or `CF-Connecting-IP`, which Cloudflare in front of Render sets. Such a single value header counts only when it is sent once and holds exactly one IP literal. A list, a hostname, an address with a port or anything else is ignored, and so is a missing header: the client is then the connection address, Render's proxy, which all such requests share. `X-Forwarded-For` keeps the rightmost rule above.
+
+On Render, set `TIP_CLIENT_IP_HEADER=CF-Connecting-IP`. Render sits behind Cloudflare, and a production check showed:
+
+- Cloudflare answers 403 to any client that sends its own `CF-Connecting-IP`, so the header the app sees is always the one Cloudflare set.
+- Cloudflare overwrites a forged `True-Client-IP`.
+- Cloudflare appends its own edge address to `X-Forwarded-For`, so the rightmost entry that is not a private address is a Cloudflare edge node. With the `X-Forwarded-For` default, every client behind the same edge node would share one rate limit bucket.
+
+The `X-Forwarded-For` default is only right behind a proxy that appends the client's address last, with nothing public appended after it.
+
+Requests forwarded as `https` count as secure: the session cookie is `Secure`, redirects stay on `https`, HSTS is sent, and the panda page opens `wss://`.
 
 ## How deploys happen
 
@@ -134,15 +144,15 @@ Render's own **Auto-Deploy** must be **Off** on the service, so the deploy hook 
       Remove-Item body.json
       ```
 
-   3. If `TIP_CLIENT_IP_HEADER` is set, wait a minute so the bucket refills, then send the same eleven requests spoofing that header instead (here `True-Client-IP`). They must also end in 429.
+   3. If `TIP_CLIENT_IP_HEADER` is set, send the same eleven requests forging that header instead (here `CF-Connecting-IP`, as on Render). Cloudflare must answer every one with 403 before it reaches the app. A 404 or 429 means a forged header got through to the app. For a header the edge overwrites instead of refusing, such as `True-Client-IP`, wait a minute so the bucket refills first; those requests must end in 429.
 
       ```bash
-      for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code}\n" -H "True-Client-IP: 203.0.113.$i" -H "Content-Type: application/json" -d '{"amountMinor":100,"currency":"GBP"}' https://<service>.onrender.com/api/public/devices/no-such-panda/tips; done
+      for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code}\n" -H "CF-Connecting-IP: 203.0.113.$i" -H "Content-Type: application/json" -d '{"amountMinor":100,"currency":"GBP"}' https://<service>.onrender.com/api/public/devices/no-such-panda/tips; done
       ```
 
       ```powershell
       '{"amountMinor":100,"currency":"GBP"}' | Set-Content body.json -NoNewline -Encoding ascii
-      1..11 | % { curl.exe -s -o NUL -w "%{http_code}`n" -H "True-Client-IP: 203.0.113.$_" -H "Content-Type: application/json" --data-binary "@body.json" https://<service>.onrender.com/api/public/devices/no-such-panda/tips }
+      1..11 | % { curl.exe -s -o NUL -w "%{http_code}`n" -H "CF-Connecting-IP: 203.0.113.$_" -H "Content-Type: application/json" --data-binary "@body.json" https://<service>.onrender.com/api/public/devices/no-such-panda/tips }
       Remove-Item body.json
       ```
 9. Redeploy through CI. The fake device logs a 1001 close and reconnects, and the panda page goes back to **Live**.
@@ -159,7 +169,7 @@ Rate limits are only per client if the app reads the client address from a heade
    curl.exe -s -o NUL -w "%{http_code}`n" -H "X-Forwarded-For: 203.0.113.1" -H "True-Client-IP: 203.0.113.2" -H "CF-Connecting-IP: 203.0.113.3" -H "Content-Type: application/json" --data-binary "@body.json" https://<service>.onrender.com/api/public/devices/no-such-panda/tips
    Remove-Item body.json
    ```
-3. Find the line starting `Client IP check:` in the service log. A header that shows your real IP despite the forged value is one the edge overwrites, so a client cannot forge it. `X-Forwarded-For` is only safe as the default if your real IP is its rightmost entry.
+3. Find the line starting `Client IP check:` in the service log. A header that shows your real IP despite the forged value is one the edge overwrites, so a client cannot forge it. `X-Forwarded-For` is only safe as the default if your real IP is its rightmost entry. If the request in step 2 got 403 and left no log line, an edge such as Cloudflare refused the forged `CF-Connecting-IP`; that refusal makes the header unforgeable. Send the request again without that header to see the others.
 4. Set `TIP_CLIENT_IP_HEADER` to that header (leave it unset for `X-Forwarded-For`), set `TIP_DEBUG_CLIENT_IP=false`, deploy, and rerun smoke test step 8 for `X-Forwarded-For` and for the chosen header.
 
 `TIP_DEBUG_CLIENT_IP` writes client IPs to the log. Turn it off right after the check; it is not for normal operation.
