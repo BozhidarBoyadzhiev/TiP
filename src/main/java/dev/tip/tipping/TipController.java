@@ -27,7 +27,7 @@ class TipController {
         this.rateLimiter = rateLimiter;
     }
 
-    /** The client IP comes from the forwarded headers of the trusted proxy, see server.forward-headers-strategy. */
+    /** The client IP is the one Tomcat resolved from the trusted proxy's headers, see server.forward-headers-strategy. */
     @PostMapping("/api/public/devices/{slug}/tips")
     @ResponseStatus(HttpStatus.CREATED)
     CreateTipResponse create(

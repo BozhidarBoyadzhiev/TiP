@@ -7,6 +7,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ public class TestData {
     public static final String OWNER_PASSWORD = "correct-horse-battery";
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final AtomicInteger PUBLIC_IPS = new AtomicInteger();
 
     private final JdbcClient jdbc;
     private final PasswordEncoder passwordEncoder;
@@ -40,6 +42,15 @@ public class TestData {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    /**
+     * A client address no other test uses, from 198.18.0.0/15 (reserved for testing). It is not a private
+     * range, so the app never mistakes it for its proxy.
+     */
+    public static String uniquePublicIp() {
+        int n = PUBLIC_IPS.incrementAndGet();
+        return "198." + (18 + n / 65_536 % 2) + "." + (n / 256 % 256) + "." + (n % 256);
     }
 
     public static String uniqueEmail() {

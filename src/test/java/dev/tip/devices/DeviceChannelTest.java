@@ -106,6 +106,30 @@ class DeviceChannelTest extends IntegrationTest {
     }
 
     @Test
+    void spoofedLeftmostForwardedForEntriesCountAgainstTheRealClientBehindTheProxy() throws Exception {
+        UUID deviceId = data.device(TestData.uniqueSlug(), "Panda", TestData.randomSecret());
+        String client = TestData.uniquePublicIp();
+
+        for (int attempt = 1; attempt <= HandshakeFailureLimiter.FAILURES_PER_MINUTE; attempt++) {
+            String forwardedFor = TestData.uniquePublicIp() + ", " + client;
+            try (RawWebSocket response =
+                    handshake(forwardedFor, "/ws/device/" + deviceId, "Bearer " + TestData.randomSecret())) {
+                assertThat(response.status).as("attempt %d", attempt).isEqualTo(401);
+            }
+        }
+
+        try (RawWebSocket spoofed = handshake(
+                        TestData.uniquePublicIp() + ", " + client,
+                        "/ws/device/" + deviceId,
+                        "Bearer " + TestData.randomSecret());
+                RawWebSocket otherClient = handshake(
+                        TestData.uniquePublicIp(), "/ws/device/" + deviceId, "Bearer " + TestData.randomSecret())) {
+            assertThat(spoofed.status).isEqualTo(429);
+            assertThat(otherClient.status).isEqualTo(401);
+        }
+    }
+
+    @Test
     void secondConnectionClosesTheFirstWith4000AndStaysRegistered() throws Exception {
         String secret = TestData.randomSecret();
         UUID deviceId = data.device(TestData.uniqueSlug(), "Panda", secret);

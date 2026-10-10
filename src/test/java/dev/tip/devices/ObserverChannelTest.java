@@ -135,6 +135,31 @@ class ObserverChannelTest extends IntegrationTest {
     }
 
     @Test
+    void spoofedLeftmostForwardedForEntriesCountAgainstTheRealClientBehindTheProxy() throws Exception {
+        String slug = TestData.uniqueSlug();
+        data.device(slug, "Busy Panda");
+        String client = TestData.uniquePublicIp();
+        List<RawWebSocket> open = new ArrayList<>();
+        try {
+            for (int i = 0; i < ObserverConnectionLimiter.MAX_PER_IP; i++) {
+                RawWebSocket observer = observe(slug, TestData.uniquePublicIp() + ", " + client);
+                open.add(observer);
+                assertThat(observer.status).as("connection %d", i + 1).isEqualTo(101);
+            }
+
+            try (RawWebSocket sixth = observe(slug, TestData.uniquePublicIp() + ", " + client);
+                    RawWebSocket otherClient = observe(slug, TestData.uniquePublicIp())) {
+                assertThat(sixth.status).isEqualTo(429);
+                assertThat(otherClient.status).isEqualTo(101);
+            }
+        } finally {
+            for (RawWebSocket socket : open) {
+                socket.close();
+            }
+        }
+    }
+
+    @Test
     void wrongOriginIsRejected() throws Exception {
         String slug = TestData.uniqueSlug();
         data.device(slug, "Panda");

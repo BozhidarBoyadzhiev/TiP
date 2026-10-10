@@ -40,13 +40,6 @@ class PandaPageTest extends IntegrationTest {
                 .andExpect(header().string(
                                 "Content-Security-Policy", containsString("connect-src 'self' ws://localhost ")));
 
-        mvc.perform(get("/p/demo-panda")
-                        .header("X-Forwarded-Proto", "https")
-                        .header("X-Forwarded-Host", "tip.example.com"))
-                .andExpect(header().string(
-                                "Content-Security-Policy",
-                                containsString("connect-src 'self' wss://tip.example.com ")));
-
         mvc.perform(get("/p/demo-panda").header("Host", "localhost:8081"))
                 .andExpect(header().string(
                                 "Content-Security-Policy", containsString("connect-src 'self' ws://localhost:8081 ")));
@@ -58,6 +51,16 @@ class PandaPageTest extends IntegrationTest {
         mvc.perform(get("/js/panda.js"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("innerHTML"))));
+    }
+
+    @Test
+    void pandaOpensItsWebSocketOnThePagesOwnOriginAndWssOverHttps() throws Exception {
+        mvc.perform(get("/js/panda.js"))
+                .andExpect(content()
+                        .string(containsString("window.location.protocol === \"https:\" ? \"wss:\" : \"ws:\"")))
+                .andExpect(
+                        content().string(containsString("scheme + \"//\" + window.location.host + \"/ws/observe/\"")))
+                .andExpect(content().string(not(containsString("localhost"))));
     }
 
     @Test

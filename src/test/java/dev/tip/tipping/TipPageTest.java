@@ -35,6 +35,15 @@ class TipPageTest extends IntegrationTest {
     }
 
     @Test
+    void tipPageCallsTheApiOnItsOwnOrigin() throws Exception {
+        String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .contains("fetch(\"/api/public/devices/\"", "fetch(\"/api/public/tips/\"")
+                .doesNotContain("localhost", "ngrok", "http://");
+    }
+
+    @Test
     void everyPageLoadGetsANewNonce() throws Exception {
         String first =
                 mvc.perform(get("/t/demo-panda")).andReturn().getResponse().getHeader("Content-Security-Policy");
