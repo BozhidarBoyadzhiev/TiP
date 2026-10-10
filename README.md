@@ -123,7 +123,7 @@ This compiles, checks formatting with Spotless (fix with `./gradlew spotlessAppl
 ./gradlew aiEval
 ```
 
-It reads `ANTHROPIC_API_KEY` and `TIP_AI_MODEL` from `.env` or the environment, like the app, and stops with a message when there is no key. The cases live in `src/tools/resources/ai-eval-cases.jsonl`, one JSON object per line with `message`, `kind`, `flagged` and `ownerNote` (whether the owner should see a note).
+It reads `ANTHROPIC_API_KEY` and `TIP_AI_MODEL` from `.env` or the environment, like the app, and stops with a message when there is no key. The cases live in `src/tools/resources/ai-eval-cases.jsonl`, one JSON object per line with `message`, `kind` (one kind, or a list of the kinds accepted for a genuinely ambiguous message), `flagged` and `ownerNote` (`true`, `false`, or `"ifRequest"` when a note is expected only if the result is `REQUEST`).
 
 ## Project layout
 

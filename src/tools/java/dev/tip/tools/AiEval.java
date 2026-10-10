@@ -54,8 +54,37 @@ public final class AiEval {
         run(cases, classifier.get()::classify, System.out);
     }
 
-    /** One labelled message: the expected kind, flag and whether the owner should see a note. */
-    record Case(String message, String kind, boolean flagged, boolean ownerNote) {}
+    /**
+     * One labelled message: the kinds accepted as correct (more than one for a message that is genuinely
+     * ambiguous), the expected flag and whether the owner should see a note.
+     */
+    record Case(String message, List<String> kinds, boolean flagged, Note note) {
+
+        boolean accepts(String kind) {
+            return kinds.contains(kind);
+        }
+    }
+
+    /** {@code ownerNote} in the cases file: {@code true}, {@code false} or {@code "ifRequest"}. */
+    enum Note {
+        YES,
+        NO,
+        IF_REQUEST;
+
+        boolean expectedFor(String kind) {
+            return this == YES || (this == IF_REQUEST && "REQUEST".equals(kind));
+        }
+
+        static Note parse(JsonNode node) {
+            if (node.isBoolean()) {
+                return node.booleanValue() ? YES : NO;
+            }
+            if ("ifRequest".equals(node.asString())) {
+                return IF_REQUEST;
+            }
+            throw new IllegalArgumentException("ownerNote must be true, false or \"ifRequest\"");
+        }
+    }
 
     record Score(int total, int kindRight, int flaggedRight, int noteRight, int allRight) {}
 
@@ -71,11 +100,14 @@ public final class AiEval {
                     continue;
                 }
                 JsonNode node = JSON.readTree(line);
+                JsonNode kind = node.required("kind");
                 cases.add(new Case(
                         node.required("message").asString(),
-                        node.required("kind").asString(),
+                        kind.isArray()
+                                ? kind.valueStream().map(JsonNode::asString).toList()
+                                : List.of(kind.asString()),
                         node.required("flagged").asBoolean(),
-                        node.required("ownerNote").asBoolean()));
+                        Note.parse(node.required("ownerNote"))));
             }
             return cases;
         } catch (IOException e) {
@@ -91,9 +123,9 @@ public final class AiEval {
         int allRight = 0;
         for (Case c : cases) {
             EvalClassifier.Verdict verdict = classify.apply(c.message());
-            boolean kind = verdict.valid() && c.kind().equals(verdict.kind());
+            boolean kind = verdict.valid() && c.accepts(verdict.kind());
             boolean flagged = verdict.valid() && c.flagged() == verdict.flagged();
-            boolean note = verdict.valid() && c.ownerNote() == (verdict.ownerNote() != null);
+            boolean note = verdict.valid() && c.note().expectedFor(verdict.kind()) == (verdict.ownerNote() != null);
             kindRight += kind ? 1 : 0;
             flaggedRight += flagged ? 1 : 0;
             noteRight += note ? 1 : 0;
@@ -104,7 +136,7 @@ public final class AiEval {
             out.printf(
                     "MISS  %-50s  expected %s  got %s%n",
                     quoted(c.message()),
-                    describe(c.kind(), c.flagged(), c.ownerNote()),
+                    expected(c),
                     verdict.valid()
                             ? describe(verdict.kind(), verdict.flagged(), verdict.ownerNote() != null)
                                     + (verdict.ownerNote() == null ? "" : " " + quoted(verdict.ownerNote()))
@@ -116,6 +148,15 @@ public final class AiEval {
         out.println(line("owner note", score.noteRight(), score.total()));
         out.println(line("all three", score.allRight(), score.total()));
         return score;
+    }
+
+    private static String expected(Case c) {
+        String note = switch (c.note()) {
+            case YES -> " +note";
+            case NO -> "";
+            case IF_REQUEST -> " +note if REQUEST";
+        };
+        return String.join("|", c.kinds()) + (c.flagged() ? " flagged" : "") + note;
     }
 
     private static String describe(String kind, boolean flagged, boolean ownerNote) {

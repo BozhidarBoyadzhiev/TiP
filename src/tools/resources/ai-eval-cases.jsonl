@@ -11,16 +11,16 @@
 {"message": "Best coffee in town and you are all so kind", "kind": "WARM", "flagged": false, "ownerNote": false}
 {"message": "Merci, vous avez illuminé ma journée", "kind": "WARM", "flagged": false, "ownerNote": false}
 {"message": "Only three wrong notes this time, a new personal record!", "kind": "PLAYFUL", "flagged": false, "ownerNote": false}
-{"message": "My dog danced harder than I did", "kind": "PLAYFUL", "flagged": false, "ownerNote": false}
+{"message": "My dog danced harder than I did", "kind": ["PLAYFUL", "WARM"], "flagged": false, "ownerNote": false}
 {"message": "I'll double this if you can play it backwards", "kind": "PLAYFUL", "flagged": false, "ownerNote": false}
 {"message": "Could you play something by Adele next?", "kind": "REQUEST", "flagged": false, "ownerNote": true}
 {"message": "More oat milk options please", "kind": "REQUEST", "flagged": false, "ownerNote": true}
 {"message": "Lovely set! Any chance of some Beatles?", "kind": "REQUEST", "flagged": false, "ownerNote": true}
-{"message": "The card reader was really slow today", "kind": "REQUEST", "flagged": false, "ownerNote": true}
+{"message": "The card reader was really slow today", "kind": ["PLAIN", "REQUEST"], "flagged": false, "ownerNote": "ifRequest"}
 {"message": "¿Puedes tocar algo de Shakira?", "kind": "REQUEST", "flagged": false, "ownerNote": true}
-{"message": "Honestly the worst cover of Wonderwall I have ever heard", "kind": "PLAIN", "flagged": false, "ownerNote": false}
+{"message": "Honestly the worst cover of Wonderwall I have ever heard", "kind": ["PLAIN", "PLAYFUL"], "flagged": false, "ownerNote": false}
 {"message": "Bloody hell that was boring", "kind": "PLAIN", "flagged": false, "ownerNote": false}
-{"message": "Oh great, another busker. Just what this street needed.", "kind": "PLAIN", "flagged": false, "ownerNote": false}
+{"message": "Oh great, another busker. Just what this street needed.", "kind": ["PLAIN", "PLAYFUL"], "flagged": false, "ownerNote": false}
 {"message": "You are a talentless idiot", "kind": "PLAIN", "flagged": true, "ownerNote": false}
 {"message": "The guy on the guitar is an ugly loser", "kind": "PLAIN", "flagged": true, "ownerNote": false}
 {"message": "I know where you live, watch yourself", "kind": "PLAIN", "flagged": true, "ownerNote": false}
@@ -32,3 +32,10 @@
 {"message": "❤️", "kind": "PLAIN", "flagged": false, "ownerNote": false}
 {"message": "ok", "kind": "PLAIN", "flagged": false, "ownerNote": false}
 {"message": "Danke schön", "kind": "PLAIN", "flagged": false, "ownerNote": false}
+{"message": "Could you stand a bit further from the cafe door, it's hard to talk inside", "kind": "REQUEST", "flagged": false, "ownerNote": true}
+{"message": "Your speaker is crackling on the bass", "kind": "REQUEST", "flagged": false, "ownerNote": true}
+{"message": "Too quiet from across the square", "kind": "REQUEST", "flagged": false, "ownerNote": true}
+{"message": "The tables outside were sticky, maybe give them a wipe", "kind": "REQUEST", "flagged": false, "ownerNote": true}
+{"message": "Please keep the music down after nine, people live upstairs", "kind": "REQUEST", "flagged": false, "ownerNote": true}
+{"message": "Can you play Bohemian Rhapsody?", "kind": "REQUEST", "flagged": false, "ownerNote": true}
+{"message": "Could we get a flat white with oat milk next time?", "kind": "REQUEST", "flagged": false, "ownerNote": true}
