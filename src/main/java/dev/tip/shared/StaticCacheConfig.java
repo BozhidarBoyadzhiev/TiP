@@ -7,8 +7,11 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Font files never change, so browsers keep them for 30 days. CSS (fonts.css included) and JS keep the
- * default handler and revalidate, because they change between deploys and their names are not versioned.
+ * Font files never change, so browsers keep them for 30 days. CSS (fonts.css included) and JS change
+ * between deploys and their names are not versioned, so they are {@code no-cache}: a browser may store
+ * them but revalidates with {@code Last-Modified} and gets a 304 when nothing changed. Setting the header
+ * here keeps Spring Security from writing its {@code no-store} default. HTML pages stay {@code no-store},
+ * set by their controllers, because each carries its request's nonce.
  */
 @Configuration(proxyBeanMethods = false)
 class StaticCacheConfig implements WebMvcConfigurer {
@@ -18,5 +21,14 @@ class StaticCacheConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/fonts/*/*.woff2")
                 .addResourceLocations("classpath:/static/fonts/")
                 .setCacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic());
+        registry.addResourceHandler("/fonts/*.css")
+                .addResourceLocations("classpath:/static/fonts/")
+                .setCacheControl(CacheControl.noCache());
+        registry.addResourceHandler("/css/**")
+                .addResourceLocations("classpath:/static/css/")
+                .setCacheControl(CacheControl.noCache());
+        registry.addResourceHandler("/js/**")
+                .addResourceLocations("classpath:/static/js/")
+                .setCacheControl(CacheControl.noCache());
     }
 }

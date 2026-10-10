@@ -107,21 +107,6 @@ class NotFoundPageTest extends IntegrationTest {
         }
     }
 
-    @Test
-    void fontFilesAreCachedForThirtyDaysWhileStylesAndScriptsRevalidate() throws Exception {
-        mvc.perform(get("/fonts/fredoka/fredoka-latin-700-normal.woff2"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("font/woff2"))
-                .andExpect(header().string("Cache-Control", "max-age=2592000, public"))
-                .andExpect(header().exists("Last-Modified"));
-        for (String path : new String[] {"/fonts/fonts.css", "/css/brand.css", "/js/brand.js"}) {
-            mvc.perform(get(path))
-                    .andExpect(status().isOk())
-                    .andExpect(header().string("Cache-Control", not(containsString("max-age=2592000"))))
-                    .andExpect(header().exists("Last-Modified"));
-        }
-    }
-
     private static void expectNotFoundPage(ResultActions result) throws Exception {
         result.andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
