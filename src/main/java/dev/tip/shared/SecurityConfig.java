@@ -37,6 +37,16 @@ class SecurityConfig {
                                 "/images/**",
                                 "/favicon.ico")
                         .permitAll()
+                        // Link checkers and preview crawlers may ask for a static file with HEAD first.
+                        .requestMatchers(
+                                HttpMethod.HEAD,
+                                "/css/**",
+                                "/js/**",
+                                "/fonts/**",
+                                "/icons/**",
+                                "/images/**",
+                                "/favicon.ico")
+                        .permitAll()
                         .requestMatchers("/api/public/**")
                         .permitAll()
                         // WebSocket handshakes authenticate in their own handshake interceptors.
