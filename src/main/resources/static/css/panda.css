@@ -78,10 +78,14 @@ body {
     }
 }
 
+/* Outside .page, so the open brand is centred in the full page width rather than capped at 460px. */
+.masthead {
+    text-align: center;
+}
+
 h1 {
     margin: 14px 0 0;
     line-height: 1;
-    max-width: 100%;
 }
 
 .brand {
