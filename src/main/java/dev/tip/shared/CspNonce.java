@@ -27,6 +27,11 @@ public final class CspNonce extends OncePerRequestFilter {
         return (String) nonce;
     }
 
+    /** True when this filter ran for the request, so {@link #of} has a nonce. */
+    static boolean isSet(HttpServletRequest request) {
+        return request.getAttribute(ATTRIBUTE) != null;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {

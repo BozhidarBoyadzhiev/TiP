@@ -45,8 +45,8 @@ class SecurityTest extends IntegrationTest {
     }
 
     @Test
-    void deniedPathIsProblemDetailsEvenForABrowser() throws Exception {
-        expectProblem(mvc.perform(get("/admin").accept(MediaType.TEXT_HTML)), 403, "FORBIDDEN")
+    void deniedPathIsProblemDetailsForAnApiClient() throws Exception {
+        expectProblem(mvc.perform(get("/admin").accept(MediaType.APPLICATION_JSON)), 403, "FORBIDDEN")
                 .andExpect(jsonPath("$.instance").value("/admin"));
     }
 

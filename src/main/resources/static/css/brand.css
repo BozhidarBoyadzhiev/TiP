@@ -1,0 +1,204 @@
+/* What every TiP page shares: colours, the brand button with its unfold, and the paper note the
+   peeking panda holds. Pages link /fonts/fonts.css before this file for Fredoka. */
+
+:root {
+    --bg-1: #2a1e16;
+    --bg-2: #120c09;
+    --card: #211710;
+    --card-edge: rgba(243, 227, 200, 0.09);
+    --cream: #f3e3c8;
+    --muted: #c9b08c;
+    --faint: #8f7a5e;
+    --gold: #e9bb52;
+    --pink: #e7a6c1;
+    --ink: #2a1a0c;
+    --paper: #ecd7b1;
+    --paper-ink: #4a3020;
+    --warn: #ef8f7a;
+    --font: "Fredoka", system-ui, sans-serif;
+    --brand-size: min(60px, 8.4vw);
+    color-scheme: dark;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+}
+
+/* The brand: "TiP" that unfolds into "Tip integrated Panda" on hover, focus or tap. */
+.brand {
+    font: 700 var(--brand-size) var(--font);
+    letter-spacing: 0.5px;
+    color: var(--cream);
+    background: none;
+    border: 0;
+    padding: 4px 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: baseline;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.brand:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 6px;
+    border-radius: 10px;
+}
+
+.brand > span {
+    flex-shrink: 0;
+}
+
+.brand .gold {
+    color: var(--gold);
+}
+
+.brand .pink {
+    color: var(--pink);
+}
+
+.brand .cream {
+    color: var(--cream);
+}
+
+.brand .cap {
+    display: inline-block;
+    transition: transform 0.45s cubic-bezier(0.3, 1.7, 0.5, 1);
+}
+
+/* brand.js measures each hidden part into --w, so the width opens to exactly its letters. Clipping only
+   the x axis keeps the box out of scroll container rules, so it stays on the text baseline. */
+.brand .rest {
+    display: inline-block;
+    width: 0;
+    overflow-x: clip;
+    overflow-y: visible;
+    transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), margin-right 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.brand .rest > span {
+    display: inline-block;
+}
+
+.brand .l {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(0.45em) rotate(-10deg) scale(0.8);
+    transition: opacity 0.2s ease, transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+    transition-delay: calc(var(--d) * 28ms);
+}
+
+.brand:focus-visible .rest,
+.brand[aria-expanded="true"] .rest {
+    width: var(--w, auto);
+}
+
+.brand:focus-visible .gold .rest,
+.brand:focus-visible .pink .rest,
+.brand[aria-expanded="true"] .gold .rest,
+.brand[aria-expanded="true"] .pink .rest {
+    margin-right: 0.25em;
+}
+
+.brand:focus-visible .l,
+.brand[aria-expanded="true"] .l {
+    opacity: 1;
+    transform: none;
+}
+
+.brand:focus-visible .cap,
+.brand[aria-expanded="true"] .cap {
+    transform: translateY(-0.06em) scale(1.06);
+}
+
+/* Touch screens keep a sticky hover after a tap, which would hold the brand open; they use the tap toggle. */
+@media (hover: hover) {
+    .brand:hover .rest {
+        width: var(--w, auto);
+    }
+
+    .brand:hover .gold .rest,
+    .brand:hover .pink .rest {
+        margin-right: 0.25em;
+    }
+
+    .brand:hover .l {
+        opacity: 1;
+        transform: none;
+    }
+
+    .brand:hover .cap {
+        transform: translateY(-0.06em) scale(1.06);
+    }
+}
+
+/* The kraft paper note, held at its top edge by a panda peeking over it. */
+.note-wrap {
+    position: relative;
+    margin-top: 74px;
+}
+
+.peek {
+    position: absolute;
+    left: 50%;
+    top: -66px;
+    width: 132px;
+    height: 74px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.peek .eyes {
+    animation: peek-blink 5s infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+@keyframes peek-blink {
+    0%,
+    94%,
+    100% {
+        transform: scaleY(1);
+    }
+    96% {
+        transform: scaleY(0.1);
+    }
+}
+
+.paws {
+    position: absolute;
+    left: 50%;
+    top: -9px;
+    width: 132px;
+    height: 22px;
+    transform: translateX(-50%);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.note {
+    position: relative;
+    z-index: 1;
+    background: var(--paper);
+    color: var(--paper-ink);
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(90, 60, 30, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .brand .rest,
+    .brand .l,
+    .brand .cap {
+        transition: none;
+    }
+
+    .peek .eyes {
+        animation: none;
+    }
+}

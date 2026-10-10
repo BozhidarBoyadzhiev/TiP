@@ -17,9 +17,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class ProblemErrorController implements ErrorController {
 
+    private final NotFoundPage notFoundPage;
+
+    ProblemErrorController(NotFoundPage notFoundPage) {
+        this.notFoundPage = notFoundPage;
+    }
+
     @RequestMapping("${server.error.path:/error}")
-    ResponseEntity<ProblemDetail> error(HttpServletRequest request) {
+    ResponseEntity<?> error(HttpServletRequest request) {
         HttpStatus status = statusOf(request);
+        if (status == HttpStatus.NOT_FOUND && NotFoundPage.wantedBy(request)) {
+            return notFoundPage.response(request);
+        }
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, GenericProblems.detail(status));
         problem.setProperty("code", GenericProblems.code(status));
         Object uri = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);

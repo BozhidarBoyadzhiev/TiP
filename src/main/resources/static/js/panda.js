@@ -64,8 +64,6 @@
 
     // The light lives on the coin: its glow ring and sparkle follow the level, its tint stays faint.
     const COIN_TINT = 0.35;
-    // The demo panda's display name is the brand itself, so it is not repeated under the bear.
-    const BRAND_NAMES = ["tip", "tip integrated panda"];
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -191,35 +189,12 @@
     }
 
     function showDeviceName(name) {
-        if (typeof name !== "string" || BRAND_NAMES.includes(name.trim().toLowerCase())) {
+        // The demo panda's display name is the brand itself, so it is not repeated under the bear.
+        if (window.TipBrand.isBrandName(name)) {
             return;
         }
         el("device-name").textContent = name;
         el("device-name").hidden = false;
-    }
-
-    // Splits each hidden part of the brand into letters for the staggered reveal; a tap toggles it on touch screens.
-    function setUpBrand() {
-        const brand = el("brand");
-        const parts = brand.querySelectorAll("[data-text]");
-        parts.forEach((part) => {
-            Array.from(part.dataset.text).forEach((character, position) => {
-                const letter = document.createElement("span");
-                letter.className = "l";
-                letter.textContent = character;
-                letter.style.setProperty("--d", String(position));
-                part.appendChild(letter);
-            });
-        });
-        // The open width of each hidden part is its letters' width in the loaded font at the current size.
-        const measure = () => {
-            parts.forEach((part) => part.parentElement.style.setProperty("--w", part.scrollWidth + "px"));
-        };
-        document.fonts.ready.then(measure);
-        window.addEventListener("resize", measure);
-        brand.addEventListener("click", () => {
-            brand.setAttribute("aria-expanded", brand.getAttribute("aria-expanded") === "true" ? "false" : "true");
-        });
     }
 
     function setStatus(name, text) {
@@ -274,7 +249,6 @@
     }
 
     async function start() {
-        setUpBrand();
         state.slug = slugFromPath();
         if (!state.slug) {
             fail("This panda does not exist.");

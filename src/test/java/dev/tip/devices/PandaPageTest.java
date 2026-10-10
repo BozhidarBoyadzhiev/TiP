@@ -92,7 +92,35 @@ class PandaPageTest extends IntegrationTest {
                 .contains("const COIN_TINT = 0.35;", "style.setProperty(\"--light\", colour)")
                 .contains("setLed(reducedMotion.matches ? 1 : levelAt(state.playing.steps, elapsed))")
                 .contains("el(\"device-name\").textContent = name")
-                .contains("[\"tip\", \"tip integrated panda\"]", "name.trim().toLowerCase()");
+                .contains("window.TipBrand.isBrandName(name)");
+    }
+
+    @Test
+    void brandScriptIsSharedAndHidesNamesThatRepeatTheBrand() throws Exception {
+        String page =
+                mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getContentAsString();
+        String brand = mvc.perform(get("/js/brand.js"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("innerHTML"))))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(page).contains("href=\"/css/brand.css\"", "src=\"/js/brand.js\"");
+        assertThat(page.indexOf("/js/brand.js")).isLessThan(page.indexOf("/js/panda.js"));
+        assertThat(brand)
+                .contains("[\"tip\", \"tipintegratedpanda\"]", "name.replace(/\\s+/g, \"\").toLowerCase()")
+                .contains("parentElement.style.setProperty(\"--w\", part.scrollWidth + \"px\")")
+                .contains("document.fonts.ready.then(measure)");
+    }
+
+    @Test
+    void unknownSlugGetsTheNotFoundPage() throws Exception {
+        mvc.perform(get("/p/no-such-panda"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(containsString("This panda wandered off")))
+                .andExpect(content().string(not(containsString("/js/panda.js"))));
     }
 
     @Test
@@ -110,7 +138,11 @@ class PandaPageTest extends IntegrationTest {
 
         assertThat(outside.matcher(page).find()).as("panda.html").isFalse();
         assertThat(outside.matcher(fonts).find()).as("fonts.css").isFalse();
+        String brandStyles =
+                mvc.perform(get("/css/brand.css")).andReturn().getResponse().getContentAsString();
+
         assertThat(outside.matcher(styles).find()).as("panda.css").isFalse();
+        assertThat(outside.matcher(brandStyles).find()).as("brand.css").isFalse();
         assertThat(fonts).contains("font-display: swap", "unicode-range", "fredoka/fredoka-latin-700-normal.woff2");
     }
 

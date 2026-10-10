@@ -15,9 +15,11 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** Maps every failure to RFC 9457 problem details. No stack trace or exception message of an unexpected error reaches a client. */
 @RestControllerAdvice
@@ -25,6 +27,12 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ProblemDetailsAdvice.class);
     private static final String VALIDATION_FAILED = "VALIDATION_FAILED";
+
+    private final NotFoundPage notFoundPage;
+
+    ProblemDetailsAdvice(NotFoundPage notFoundPage) {
+        this.notFoundPage = notFoundPage;
+    }
 
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> handleDomain(DomainException e) {
@@ -71,6 +79,17 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
                                 String.valueOf(error.getDefaultMessage()))))
                 .toList();
         return ResponseEntity.badRequest().body(validationProblem(errors));
+    }
+
+    /** A browser asking for a page that does not exist gets the 404 page. */
+    @Override
+    protected @Nullable ResponseEntity<Object> handleNoResourceFoundException(
+            NoResourceFoundException e, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        if (request instanceof ServletWebRequest servlet && NotFoundPage.wantedBy(servlet.getRequest())) {
+            ResponseEntity<String> page = notFoundPage.response(servlet.getRequest());
+            return new ResponseEntity<>(page.getBody(), page.getHeaders(), page.getStatusCode());
+        }
+        return super.handleNoResourceFoundException(e, headers, status, request);
     }
 
     /** Errors the framework raised get a fixed detail, so its wording about internals never reaches a client. */

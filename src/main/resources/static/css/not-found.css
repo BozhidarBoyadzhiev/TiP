@@ -1,0 +1,109 @@
+/* The 404 page: the peeking panda over a paper note. Shared parts live in brand.css. */
+
+:root {
+    --brand-size: 34px;
+}
+
+body {
+    min-height: 100vh;
+    min-height: 100svh;
+    background: radial-gradient(ellipse at 50% 40%, var(--bg-1) 0%, var(--bg-2) 75%) fixed, var(--bg-2);
+    color: var(--cream);
+    font-family: var(--font);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    text-align: center;
+    overflow-x: hidden;
+}
+
+.masthead {
+    margin: 0 0 18px;
+}
+
+.lost {
+    width: min(340px, 100%);
+}
+
+.peek {
+    animation: peek 3.6s ease-in-out infinite;
+}
+
+@keyframes peek {
+    0%,
+    100% {
+        transform: translateX(-50%) translateY(0);
+    }
+    50% {
+        transform: translateX(-50%) translateY(3px);
+    }
+}
+
+.peek .pupil {
+    animation: look 4s ease-in-out infinite;
+}
+
+@keyframes look {
+    0%,
+    35% {
+        transform: translateX(-3px);
+    }
+    50%,
+    85% {
+        transform: translateX(3px);
+    }
+    100% {
+        transform: translateX(-3px);
+    }
+}
+
+.q {
+    font: 700 22px var(--font);
+    fill: var(--gold);
+    animation: bob 2.4s ease-in-out infinite;
+}
+
+@keyframes bob {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+.lost .note {
+    padding: 30px 22px 24px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(90, 60, 30, 0.25);
+    transform: rotate(-1deg);
+}
+
+.code {
+    font: 700 64px/1 var(--font);
+    letter-spacing: 2px;
+    color: #6b4426;
+    margin: 0;
+}
+
+h1 {
+    font: 600 20px var(--font);
+    margin: 10px 0 6px;
+}
+
+.why {
+    font-size: 15px;
+    line-height: 1.45;
+    margin: 0;
+    color: rgba(74, 48, 32, 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .peek,
+    .peek .pupil,
+    .q {
+        animation: none;
+    }
+}
