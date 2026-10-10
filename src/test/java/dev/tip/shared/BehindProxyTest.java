@@ -16,8 +16,11 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.health.registry.HealthContributorRegistry;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 /**
@@ -81,6 +84,16 @@ class BehindProxyTest extends IntegrationTest {
                 HttpResponse.BodyHandlers.ofString());
 
         assertThat(response.statusCode()).isEqualTo(201);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void clientIpDiagnosticsLogNothingWhenOff(CapturedOutput output) throws Exception {
+        String client = TestData.uniquePublicIp();
+
+        assertThat(createTip(client).statusCode()).isEqualTo(404);
+
+        assertThat(output.getOut()).doesNotContain("Client IP check").doesNotContain(client);
     }
 
     @Test
