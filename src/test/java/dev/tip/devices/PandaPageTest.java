@@ -70,7 +70,7 @@ class PandaPageTest extends IntegrationTest {
                 mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getContentAsString();
 
         assertThat(page)
-                .contains("<title>TiP | Tip integrated Panda</title>")
+                .contains("<title>TiP | Panda</title>")
                 .contains("id=\"panda-coin-glow\"", "id=\"panda-coin-light\"", "id=\"panda-coin-sparkle\"")
                 .contains("<h1>", "<button type=\"button\" id=\"brand\"", "aria-expanded=\"false\"")
                 .contains("aria-label=\"TiP, Tip integrated Panda\"")
@@ -125,7 +125,8 @@ class PandaPageTest extends IntegrationTest {
 
     @Test
     void pageAndFontsReferenceNoOutsideOrigin() throws Exception {
-        Pattern outside = Pattern.compile("https?://(?!www\\.w3\\.org/2000/svg\")");
+        // The preview tags name our own public base URL, http://localhost:8080 in the test profile.
+        Pattern outside = Pattern.compile("https?://(?!www\\.w3\\.org/2000/svg\"|localhost:8080/)");
         String page =
                 mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getContentAsString();
         String fonts = mvc.perform(get("/fonts/fonts.css"))

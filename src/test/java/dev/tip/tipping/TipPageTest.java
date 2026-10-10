@@ -88,7 +88,9 @@ class TipPageTest extends IntegrationTest {
 
     @Test
     void pageAndAssetsNameNoOutsideOriginButThePayPalSdk() throws Exception {
-        Pattern outside = Pattern.compile("https?://(?!www\\.w3\\.org/2000/svg\"|www\\.paypal\\.com/sdk/js\\?)");
+        // The preview tags name our own public base URL, http://localhost:8080 in the test profile.
+        Pattern outside =
+                Pattern.compile("https?://(?!www\\.w3\\.org/2000/svg\"|www\\.paypal\\.com/sdk/js\\?|localhost:8080/)");
         for (String path :
                 new String[] {"/t/demo-panda", "/css/tip.css", "/css/brand.css", "/js/tip.js", "/js/brand.js"}) {
             String body = mvc.perform(get(path))

@@ -3,6 +3,7 @@ package dev.tip.devices;
 import dev.tip.devices.api.DeviceDirectory;
 import dev.tip.devices.api.DeviceSlug;
 import dev.tip.shared.CspNonce;
+import dev.tip.shared.LinkPreview;
 import dev.tip.shared.NotFoundPage;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -27,11 +28,13 @@ class PandaPageController {
 
     private final DeviceDirectory devices;
     private final NotFoundPage notFoundPage;
+    private final LinkPreview linkPreview;
     private final String template;
 
-    PandaPageController(DeviceDirectory devices, NotFoundPage notFoundPage) {
+    PandaPageController(DeviceDirectory devices, NotFoundPage notFoundPage, LinkPreview linkPreview) {
         this.devices = devices;
         this.notFoundPage = notFoundPage;
+        this.linkPreview = linkPreview;
         try {
             template = new ClassPathResource("static/panda.html").getContentAsString(StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -39,7 +42,10 @@ class PandaPageController {
         }
     }
 
-    /** An unknown slug gets the 404 page, so the page never loads for a device that does not exist. */
+    /**
+     * An unknown slug gets the 404 page, so the page never loads for a device that does not exist. The
+     * preview tags get the slug only after that check.
+     */
     @GetMapping("/p/{slug}")
     ResponseEntity<String> pandaPage(@PathVariable String slug, HttpServletRequest request) {
         if (!slug.matches(DeviceSlug.PATTERN) || devices.findBySlug(slug).isEmpty()) {
@@ -48,6 +54,6 @@ class PandaPageController {
         return ResponseEntity.ok()
                 .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
                 .cacheControl(CacheControl.noStore())
-                .body(template.replace(NONCE_PLACEHOLDER, CspNonce.of(request)));
+                .body(linkPreview.fill(template, "/p/" + slug).replace(NONCE_PLACEHOLDER, CspNonce.of(request)));
     }
 }
