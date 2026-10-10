@@ -115,6 +115,18 @@ class TipPageTest extends IntegrationTest {
     }
 
     @Test
+    void cancellingAfterADeclineKeepsTheDeclineNoteUntilTheNextClick() throws Exception {
+        String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .containsPattern("state\\.declined = true;\\s+formError\\(ERROR_MESSAGES\\.INSTRUMENT_DECLINED\\);")
+                .containsPattern("onClick: \\(data, actions\\) => \\{\\s+state\\.declined = false;")
+                .containsPattern("onCancel: \\(\\) =>\\s+formError\\(\\s+state\\.declined\\s+"
+                        + "\\? ERROR_MESSAGES\\.INSTRUMENT_DECLINED\\s+"
+                        + ": \"Payment cancelled\\. You have not been charged\\.\",");
+    }
+
+    @Test
     void amountParserNeverGoesThroughFloatingPoint() throws Exception {
         String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
 

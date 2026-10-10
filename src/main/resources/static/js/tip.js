@@ -35,6 +35,8 @@
         lastValid: null,
         buttons: null,
         retry: null,
+        // Set when the capture was declined, so cancelling PayPal's restarted flow keeps the decline note.
+        declined: false,
         digits: 2,
         unit: 100,
         whole: null,
@@ -418,6 +420,7 @@
             return;
         }
         if (response.status === 422 && (await problemCode(response)) === "INSTRUMENT_DECLINED") {
+            state.declined = true;
             formError(ERROR_MESSAGES.INSTRUMENT_DECLINED);
             return actions.restart();
         }
@@ -445,6 +448,7 @@
                     syncButtons(validMinor() !== null);
                 },
                 onClick: (data, actions) => {
+                    state.declined = false;
                     if (validMinor() === null) {
                         update(false);
                         el("custom-amount").focus();
@@ -455,7 +459,12 @@
                 },
                 createOrder: createOrder,
                 onApprove: onApprove,
-                onCancel: () => formError("Payment cancelled. You have not been charged."),
+                onCancel: () =>
+                    formError(
+                        state.declined
+                            ? ERROR_MESSAGES.INSTRUMENT_DECLINED
+                            : "Payment cancelled. You have not been charged.",
+                    ),
                 onError: () => {
                     if (el("form-error").hidden) {
                         formError(GENERIC_ERROR);
