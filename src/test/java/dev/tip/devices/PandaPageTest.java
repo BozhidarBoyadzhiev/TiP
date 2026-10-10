@@ -177,7 +177,7 @@ class PandaPageTest extends IntegrationTest {
 
     @Test
     void tipSuccessScreenLinksToThePanda() throws Exception {
-        mvc.perform(get("/t/demo-panda")).andExpect(content().string(containsString("Watch the panda")));
+        mvc.perform(get("/t/demo-panda")).andExpect(content().string(containsString("Watch the panda react")));
         mvc.perform(get("/js/tip.js")).andExpect(content().string(containsString("\"/p/\" + encodeURIComponent")));
     }
 }

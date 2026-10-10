@@ -1,123 +1,497 @@
-:root {
-    --ink: #1d1d1f;
-    --muted: #5f6368;
-    --accent: #0b57d0;
-    --error: #b3261e;
-    --surface: #ffffff;
-    --background: #f3f4f6;
-    --radius: 12px;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    color: var(--ink);
-    background: var(--background);
-}
+/* The tip page: one centred card. Colours, the brand and the paper note come from brand.css. */
 
-* {
-    box-sizing: border-box;
+:root {
+    --brand-size: min(36px, 7.6vw);
+    --radius: 26px;
 }
 
 body {
-    margin: 0;
-    padding: 16px;
     min-height: 100vh;
+    min-height: 100svh;
+    background: radial-gradient(ellipse at 50% 40%, var(--bg-1) 0%, var(--bg-2) 75%) fixed, var(--bg-2);
+    color: var(--cream);
+    font-family: var(--font);
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    align-items: flex-start;
+    padding: 24px 16px;
+    overflow-x: hidden;
 }
 
 .card {
-    width: 100%;
-    max-width: 440px;
-    background: var(--surface);
+    width: min(440px, 100%);
+    background: linear-gradient(180deg, #2a1d14 0%, var(--card) 100%);
+    border: 1px solid var(--card-edge);
     border-radius: var(--radius);
-    padding: 24px 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    padding: 26px 22px 22px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.masthead {
+    text-align: center;
 }
 
 h1 {
-    font-size: 1.5rem;
-    margin: 0 0 16px;
+    margin: 0;
+    line-height: 1;
+}
+
+.for {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 15px;
     overflow-wrap: anywhere;
 }
 
-fieldset {
-    border: 0;
-    padding: 0;
-    margin: 0 0 20px;
+.for[hidden] {
+    display: none;
 }
 
-legend,
-label {
+.lede,
+.loading {
+    margin: 8px 0 0;
+    color: var(--faint);
+    font-size: 15px;
+    text-align: center;
+}
+
+section {
+    margin-top: 24px;
+}
+
+.label {
     display: block;
-    font-weight: 600;
-    margin-bottom: 8px;
+    font: 500 16px var(--font);
+    margin: 0 0 10px;
+    color: var(--cream);
 }
 
-.presets {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-bottom: 16px;
-}
-
-.presets button {
-    min-height: 48px;
-    font-size: 1.1rem;
-    border: 2px solid var(--accent);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--accent);
-    cursor: pointer;
-}
-
-.presets button[aria-pressed="true"] {
-    background: var(--accent);
-    color: var(--surface);
-}
-
-input,
-textarea {
-    width: 100%;
+.label label {
     font: inherit;
-    font-size: 1rem;
-    padding: 12px;
-    border: 1px solid #c4c7c5;
-    border-radius: var(--radius);
 }
 
-input:focus-visible,
-textarea:focus-visible,
-button:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: 2px;
-}
-
-textarea {
-    resize: vertical;
-}
-
-.custom-label {
+.optional {
+    color: var(--faint);
     font-weight: 400;
 }
 
-.hint {
+/* Presets: rows of three, and the last row stretches to fill the width. */
+.presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.amt {
+    flex: 1 1 calc((100% - 20px) / 3);
+    min-height: 54px;
+    font: 600 20px var(--font);
+    color: var(--cream);
+    background: rgba(255, 255, 255, 0.045);
+    border: 1.5px solid rgba(243, 227, 200, 0.16);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1), background 0.2s, border-color 0.2s, color 0.2s,
+        box-shadow 0.2s;
+}
+
+.amt:hover {
+    border-color: rgba(233, 187, 82, 0.55);
+}
+
+.amt:focus-visible,
+.stepper button:focus-visible,
+.retry:focus-visible,
+.watch:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+}
+
+.amt[aria-pressed="true"] {
+    color: var(--ink);
+    border-color: #f6d98a;
+    background: radial-gradient(circle at 35% 30%, #fbe8a6 0%, #e6b951 55%, #c9952f 100%);
+    box-shadow: 0 6px 18px rgba(233, 187, 82, 0.28), inset 0 -2px 0 rgba(120, 80, 20, 0.35);
+    transform: scale(1.03);
+}
+
+/* Own amount: a stepper that becomes the selection. */
+.own {
+    margin-top: 14px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1.5px dashed rgba(243, 227, 200, 0.2);
+    border-radius: 18px;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.own-label {
+    font-size: 14px;
     color: var(--muted);
-    font-size: 0.9rem;
-    margin: 6px 0 16px;
+    line-height: 1.2;
+    min-width: 64px;
 }
 
-.error {
-    color: var(--error);
-    font-weight: 600;
+.stepper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
 }
 
-.paypal {
-    margin-top: 8px;
+.stepper button {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    font: 600 24px/1 var(--font);
+    color: var(--cream);
+    background: rgba(255, 255, 255, 0.07);
+    border: 1.5px solid rgba(243, 227, 200, 0.2);
+    cursor: pointer;
+    transition: transform 0.15s, background 0.2s;
+}
+
+.stepper button:active {
+    transform: scale(0.9);
+}
+
+.stepper button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.value {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    min-width: 0;
+}
+
+.value .cur {
+    font: 600 24px var(--font);
+    color: var(--muted);
+    margin-right: 2px;
+}
+
+.value input {
+    /* Grows with the amount where field-sizing is supported, otherwise fits "100.50". */
+    width: 6ch;
+    min-width: 2ch;
+    max-width: 7ch;
+    field-sizing: content;
+    text-align: center;
+    font: 700 34px var(--font);
+    color: var(--cream);
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 0;
+    caret-color: var(--gold);
+}
+
+.value input:focus {
+    outline: none;
+    border-bottom-color: rgba(233, 187, 82, 0.6);
+}
+
+.value input::placeholder {
+    color: rgba(243, 227, 200, 0.3);
+}
+
+.chip {
+    position: absolute;
+    top: -11px;
+    right: 14px;
+    font: 600 12px var(--font);
+    color: var(--ink);
+    background: var(--gold);
+    border-radius: 999px;
+    padding: 3px 10px;
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+    transition: opacity 0.2s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.own.active {
+    border-style: solid;
+    border-color: #f0cd76;
+    background: rgba(233, 187, 82, 0.09);
+    box-shadow: 0 0 0 4px rgba(233, 187, 82, 0.12);
+}
+
+.own.active .chip {
+    opacity: 1;
+    transform: none;
+}
+
+.own.invalid {
+    border-style: solid;
+    border-color: var(--warn);
+    box-shadow: 0 0 0 4px rgba(239, 143, 122, 0.12);
+}
+
+.own.invalid .value input {
+    color: var(--warn);
+}
+
+.hint {
+    margin: 8px 2px 0;
+    font-size: 13px;
+    color: var(--faint);
+    min-height: 1.3em;
+}
+
+.hint.warn {
+    color: var(--warn);
+}
+
+/* The note the panda holds: it wakes, blushes and follows the caret while you write. */
+.peek {
+    transform: translateX(-50%) translateY(5px);
+    transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.note-wrap.awake .peek {
+    transform: translateX(-50%) translateY(0);
+}
+
+.peek .pupil {
+    transition: transform 0.25s ease-out;
+}
+
+.peek .lid {
+    transform-box: fill-box;
+    transform-origin: top;
+    transform: scaleY(0.55);
+    transition: transform 0.3s;
+}
+
+.note-wrap.awake .peek .lid {
+    transform: scaleY(0);
+}
+
+.peek .blush {
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+
+.note-wrap.awake .peek .blush {
+    opacity: 0.55;
+}
+
+.message-note {
+    padding: 14px 16px 30px;
+    transform: rotate(-0.6deg);
+    transition: transform 0.3s;
+}
+
+.note-wrap.awake .message-note {
+    transform: rotate(0deg);
+}
+
+.note-wrap:focus-within .note {
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(233, 187, 82, 0.45);
+}
+
+.message-note textarea {
+    display: block;
+    width: 100%;
+    min-height: 112px;
+    resize: none;
+    font: 400 17px/28px var(--font);
+    color: var(--paper-ink);
+    background: repeating-linear-gradient(to bottom, transparent 0 27px, rgba(120, 80, 40, 0.2) 27px 28px);
+    background-attachment: local;
+    border: 0;
+    padding: 0;
+    outline: none;
+}
+
+.message-note textarea::placeholder {
+    color: rgba(74, 48, 32, 0.5);
+}
+
+.count {
+    position: absolute;
+    right: 14px;
+    bottom: 8px;
+    font: 700 13px var(--font);
+    color: rgba(74, 48, 32, 0.85);
+}
+
+.count.near {
+    color: #b2452f;
+}
+
+/* Total and pay */
+.total {
+    margin: 22px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 17px;
+    color: var(--muted);
+}
+
+.total strong {
+    font: 700 22px var(--font);
+    color: var(--cream);
+    display: inline-block;
+}
+
+.total strong:empty {
+    display: none;
+}
+
+.total strong.bump {
+    animation: bump 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes bump {
+    0% {
+        transform: scale(1);
+    }
+    40% {
+        transform: scale(1.18);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.coin-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: radial-gradient(circle at 35% 30%, #fbe8a6, #e6b951 55%, #b5832a);
+    box-shadow: inset 0 0 0 2px #a9781f;
+}
+
+/* PayPal renders its own buttons in an iframe; they are disabled through the SDK, this only dims them.
+   Its document is light, and an iframe whose colour scheme differs from its page gets an opaque white
+   background, so the container is light too. */
+.pay {
+    color-scheme: light;
+    margin-top: 14px;
     min-height: 48px;
+    transition: opacity 0.2s;
+}
+
+.pay[aria-disabled="true"] {
+    opacity: 0.45;
+}
+
+/* Errors: a small paper note with a friendly sentence and a way to try again. */
+.error-note {
+    margin-top: 16px;
+    padding: 14px 16px;
+    text-align: center;
+    transform: rotate(-0.6deg);
+}
+
+.error-note[hidden] {
+    display: none;
+}
+
+.error-note p {
+    margin: 0 0 10px;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.retry {
+    font: 600 14px var(--font);
+    color: var(--paper-ink);
+    background: rgba(255, 255, 255, 0.35);
+    border: 1.5px solid rgba(90, 60, 30, 0.35);
+    border-radius: 999px;
+    padding: 6px 16px;
+    cursor: pointer;
+}
+
+/* Success and pending: the panda over a paper note in the same card. */
+.done {
+    text-align: center;
+}
+
+.done:focus {
+    outline: none;
+}
+
+.done-note {
+    padding: 26px 20px 22px;
+    transform: rotate(-0.6deg);
+}
+
+.done-note h2 {
+    font: 600 24px var(--font);
+    margin: 0 0 6px;
+}
+
+.done-note p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+}
+
+.done-note .paid {
+    font: 700 40px/1.1 var(--font);
+    color: #6b4426;
+    margin: 4px 0 8px;
+}
+
+.heart {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: heart 1.6s ease-in-out infinite;
+}
+
+@keyframes heart {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.18);
+    }
 }
 
 .watch {
-    display: inline-block;
-    padding: 12px 0;
-    color: var(--accent);
-    font-weight: 600;
+    display: block;
+    margin-top: 22px;
+    padding: 14px 18px;
+    font: 600 18px var(--font);
+    color: var(--ink);
+    text-decoration: none;
+    border-radius: 16px;
+    background: radial-gradient(circle at 35% 30%, #fbe8a6 0%, #e6b951 55%, #c9952f 100%);
+    box-shadow: 0 6px 18px rgba(233, 187, 82, 0.28), inset 0 -2px 0 rgba(120, 80, 20, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .amt,
+    .chip,
+    .peek,
+    .peek .pupil,
+    .peek .lid,
+    .peek .blush,
+    .message-note {
+        transition: none;
+    }
+
+    .total strong.bump,
+    .heart {
+        animation: none;
+    }
 }
