@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.tip.IntegrationTest;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -61,6 +62,71 @@ class PandaPageTest extends IntegrationTest {
                 .andExpect(
                         content().string(containsString("scheme + \"//\" + window.location.host + \"/ws/observe/\"")))
                 .andExpect(content().string(not(containsString("localhost"))));
+    }
+
+    @Test
+    void pageShowsTheBearWithTheLightOnTheCoinAndTheBrand() throws Exception {
+        String page =
+                mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getContentAsString();
+
+        assertThat(page)
+                .contains("<title>TiP | Tip integrated Panda</title>")
+                .contains("id=\"panda-coin-glow\"", "id=\"panda-coin-light\"", "id=\"panda-coin-sparkle\"")
+                .contains("<h1>", "<button type=\"button\" id=\"brand\"", "aria-expanded=\"false\"")
+                .contains("aria-label=\"TiP, Tip integrated Panda\"")
+                .contains("id=\"device-name\"", "id=\"caption\"", "id=\"status\"")
+                .contains("href=\"/fonts/fonts.css\"")
+                .doesNotContain("led-glow", "led-core", " style=", "<style");
+    }
+
+    @Test
+    void pandaLightsTheCoinInTheReactionsColour() throws Exception {
+        String script =
+                mvc.perform(get("/js/panda.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .contains("\"#ff7fb0\"", "\"#ffd54a\"", "\"#6fb6ff\"", "\"#fff4e0\"")
+                .contains("el(\"panda-coin-glow\").setAttribute(\"opacity\", String(level))")
+                .contains("el(\"panda-coin-light\").setAttribute(\"opacity\", String(level * COIN_TINT))")
+                .contains("el(\"panda-coin-sparkle\").setAttribute(\"opacity\", String(level))")
+                .contains("const COIN_TINT = 0.35;", "style.setProperty(\"--light\", colour)")
+                .contains("setLed(reducedMotion.matches ? 1 : levelAt(state.playing.steps, elapsed))")
+                .contains("el(\"device-name\").textContent = name")
+                .contains("[\"tip\", \"tip integrated panda\"]", "name.trim().toLowerCase()");
+    }
+
+    @Test
+    void pageAndFontsReferenceNoOutsideOrigin() throws Exception {
+        Pattern outside = Pattern.compile("https?://(?!www\\.w3\\.org/2000/svg\")");
+        String page =
+                mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getContentAsString();
+        String fonts = mvc.perform(get("/fonts/fonts.css"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String styles =
+                mvc.perform(get("/css/panda.css")).andReturn().getResponse().getContentAsString();
+
+        assertThat(outside.matcher(page).find()).as("panda.html").isFalse();
+        assertThat(outside.matcher(fonts).find()).as("fonts.css").isFalse();
+        assertThat(outside.matcher(styles).find()).as("panda.css").isFalse();
+        assertThat(fonts).contains("font-display: swap", "unicode-range", "fredoka/fredoka-latin-700-normal.woff2");
+    }
+
+    @Test
+    void fontFilesArePublicWoff2UnderTheSamePolicy() throws Exception {
+        mvc.perform(get("/fonts/fredoka/fredoka-latin-400-normal.woff2"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("font/woff2"))
+                .andExpect(header().string("Content-Security-Policy", containsString("default-src 'self'")))
+                .andExpect(header().string("Content-Security-Policy", not(containsString("font-src"))));
+        mvc.perform(get("/fonts/fredoka/OFL.txt")).andExpect(status().isOk());
+
+        mvc.perform(get("/p/demo-panda"))
+                .andExpect(header().string("Content-Security-Policy", containsString("default-src 'self'")))
+                .andExpect(header().string("Content-Security-Policy", not(containsString("unsafe-inline"))))
+                .andExpect(header().string("Content-Security-Policy", not(containsString("font-src"))));
     }
 
     @Test

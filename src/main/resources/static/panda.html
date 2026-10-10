@@ -4,178 +4,236 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="referrer" content="strict-origin-when-cross-origin">
-    <title>Virtual panda</title>
+    <title>TiP | Tip integrated Panda</title>
+    <link rel="stylesheet" href="/fonts/fonts.css">
     <link rel="stylesheet" href="/css/panda.css">
     <script src="/js/panda.js" defer nonce="{{CSP_NONCE}}"></script>
 </head>
 <body>
 <p id="status" class="status" role="status" data-state="connecting"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Connecting</span></p>
-<main class="stage">
-    <h1 id="title">Virtual panda</h1>
-    <svg id="panda" class="panda" viewBox="0 0 400 470" role="img" aria-labelledby="panda-label">
-        <title id="panda-label">A cardboard panda holding a coin with a light in its centre</title>
-        <defs>
-            <radialGradient id="led-glow-fill">
-                <stop offset="0" class="led-stop-core"/>
-                <stop offset="0.35" class="led-stop-mid"/>
-                <stop offset="1" class="led-stop-edge"/>
-            </radialGradient>
-            <filter id="led-blur" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="3"/>
-            </filter>
-        </defs>
-        <ellipse class="shadow" cx="200" cy="456" rx="120" ry="14"/>
-        <g class="part">
-        <polygon class="edge" points="125.0,104.0 111.0,62.0 149.0,44.0 173.0,74.0"/>
-        <polygon fill="#5b3e27" points="136.5,67.0 122.0,100.0 108.0,58.0"/>
-        <polygon fill="#4c331f" points="136.5,67.0 108.0,58.0 146.0,40.0"/>
-        <polygon fill="#664630" points="136.5,67.0 146.0,40.0 170.0,70.0"/>
-        <polygon fill="#432c1b" points="136.5,67.0 170.0,70.0 122.0,100.0"/>
-        <polygon class="cut" points="122.0,100.0 108.0,58.0 146.0,40.0 170.0,70.0"/>
+<main class="page">
+  <h1>
+    <button type="button" id="brand" class="brand" aria-expanded="false" aria-label="TiP, Tip integrated Panda">
+      <span class="gold" aria-hidden="true"><span class="cap">T</span><span class="rest"><span data-text="ip"></span></span></span>
+      <span class="pink" aria-hidden="true"><span class="cap">i</span><span class="rest"><span data-text="ntegrated"></span></span></span>
+      <span class="cream" aria-hidden="true"><span class="cap">P</span><span class="rest"><span data-text="anda"></span></span></span>
+    </button>
+  </h1>
+
+  <div class="stage">
+  <svg id="panda" class="panda" viewBox="0 0 400 490" role="img" aria-label="Cardboard panda sitting and holding a gold TiP coin">
+    <defs>
+      <radialGradient id="gold" cx="38%" cy="32%" r="75%">
+        <stop offset="0" stop-color="#fbe8a6"/>
+        <stop offset=".5" stop-color="#e6b951"/>
+        <stop offset="1" stop-color="#b5832a"/>
+      </radialGradient>
+      <radialGradient id="goldFace" cx="42%" cy="36%" r="70%">
+        <stop offset="0" stop-color="#f8df92"/>
+        <stop offset=".6" stop-color="#e1b04a"/>
+        <stop offset="1" stop-color="#c89634"/>
+      </radialGradient>
+      <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#d9af78"/>
+        <stop offset=".55" stop-color="#c79a61"/>
+        <stop offset="1" stop-color="#a47744"/>
+      </linearGradient>
+      <radialGradient id="thighL" cx="40%" cy="35%" r="70%">
+        <stop offset="0" stop-color="#ddb47d"/>
+        <stop offset="1" stop-color="#b98b54"/>
+      </radialGradient>
+      <radialGradient id="thighR" cx="45%" cy="35%" r="70%">
+        <stop offset="0" stop-color="#cba068"/>
+        <stop offset="1" stop-color="#a07343"/>
+      </radialGradient>
+      <radialGradient id="sole" cx="40%" cy="35%" r="70%">
+        <stop offset="0" stop-color="#e0bb86"/>
+        <stop offset="1" stop-color="#c29360"/>
+      </radialGradient>
+      <radialGradient id="vol" cx="38%" cy="30%" r="75%">
+        <stop offset="0" stop-color="#fff" stop-opacity=".16"/>
+        <stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+        <stop offset="1" stop-color="#3a220f" stop-opacity=".28"/>
+      </radialGradient>
+      <linearGradient id="sheenGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+        <stop offset=".5" stop-color="#fff" stop-opacity=".55"/>
+        <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      </linearGradient>
+      <clipPath id="coinClip"><circle cx="200" cy="348" r="70"/></clipPath>
+      <clipPath id="bodyClip">
+        <path d="M165 244 C135 270 110 330 116 388 C120 420 160 432 200 432 C240 432 280 420 284 388 C290 330 265 270 235 244 Z"/>
+      </clipPath>
+      <filter id="grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="7" result="n"/>
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 .36  0 0 0 0 .24  0 0 0 0 .13  .9 0 0 0 -.42" result="speck"/>
+        <feComposite in="speck" in2="SourceAlpha" operator="in" result="s2"/>
+        <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="s2"/></feMerge>
+      </filter>
+      <filter id="soft" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="6"/></filter>
+      <filter id="tight" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="2.5"/></filter>
+      <filter id="ao" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="7"/></filter>
+      <filter id="coinGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
+    </defs>
+
+    <!-- floor shadows: wide soft one, then contact shadows where the bear touches the floor -->
+    <ellipse cx="200" cy="470" rx="160" ry="14" fill="#000" opacity=".45" filter="url(#soft)"/>
+    <ellipse cx="200" cy="436" rx="90" ry="9" fill="#000" opacity=".55" filter="url(#tight)"/>
+    <ellipse cx="118" cy="473" rx="34" ry="6" fill="#000" opacity=".6" filter="url(#tight)"/>
+    <ellipse cx="282" cy="473" rx="34" ry="6" fill="#000" opacity=".6" filter="url(#tight)"/>
+
+    <g stroke="#5a3b22" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
+
+      <g class="upper">
+        <!-- body: pear shaped, wide at the base where it sits -->
+        <g filter="url(#grain)">
+          <path d="M165 244 C135 270 110 330 116 388 C120 420 160 432 200 432 C240 432 280 420 284 388 C290 330 265 270 235 244 Z" fill="url(#bodyGrad)"/>
+          <g clip-path="url(#bodyClip)" stroke-width="1.3" stroke-opacity=".7">
+            <path d="M200 250 V432" fill="none"/>
+            <path d="M160 255 C140 300 136 360 150 432" fill="none"/>
+            <path d="M240 255 C260 300 264 360 250 432" fill="none"/>
+            <!-- shadow the head casts on the chest -->
+            <ellipse cx="200" cy="262" rx="88" ry="16" fill="#3a220f" opacity=".35" stroke="none" filter="url(#ao)"/>
+          </g>
         </g>
-        <g class="part">
-        <polygon class="edge" points="281.0,104.0 295.0,62.0 257.0,44.0 233.0,74.0"/>
-        <polygon fill="#5b3e27" points="263.5,67.0 278.0,100.0 292.0,58.0"/>
-        <polygon fill="#4c331f" points="263.5,67.0 292.0,58.0 254.0,40.0"/>
-        <polygon fill="#664630" points="263.5,67.0 254.0,40.0 230.0,70.0"/>
-        <polygon fill="#432c1b" points="263.5,67.0 230.0,70.0 278.0,100.0"/>
-        <polygon class="cut" points="278.0,100.0 292.0,58.0 254.0,40.0 230.0,70.0"/>
+
+        <!-- thighs coming toward the viewer -->
+        <g filter="url(#grain)">
+          <ellipse cx="146" cy="408" rx="46" ry="32" fill="url(#thighL)" transform="rotate(-24 146 408)"/>
+          <ellipse cx="254" cy="408" rx="46" ry="32" fill="url(#thighR)" transform="rotate(24 254 408)"/>
         </g>
-        <g class="part">
-        <polygon class="edge" points="121.0,392.0 181.0,402.0 187.0,456.0 115.0,456.0 103.0,424.0"/>
-        <polygon fill="#5b3e27" points="138.4,422.0 118.0,388.0 178.0,398.0"/>
-        <polygon fill="#4c331f" points="138.4,422.0 178.0,398.0 184.0,452.0"/>
-        <polygon fill="#664630" points="138.4,422.0 184.0,452.0 112.0,452.0"/>
-        <polygon fill="#432c1b" points="138.4,422.0 112.0,452.0 100.0,420.0"/>
-        <polygon fill="#5b3e27" points="138.4,422.0 100.0,420.0 118.0,388.0"/>
-        <polygon class="cut" points="118.0,388.0 178.0,398.0 184.0,452.0 112.0,452.0 100.0,420.0"/>
+
+        <!-- upper arms (behind coin) -->
+        <g filter="url(#grain)">
+          <polygon points="152,258 174,270 152,334 122,338 126,292" fill="#c99b62"/>
+          <polygon points="248,258 226,270 248,334 278,338 274,292" fill="#a97c48"/>
         </g>
-        <g class="part">
-        <polygon class="edge" points="285.0,392.0 225.0,402.0 219.0,456.0 291.0,456.0 303.0,424.0"/>
-        <polygon fill="#5b3e27" points="261.6,422.0 282.0,388.0 222.0,398.0"/>
-        <polygon fill="#4c331f" points="261.6,422.0 222.0,398.0 216.0,452.0"/>
-        <polygon fill="#664630" points="261.6,422.0 216.0,452.0 288.0,452.0"/>
-        <polygon fill="#432c1b" points="261.6,422.0 288.0,452.0 300.0,420.0"/>
-        <polygon fill="#5b3e27" points="261.6,422.0 300.0,420.0 282.0,388.0"/>
-        <polygon class="cut" points="282.0,388.0 222.0,398.0 216.0,452.0 288.0,452.0 300.0,420.0"/>
+
+        <!-- scarf (red yarn) -->
+        <g fill="none" stroke-linecap="round">
+          <path d="M136 249 Q200 293 264 249" stroke="#a5261f" stroke-width="13"/>
+          <path d="M136 249 Q200 293 264 249" stroke="#d24a3e" stroke-width="5" stroke-dasharray="3 4"/>
+          <path d="M152 262 q-26 -18 -34 -2 q-4 14 30 6" stroke="#b52e27" stroke-width="6"/>
+          <path d="M152 262 q-6 -26 -20 -26 q-10 4 14 22" stroke="#b52e27" stroke-width="6"/>
+          <path d="M150 266 q-18 16 -14 42" stroke="#b52e27" stroke-width="5.5"/>
+          <path d="M156 268 q-2 20 10 38" stroke="#b52e27" stroke-width="5.5"/>
         </g>
-        <g class="part">
-        <polygon class="edge" points="143.0,216.0 263.0,216.0 305.0,292.0 301.0,386.0 255.0,428.0 151.0,428.0 105.0,386.0 101.0,292.0"/>
-        <polygon fill="#d6b07f" points="200.0,318.0 140.0,212.0 260.0,212.0"/>
-        <polygon fill="#c99e6c" points="200.0,318.0 260.0,212.0 302.0,288.0"/>
-        <polygon fill="#ddbb8d" points="200.0,318.0 302.0,288.0 298.0,382.0"/>
-        <polygon fill="#c1955f" points="200.0,318.0 298.0,382.0 252.0,424.0"/>
-        <polygon fill="#d0a874" points="200.0,318.0 252.0,424.0 148.0,424.0"/>
-        <polygon fill="#d6b07f" points="200.0,318.0 148.0,424.0 102.0,382.0"/>
-        <polygon fill="#c99e6c" points="200.0,318.0 102.0,382.0 98.0,288.0"/>
-        <polygon fill="#ddbb8d" points="200.0,318.0 98.0,288.0 140.0,212.0"/>
-        <polygon class="cut" points="140.0,212.0 260.0,212.0 302.0,288.0 298.0,382.0 252.0,424.0 148.0,424.0 102.0,382.0 98.0,288.0"/>
-        </g>
-        <line class="fold dashed" x1="200" y1="214" x2="200" y2="422"/>
-        <g class="part">
-        <polygon class="edge" points="145.0,230.0 107.0,266.0 121.0,340.0 165.0,348.0 173.0,304.0"/>
-        <polygon fill="#5b3e27" points="139.2,293.6 142.0,226.0 104.0,262.0"/>
-        <polygon fill="#4c331f" points="139.2,293.6 104.0,262.0 118.0,336.0"/>
-        <polygon fill="#664630" points="139.2,293.6 118.0,336.0 162.0,344.0"/>
-        <polygon fill="#432c1b" points="139.2,293.6 162.0,344.0 170.0,300.0"/>
-        <polygon fill="#5b3e27" points="139.2,293.6 170.0,300.0 142.0,226.0"/>
-        <polygon class="cut" points="142.0,226.0 104.0,262.0 118.0,336.0 162.0,344.0 170.0,300.0"/>
-        </g>
-        <g class="part">
-        <polygon class="edge" points="261.0,230.0 299.0,266.0 285.0,340.0 241.0,348.0 233.0,304.0"/>
-        <polygon fill="#5b3e27" points="260.8,293.6 258.0,226.0 296.0,262.0"/>
-        <polygon fill="#4c331f" points="260.8,293.6 296.0,262.0 282.0,336.0"/>
-        <polygon fill="#664630" points="260.8,293.6 282.0,336.0 238.0,344.0"/>
-        <polygon fill="#432c1b" points="260.8,293.6 238.0,344.0 230.0,300.0"/>
-        <polygon fill="#5b3e27" points="260.8,293.6 230.0,300.0 258.0,226.0"/>
-        <polygon class="cut" points="258.0,226.0 296.0,262.0 282.0,336.0 238.0,344.0 230.0,300.0"/>
-        </g>
+        <circle cx="153" cy="263" r="7.5" fill="#b52e27" stroke="#7e1b15"/>
+
+        <!-- coin: the panda's light lives here -->
+        <circle id="panda-coin-glow" cx="200" cy="348" r="74" fill="none" stroke-width="16" opacity="0" filter="url(#coinGlow)"/>
         <g class="coin">
-        <polygon class="edge" points="203.0,264.0 225.2,268.4 244.0,281.0 256.6,299.8 261.0,322.0 256.6,344.2 244.0,363.0 225.2,375.6 203.0,380.0 180.8,375.6 162.0,363.0 149.4,344.2 145.0,322.0 149.4,299.8 162.0,281.0 180.8,268.4"/>
-        <polygon fill="#e3b95c" points="200.0,318.0 200.0,260.0 222.2,264.4"/>
-        <polygon fill="#d2a447" points="200.0,318.0 222.2,264.4 241.0,277.0"/>
-        <polygon fill="#eac676" points="200.0,318.0 241.0,277.0 253.6,295.8"/>
-        <polygon fill="#c8983d" points="200.0,318.0 253.6,295.8 258.0,318.0"/>
-        <polygon fill="#e3b95c" points="200.0,318.0 258.0,318.0 253.6,340.2"/>
-        <polygon fill="#d2a447" points="200.0,318.0 253.6,340.2 241.0,359.0"/>
-        <polygon fill="#eac676" points="200.0,318.0 241.0,359.0 222.2,371.6"/>
-        <polygon fill="#c8983d" points="200.0,318.0 222.2,371.6 200.0,376.0"/>
-        <polygon fill="#e3b95c" points="200.0,318.0 200.0,376.0 177.8,371.6"/>
-        <polygon fill="#d2a447" points="200.0,318.0 177.8,371.6 159.0,359.0"/>
-        <polygon fill="#eac676" points="200.0,318.0 159.0,359.0 146.4,340.2"/>
-        <polygon fill="#c8983d" points="200.0,318.0 146.4,340.2 142.0,318.0"/>
-        <polygon fill="#e3b95c" points="200.0,318.0 142.0,318.0 146.4,295.8"/>
-        <polygon fill="#d2a447" points="200.0,318.0 146.4,295.8 159.0,277.0"/>
-        <polygon fill="#eac676" points="200.0,318.0 159.0,277.0 177.8,264.4"/>
-        <polygon fill="#c8983d" points="200.0,318.0 177.8,264.4 200.0,260.0"/>
-        <polygon class="cut" points="200.0,260.0 222.2,264.4 241.0,277.0 253.6,295.8 258.0,318.0 253.6,340.2 241.0,359.0 222.2,371.6 200.0,376.0 177.8,371.6 159.0,359.0 146.4,340.2 142.0,318.0 146.4,295.8 159.0,277.0 177.8,264.4"/>
+          <!-- rim thickness, slightly offset down and right, so the coin reads as a disc -->
+          <circle cx="203" cy="352" r="70" fill="#9a6d1d" stroke="#6e4c12" stroke-width="2"/>
+          <circle cx="200" cy="348" r="70" fill="url(#gold)" stroke="#8e6418" stroke-width="2"/>
+          <circle cx="200" cy="348" r="61" fill="none" stroke="#a9781f" stroke-width="2.5"/>
+          <circle cx="200" cy="348" r="58" fill="url(#goldFace)" stroke="#f6dc8e" stroke-width="1" stroke-opacity=".7"/>
+          <g font-family="Fredoka, sans-serif" font-weight="700" font-size="50" text-anchor="middle" stroke="none" letter-spacing="1">
+            <text x="201.8" y="366.8" fill="#93691c">TiP</text>
+            <text x="199" y="364" fill="#fff1bd">TiP</text>
+            <text x="200" y="365" fill="#d9a83f">TiP</text>
+          </g>
+          <ellipse cx="177" cy="318" rx="26" ry="12" fill="#fff" opacity=".22" stroke="none" transform="rotate(-28 177 318)"/>
+          <g clip-path="url(#coinClip)" stroke="none">
+            <g class="sheen"><rect x="70" y="270" width="34" height="160" fill="url(#sheenGrad)" transform="rotate(20 87 350)"/></g>
+          </g>
+          <circle id="panda-coin-light" cx="200" cy="348" r="70" opacity="0" stroke="none"/>
+          <path id="panda-coin-sparkle" d="M248 300 l4 12 l12 4 l-12 4 l-4 12 l-4 -12 l-12 -4 l12 -4 Z" fill="#fff" stroke="none" opacity="0"/>
         </g>
-        <polygon class="coin-ring" points="200.0,274.0 216.8,277.3 231.1,286.9 240.7,301.2 244.0,318.0 240.7,334.8 231.1,349.1 216.8,358.7 200.0,362.0 183.2,358.7 168.9,349.1 159.3,334.8 156.0,318.0 159.3,301.2 168.9,286.9 183.2,277.3"/>
-        <g class="part">
-        <polygon class="edge" points="143.0,304.0 169.0,296.0 179.0,330.0 153.0,344.0 135.0,330.0"/>
-        <polygon fill="#5b3e27" points="152.8,316.8 140.0,300.0 166.0,292.0"/>
-        <polygon fill="#4c331f" points="152.8,316.8 166.0,292.0 176.0,326.0"/>
-        <polygon fill="#664630" points="152.8,316.8 176.0,326.0 150.0,340.0"/>
-        <polygon fill="#432c1b" points="152.8,316.8 150.0,340.0 132.0,326.0"/>
-        <polygon fill="#5b3e27" points="152.8,316.8 132.0,326.0 140.0,300.0"/>
-        <polygon class="cut" points="140.0,300.0 166.0,292.0 176.0,326.0 150.0,340.0 132.0,326.0"/>
+
+        <!-- hands gripping the coin edge, corrugated layers showing -->
+        <g filter="url(#grain)">
+          <polygon points="114,326 144,318 152,346 146,376 118,380 108,352" fill="#c99c64"/>
+          <polygon points="144,318 152,320 158,348 152,376 146,376 152,346" fill="#a87b45"/>
+          <g stroke="#6e4a2a" stroke-width="1.3">
+            <path d="M147 326 l7 2"/><path d="M150 335 l7 2"/><path d="M152 344 l6 1"/>
+            <path d="M152 353 l6 0"/><path d="M151 362 l6 -1"/><path d="M149 370 l6 -2"/>
+          </g>
+          <polygon points="286,326 256,318 248,346 254,376 282,380 292,352" fill="#b48650"/>
+          <polygon points="256,318 248,320 242,348 248,376 254,376 248,346" fill="#956838"/>
+          <g stroke="#6e4a2a" stroke-width="1.3">
+            <path d="M253 326 l-7 2"/><path d="M250 335 l-7 2"/><path d="M248 344 l-6 1"/>
+            <path d="M248 353 l-6 0"/><path d="M249 362 l-6 -1"/><path d="M251 370 l-6 -2"/>
+          </g>
         </g>
-        <g class="part">
-        <polygon class="edge" points="263.0,304.0 237.0,296.0 227.0,330.0 253.0,344.0 271.0,330.0"/>
-        <polygon fill="#5b3e27" points="247.2,316.8 260.0,300.0 234.0,292.0"/>
-        <polygon fill="#4c331f" points="247.2,316.8 234.0,292.0 224.0,326.0"/>
-        <polygon fill="#664630" points="247.2,316.8 224.0,326.0 250.0,340.0"/>
-        <polygon fill="#432c1b" points="247.2,316.8 250.0,340.0 268.0,326.0"/>
-        <polygon fill="#5b3e27" points="247.2,316.8 268.0,326.0 260.0,300.0"/>
-        <polygon class="cut" points="260.0,300.0 234.0,292.0 224.0,326.0 250.0,340.0 268.0,326.0"/>
+
+        <!-- head -->
+        <g class="head">
+          <g filter="url(#grain)">
+            <!-- ears with a darker back edge for thickness -->
+            <circle cx="125" cy="104" r="32" fill="#9e7243"/>
+            <circle cx="122" cy="100" r="32" fill="#c99c66"/>
+            <circle cx="124" cy="102" r="19" fill="#b5884f" stroke-width="1.4"/>
+            <circle cx="281" cy="104" r="32" fill="#8f6437"/>
+            <circle cx="278" cy="100" r="32" fill="#bf915b"/>
+            <circle cx="276" cy="102" r="19" fill="#a97c45" stroke-width="1.4"/>
+
+            <polygon points="112,118 142,86 200,76 258,86 288,118 304,162 296,212 268,248 200,264 132,248 104,212 96,162" fill="#cfa470"/>
+            <g stroke-width="1.3" stroke-opacity=".75">
+              <polygon points="142,86 200,76 258,86 246,116 200,110 154,116" fill="#e2bc87"/>
+              <polygon points="112,118 142,86 154,116 128,150 96,162" fill="#d9b27c"/>
+              <polygon points="288,118 258,86 246,116 272,150 304,162" fill="#b98a54"/>
+              <polygon points="96,162 128,150 140,205 132,248 104,212" fill="#c79a63"/>
+              <polygon points="304,162 272,150 260,205 268,248 296,212" fill="#a87b47"/>
+              <polygon points="140,205 170,236 200,242 230,236 260,205 268,248 200,264 132,248" fill="#bd8f59"/>
+              <path d="M200 110 V188" fill="none"/>
+              <path d="M154 116 L128 150 M246 116 L272 150" fill="none"/>
+            </g>
+            <polygon points="112,118 142,86 200,76 258,86 288,118 304,162 296,212 268,248 200,264 132,248 104,212 96,162" fill="url(#vol)" stroke="none"/>
+            <!-- muzzle base, raised: a darker lip under it -->
+            <polygon points="172,222 186,240 214,240 228,222 215,238 185,238" fill="#9e7243" stroke="none"/>
+            <polygon points="178,196 200,189 222,196 230,218 215,236 185,236 170,218" fill="#d8b17b"/>
+          </g>
+
+          <!-- eyes -->
+          <g class="eye">
+            <ellipse cx="162" cy="168" rx="27" ry="29" fill="#5b3620" stroke-width="2"/>
+            <ellipse cx="163" cy="170" rx="20" ry="22" fill="#1b0f08" stroke="none"/>
+            <circle cx="171" cy="160" r="6.5" fill="#fff" stroke="none"/>
+            <circle cx="156" cy="179" r="2.6" fill="#fff" stroke="none" opacity=".85"/>
+          </g>
+          <g class="eye">
+            <ellipse cx="238" cy="168" rx="27" ry="29" fill="#5b3620" stroke-width="2"/>
+            <ellipse cx="237" cy="170" rx="20" ry="22" fill="#1b0f08" stroke="none"/>
+            <circle cx="246" cy="160" r="6.5" fill="#fff" stroke="none"/>
+            <circle cx="231" cy="179" r="2.6" fill="#fff" stroke="none" opacity=".85"/>
+          </g>
+
+          <!-- nose and mouth -->
+          <path d="M190 202 Q200 197 210 202 Q206 212 200 214 Q194 212 190 202 Z" fill="#2a170c" stroke-width="1.2"/>
+          <path d="M200 214 V221 M188 219 Q194 228 200 221 Q206 228 212 219" fill="none" stroke="#2a170c" stroke-width="2"/>
         </g>
-        <g class="part">
-        <polygon class="edge" points="121.0,116.0 153.0,74.0 203.0,62.0 253.0,74.0 285.0,116.0 295.0,164.0 269.0,210.0 203.0,232.0 137.0,210.0 111.0,164.0"/>
-        <polygon fill="#d6b07f" points="200.0,150.0 118.0,112.0 150.0,70.0"/>
-        <polygon fill="#c99e6c" points="200.0,150.0 150.0,70.0 200.0,58.0"/>
-        <polygon fill="#ddbb8d" points="200.0,150.0 200.0,58.0 250.0,70.0"/>
-        <polygon fill="#c1955f" points="200.0,150.0 250.0,70.0 282.0,112.0"/>
-        <polygon fill="#d0a874" points="200.0,150.0 282.0,112.0 292.0,160.0"/>
-        <polygon fill="#d6b07f" points="200.0,150.0 292.0,160.0 266.0,206.0"/>
-        <polygon fill="#c99e6c" points="200.0,150.0 266.0,206.0 200.0,228.0"/>
-        <polygon fill="#ddbb8d" points="200.0,150.0 200.0,228.0 134.0,206.0"/>
-        <polygon fill="#c1955f" points="200.0,150.0 134.0,206.0 108.0,160.0"/>
-        <polygon fill="#d0a874" points="200.0,150.0 108.0,160.0 118.0,112.0"/>
-        <polygon class="cut" points="118.0,112.0 150.0,70.0 200.0,58.0 250.0,70.0 282.0,112.0 292.0,160.0 266.0,206.0 200.0,228.0 134.0,206.0 108.0,160.0"/>
+      </g>
+
+      <!-- feet: nearest the viewer, soles facing out, with a darker side for thickness -->
+      <g filter="url(#grain)">
+        <g transform="rotate(-14 120 440)">
+          <ellipse cx="128" cy="432" rx="30" ry="34" fill="#9e7243"/>
+          <ellipse cx="120" cy="440" rx="30" ry="34" fill="url(#sole)"/>
+          <g fill="#b88a50" stroke-width="1.4">
+            <ellipse cx="120" cy="451" rx="14" ry="12"/>
+            <circle cx="104" cy="428" r="6.5"/><circle cx="114" cy="419" r="6.5"/>
+            <circle cx="126" cy="419" r="6.5"/><circle cx="136" cy="428" r="6.5"/>
+          </g>
         </g>
-        <line class="fold dashed" x1="200" y1="60" x2="200" y2="176"/>
-        <polyline class="fold" points="118,112 200,150 282,112"/>
-        <g class="part">
-        <polygon class="edge" points="149.0,140.0 173.0,120.0 193.0,142.0 183.0,176.0 153.0,172.0"/>
-        <polygon fill="#5b3e27" points="167.2,146.0 146.0,136.0 170.0,116.0"/>
-        <polygon fill="#4c331f" points="167.2,146.0 170.0,116.0 190.0,138.0"/>
-        <polygon fill="#664630" points="167.2,146.0 190.0,138.0 180.0,172.0"/>
-        <polygon fill="#432c1b" points="167.2,146.0 180.0,172.0 150.0,168.0"/>
-        <polygon fill="#5b3e27" points="167.2,146.0 150.0,168.0 146.0,136.0"/>
-        <polygon class="cut" points="146.0,136.0 170.0,116.0 190.0,138.0 180.0,172.0 150.0,168.0"/>
+        <g transform="rotate(14 280 440)">
+          <ellipse cx="272" cy="432" rx="30" ry="34" fill="#87602f"/>
+          <ellipse cx="280" cy="440" rx="30" ry="34" fill="url(#sole)"/>
+          <g fill="#ad7f47" stroke-width="1.4">
+            <ellipse cx="280" cy="451" rx="14" ry="12"/>
+            <circle cx="264" cy="428" r="6.5"/><circle cx="274" cy="419" r="6.5"/>
+            <circle cx="286" cy="419" r="6.5"/><circle cx="296" cy="428" r="6.5"/>
+          </g>
         </g>
-        <g class="part">
-        <polygon class="edge" points="257.0,140.0 233.0,120.0 213.0,142.0 223.0,176.0 253.0,172.0"/>
-        <polygon fill="#5b3e27" points="232.8,146.0 254.0,136.0 230.0,116.0"/>
-        <polygon fill="#4c331f" points="232.8,146.0 230.0,116.0 210.0,138.0"/>
-        <polygon fill="#664630" points="232.8,146.0 210.0,138.0 220.0,172.0"/>
-        <polygon fill="#432c1b" points="232.8,146.0 220.0,172.0 250.0,168.0"/>
-        <polygon fill="#5b3e27" points="232.8,146.0 250.0,168.0 254.0,136.0"/>
-        <polygon class="cut" points="254.0,136.0 230.0,116.0 210.0,138.0 220.0,172.0 250.0,168.0"/>
-        </g>
-        <circle class="eye" cx="171" cy="146" r="6"/><circle class="pupil" cx="172" cy="147" r="2.6"/>
-        <circle class="eye" cx="229" cy="146" r="6"/><circle class="pupil" cx="228" cy="147" r="2.6"/>
-        <polygon class="nose" points="189,180 211,180 200,193"/>
-        <polyline class="mouth" points="190,197 200,203 210,197"/>
-        <g class="led">
-            <circle id="led-glow" class="led-glow" cx="200" cy="318" r="64" fill="url(#led-glow-fill)" opacity="0"/>
-            <circle class="led-socket" cx="200" cy="318" r="8"/>
-            <circle id="led-core" class="led-core" cx="200" cy="318" r="6" filter="url(#led-blur)" opacity="0"/>
-        </g>
-    </svg>
-    <p id="caption" class="caption" aria-live="polite"></p>
-    <p id="notice" class="notice" hidden></p>
-    <p class="hint">Tap the coin on the real panda, or open its tip page, and watch this one react.</p>
+      </g>
+    </g>
+  </svg>
+  </div>
+
+  <p id="device-name" class="device-name" hidden></p>
+  <p id="caption" class="caption" aria-live="polite"></p>
+  <p id="notice" class="notice" hidden></p>
+  <p class="hint">Tap the coin on the real panda, or open its tip page, and watch this one react.</p>
 </main>
 </body>
 </html>

@@ -30,7 +30,7 @@
     const REACTIONS = {
         WARM: {
             caption: "Warm message",
-            colour: "#ff9eb5",
+            colour: "#ff7fb0",
             unit: [
                 [400, 0, 1],
                 [600, 1, 0],
@@ -41,14 +41,14 @@
         },
         PLAYFUL: {
             caption: "Playful message",
-            colour: "#ffcf4d",
+            colour: "#ffd54a",
             unit: GIGGLE,
             baseUnits: 2,
             gapMs: 250,
         },
         REQUEST: {
             caption: "Request noted",
-            colour: "#6fa8ff",
+            colour: "#6fb6ff",
             unit: NOTED,
             baseUnits: 2,
             gapMs: 300,
@@ -61,6 +61,11 @@
             gapMs: 300,
         },
     };
+
+    // The light lives on the coin: its glow ring and sparkle follow the level, its tint stays faint.
+    const COIN_TINT = 0.35;
+    // The demo panda's display name is the brand itself, so it is not repeated under the bear.
+    const BRAND_NAMES = ["tip", "tip integrated panda"];
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -116,12 +121,13 @@
     }
 
     function setLed(level) {
-        el("led-core").setAttribute("opacity", String(level));
-        el("led-glow").setAttribute("opacity", String(level));
+        el("panda-coin-glow").setAttribute("opacity", String(level));
+        el("panda-coin-light").setAttribute("opacity", String(level * COIN_TINT));
+        el("panda-coin-sparkle").setAttribute("opacity", String(level));
     }
 
     function setColour(colour) {
-        el("panda").style.setProperty("--led-colour", colour);
+        el("panda").style.setProperty("--light", colour);
     }
 
     function showCaption(text) {
@@ -184,6 +190,37 @@
         setLed(0);
     }
 
+    function showDeviceName(name) {
+        if (typeof name !== "string" || BRAND_NAMES.includes(name.trim().toLowerCase())) {
+            return;
+        }
+        el("device-name").textContent = name;
+        el("device-name").hidden = false;
+    }
+
+    // Splits each hidden part of the brand into letters for the staggered reveal; a tap toggles it on touch screens.
+    function setUpBrand() {
+        const brand = el("brand");
+        const parts = brand.querySelectorAll("[data-text]");
+        parts.forEach((part, index) => {
+            Array.from(part.dataset.text).forEach((character, position) => {
+                const letter = document.createElement("span");
+                letter.className = "l";
+                letter.textContent = character;
+                letter.style.setProperty("--d", String(position));
+                part.appendChild(letter);
+            });
+            if (index < parts.length - 1) {
+                const space = document.createElement("span");
+                space.className = "sp";
+                part.appendChild(space);
+            }
+        });
+        brand.addEventListener("click", () => {
+            brand.setAttribute("aria-expanded", brand.getAttribute("aria-expanded") === "true" ? "false" : "true");
+        });
+    }
+
     function setStatus(name, text) {
         el("status").dataset.state = name;
         el("status-text").textContent = text;
@@ -236,6 +273,7 @@
     }
 
     async function start() {
+        setUpBrand();
         state.slug = slugFromPath();
         if (!state.slug) {
             fail("This panda does not exist.");
@@ -254,8 +292,7 @@
         }
         if (response && response.ok) {
             const device = await response.json();
-            el("title").textContent = device.displayName;
-            document.title = device.displayName;
+            showDeviceName(device.displayName);
         }
         connect();
     }
