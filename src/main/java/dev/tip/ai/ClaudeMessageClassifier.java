@@ -158,21 +158,18 @@ class ClaudeMessageClassifier implements MessageClassifier {
 
     /**
      * A bracketed span is a delimiter lookalike when its content, folded with NFKC and lowercased, starts
-     * with {@code tipmessage} or {@code /tipmessage} once everything but letters and slashes is dropped.
-     * That covers any case, fullwidth letters, spaces, zero width joiners and other invisible characters,
-     * {@code tip-message}, attributes and a self closing slash. Any other span is kept as written.
+     * with {@code tipmessage} once everything but letters is dropped; with a slash anywhere it reads as a
+     * closing tag. That covers any case, fullwidth letters, spaces, zero width joiners and other invisible
+     * characters, extra slashes, {@code tip-message}, attributes and a self closing slash. Any other span
+     * is kept as written.
      */
     private static String neutralise(MatchResult span) {
-        String letters = NOT_LETTER_OR_SLASH
-                .matcher(Normalizer.normalize(span.group(1), Normalizer.Form.NFKC))
-                .replaceAll("")
-                .toLowerCase(Locale.ROOT);
-        if (letters.startsWith("/tipmessage")) {
-            return "[/tip_message]";
+        String folded =
+                Normalizer.normalize(span.group(1), Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        String lettersAndSlashes = NOT_LETTER_OR_SLASH.matcher(folded).replaceAll("");
+        if (!lettersAndSlashes.replace("/", "").startsWith("tipmessage")) {
+            return Matcher.quoteReplacement(span.group());
         }
-        if (letters.startsWith("tipmessage")) {
-            return "[tip_message]";
-        }
-        return Matcher.quoteReplacement(span.group());
+        return lettersAndSlashes.contains("/") ? "[/tip_message]" : "[tip_message]";
     }
 }

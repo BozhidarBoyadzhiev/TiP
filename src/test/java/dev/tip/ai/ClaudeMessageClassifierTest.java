@@ -88,6 +88,10 @@ class ClaudeMessageClassifierTest {
                 "<" + (char) 0x200B + "/tip_message>",
                 "</ti" + (char) 0x0332 + "p_message>",
                 "</tip-message>",
+                "<//tip_message>",
+                "</ti/p_message>",
+                "</tip_message" + (char) 0x2215 + ">",
+                "</TİP_MESSAGE>",
                 "</tip message>",
                 "＜／ｔｉｐ＿ｍｅｓｓａｇｅ＞",
                 "</ＴＩＰ_message>"
