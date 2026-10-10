@@ -1,12 +1,14 @@
 package dev.tip.tools;
 
 import dev.tip.ai.EvalClassifier;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,25 +95,55 @@ public final class AiEval {
             if (in == null) {
                 throw new IllegalStateException(CASES + " is missing from the tools resources");
             }
-            List<Case> cases = new ArrayList<>();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-            for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                if (line.isBlank()) {
-                    continue;
-                }
-                JsonNode node = JSON.readTree(line);
-                JsonNode kind = node.required("kind");
-                cases.add(new Case(
-                        node.required("message").asString(),
-                        kind.isArray()
-                                ? kind.valueStream().map(JsonNode::asString).toList()
-                                : List.of(kind.asString()),
-                        node.required("flagged").asBoolean(),
-                        Note.parse(node.required("ownerNote"))));
-            }
-            return cases;
+            return readCases(in.readAllBytes());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Decodes each line as strict UTF-8, so a byte that is not UTF-8 fails with its line number instead of
+     * silently becoming U+FFFD and evaluating a corrupted message.
+     */
+    static List<Case> readCases(byte[] bytes) {
+        CharsetDecoder decoder = StandardCharsets.UTF_8
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        List<Case> cases = new ArrayList<>();
+        int lineNumber = 0;
+        for (int start = 0; start < bytes.length; ) {
+            int end = start;
+            while (end < bytes.length && bytes[end] != '\n') {
+                end++;
+            }
+            lineNumber++;
+            String line;
+            try {
+                line = decoder.decode(ByteBuffer.wrap(bytes, start, end - start))
+                        .toString();
+            } catch (CharacterCodingException e) {
+                throw new IllegalArgumentException(CASES + " line " + lineNumber + " is not valid UTF-8", e);
+            }
+            start = end + 1;
+            if (!line.isBlank()) {
+                cases.add(parseCase(line, lineNumber));
+            }
+        }
+        return cases;
+    }
+
+    private static Case parseCase(String line, int lineNumber) {
+        try {
+            JsonNode node = JSON.readTree(line);
+            JsonNode kind = node.required("kind");
+            return new Case(
+                    node.required("message").asString(),
+                    kind.isArray() ? kind.valueStream().map(JsonNode::asString).toList() : List.of(kind.asString()),
+                    node.required("flagged").asBoolean(),
+                    Note.parse(node.required("ownerNote")));
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException(CASES + " line " + lineNumber + ": " + e.getMessage(), e);
         }
     }
 
