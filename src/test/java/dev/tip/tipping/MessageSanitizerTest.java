@@ -38,6 +38,17 @@ class MessageSanitizerTest {
     }
 
     @Test
+    void removesLoneSurrogatesButKeepsCompletePairs() {
+        char high = (char) 0xD83D;
+        char low = (char) 0xDC3C;
+
+        assertThat(MessageSanitizer.sanitize("half " + high + "!")).isEqualTo("half !");
+        assertThat(MessageSanitizer.sanitize("half " + low + "!")).isEqualTo("half !");
+        assertThat(MessageSanitizer.sanitize("swapped " + low + high)).isEqualTo("swapped");
+        assertThat(MessageSanitizer.sanitize("whole " + high + low)).isEqualTo("whole 🐼");
+    }
+
+    @Test
     void keepsOrdinaryUnicodeTextAndEmoji() {
         assertThat(MessageSanitizer.sanitize("Merci beaucoup 🐼 <3")).isEqualTo("Merci beaucoup 🐼 <3");
         assertThat(MessageSanitizer.sanitize("family 👨\u200D👩\u200D👧")).isEqualTo("family 👨\u200D👩\u200D👧");

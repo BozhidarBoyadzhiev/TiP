@@ -88,6 +88,12 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
     environment(dotEnv())
 }
 
+// Gradle reads a tool's output as UTF-8, but a JVM whose output is a pipe encodes it in the platform
+// charset (Cp1252 on Windows), so a non ASCII character arrived as U+FFFD. Make the tools write UTF-8.
+tasks.withType<JavaExec>().configureEach {
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+}
+
 tasks.register<JavaExec>("fakeDevice") {
     group = "application"
     description = "Runs a fake panda on the device channel. Pass --args=\"--url=ws://localhost:8080 --device=<uuid>\"."
