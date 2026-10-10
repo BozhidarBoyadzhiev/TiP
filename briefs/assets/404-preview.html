@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found | TiP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-1: #2a1e16; --bg-2: #120c09;
+    --cream: #f3e3c8; --muted: #c9b08c; --faint: #8f7a5e;
+    --gold: #e9bb52; --pink: #e7a6c1;
+    --paper: #ecd7b1; --paper-ink: #4a3020;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    min-height: 100svh;
+    background: radial-gradient(ellipse at 50% 40%, var(--bg-1) 0%, var(--bg-2) 75%);
+    color: var(--cream); font-family: "Fredoka", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px 16px; text-align: center;
+  }
+  .brand { font: 700 34px "Fredoka", sans-serif; letter-spacing: .5px; margin: 0 0 92px; }
+  .brand .t { color: var(--gold); } .brand .i { color: var(--pink); } .brand .p { color: var(--cream); }
+
+  .wrap { position: relative; width: min(340px, 100%); }
+  .peek {
+    position: absolute; left: 50%; top: -66px; width: 132px; height: 74px;
+    transform: translateX(-50%); pointer-events: none;
+    animation: peek 3.6s ease-in-out infinite;
+  }
+  @keyframes peek { 0%, 100% { transform: translateX(-50%) translateY(0) } 50% { transform: translateX(-50%) translateY(3px) } }
+  .peek .pupil { animation: look 4s ease-in-out infinite; }
+  @keyframes look { 0%, 35% { transform: translateX(-3px) } 50%, 85% { transform: translateX(3px) } 100% { transform: translateX(-3px) } }
+  .peek .eyes { animation: blink 5s infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes blink { 0%, 94%, 100% { transform: scaleY(1) } 96% { transform: scaleY(.1) } }
+  .q { font: 700 22px "Fredoka", sans-serif; fill: var(--gold); animation: bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
+  .paws { position: absolute; left: 50%; top: -9px; width: 132px; height: 22px; transform: translateX(-50%); z-index: 2; }
+
+  .note {
+    position: relative; z-index: 1;
+    background: var(--paper); color: var(--paper-ink);
+    border-radius: 16px; padding: 30px 22px 24px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .4), inset 0 0 0 1px rgba(90, 60, 30, .25);
+    transform: rotate(-1deg);
+  }
+  .code { font: 700 64px/1 "Fredoka", sans-serif; letter-spacing: 2px; color: #6b4426; margin: 0; }
+  h1 { font: 600 20px "Fredoka", sans-serif; margin: 10px 0 6px; }
+  p.why { font-size: 15px; line-height: 1.45; margin: 0; color: rgba(74, 48, 32, .85); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .peek, .peek .pupil, .peek .eyes, .q { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="brand" aria-label="TiP"><span class="t">T</span><span class="i">i</span><span class="p">P</span></div>
+
+  <main class="wrap">
+    <svg class="peek" viewBox="0 0 132 74" aria-hidden="true">
+      <text class="q" x="116" y="16">?</text>
+      <g stroke="#5a3b22" stroke-width="1.6" stroke-linejoin="round">
+        <circle cx="30" cy="22" r="15" fill="#c99c66"/><circle cx="31" cy="23" r="8.5" fill="#b5884f"/>
+        <circle cx="102" cy="22" r="15" fill="#bf915b"/><circle cx="101" cy="23" r="8.5" fill="#a97c45"/>
+        <polygon points="24,40 38,18 66,12 94,18 108,40 112,74 20,74" fill="#cfa470"/>
+        <polygon points="38,18 66,12 94,18 88,32 66,29 44,32" fill="#e2bc87" stroke-opacity=".7"/>
+        <polygon points="94,18 108,40 112,74 98,74 92,44 88,32" fill="#b98a54" stroke-opacity=".7"/>
+      </g>
+      <g class="eyes">
+        <ellipse cx="49" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <ellipse cx="83" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <g class="pupil">
+          <ellipse cx="49" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="52" cy="47" r="2.8" fill="#fff"/>
+          <ellipse cx="83" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="86" cy="47" r="2.8" fill="#fff"/>
+        </g>
+      </g>
+    </svg>
+    <svg class="paws" viewBox="0 0 132 22" aria-hidden="true">
+      <g stroke="#5a3b22" stroke-width="1.4">
+        <ellipse cx="22" cy="12" rx="14" ry="9" fill="#c99c64"/>
+        <path d="M16 6 v5 M22 5 v5 M28 6 v5" stroke-width="1.2" fill="none"/>
+        <ellipse cx="110" cy="12" rx="14" ry="9" fill="#b48650"/>
+        <path d="M104 6 v5 M110 5 v5 M116 6 v5" stroke-width="1.2" fill="none"/>
+      </g>
+    </svg>
+    <div class="note">
+      <p class="code">404</p>
+      <h1>This panda wandered off</h1>
+      <p class="why">The link may be wrong, or this panda isn't set up yet. Try tapping the coin again.</p>
+    </div>
+  </main>
+</body>
+</html>
