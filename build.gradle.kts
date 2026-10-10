@@ -20,7 +20,7 @@ repositories {
 
 // Command line tools for local testing, such as the fake device and the AI eval. Kept out of the app jar.
 // They see the app's classes so the AI eval runs the production classifier, not a copy of it.
-val tools: SourceSet by sourceSets.creating {
+val tools: SourceSet = sourceSets.create("tools") {
     compileClasspath += sourceSets.main.get().output
     runtimeClasspath += sourceSets.main.get().output
 }
