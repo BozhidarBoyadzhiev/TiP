@@ -1,6 +1,6 @@
 # Brief 04h: Tab icon, page titles and link previews
 
-Work on `develop`. Commit locally, never push. End with the report format in `CLAUDE.md`, including "Teammate activity". This brief can run unattended: when something is unclear, decide, record the decision in the report, and carry on.
+Work on `develop`. Commit locally, never push. End with the report format in `CLAUDE.md`. This brief can run unattended: when something is unclear, decide, record the decision in the report, and carry on.
 
 ## Why
 

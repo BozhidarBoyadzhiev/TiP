@@ -84,7 +84,7 @@ class DevTipSeederTest extends IntegrationTest {
         List<Instant> times = seededRows().stream()
                 .map(r -> ((Timestamp) r.get("created_at")).toInstant())
                 .toList();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
 
         assertThat(times).allSatisfy(t -> assertThat(t).isBetween(now.minus(Duration.ofDays(14)), now));
         Instant oldest = times.stream().min(Instant::compareTo).orElseThrow();
@@ -106,7 +106,7 @@ class DevTipSeederTest extends IntegrationTest {
     @Test
     void secondRunOnALaterDayChangesNothing() {
         List<Map<String, Object>> before = seededRows();
-        clock.pin(Instant.now().plus(Duration.ofDays(3)));
+        clock.pin(clock.instant().plus(Duration.ofDays(3)));
 
         seeder.seed();
 

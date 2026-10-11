@@ -133,7 +133,7 @@ Through HTTP with Testcontainers PostgreSQL. PayPal and Anthropic stubbed with W
 
 ## Do not
 
-- No WebSockets, virtual panda, dashboard API or dashboard UI. The dashboard backend belongs to the teammate.
+- No WebSockets, virtual panda, dashboard API or dashboard UI.
 - Do not change the device protocol.
 - Do not call real Anthropic or PayPal from tests.
 - Do not push.
@@ -144,4 +144,4 @@ At least: add `ANTHROPIC_API_KEY`, the demo owner variables and `TIP_DEMO_DEVICE
 
 ## Report
 
-Format in `CLAUDE.md`. Teammate activity applies now that the remote exists.
+Format in `CLAUDE.md`.

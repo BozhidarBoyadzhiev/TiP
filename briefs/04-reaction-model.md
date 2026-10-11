@@ -14,7 +14,7 @@ The product is changing what the panda reacts to. "Positive versus negative" was
 Rules:
 
 - A flagged message (abusive, hateful, sexual, threatening, or containing personal data) always plays `PLAIN`, whatever its kind. The payment is acknowledged and the troll gets nothing to film. The message stays hidden from public views and the owner can refund, as before.
-- For `REQUEST` messages that are not flagged, the AI also writes a short neutral **owner note** (max 100 characters), for example "Request: something by Oasis" or "Feedback: too loud near the café". The teammate's dashboard will list these.
+- For `REQUEST` messages that are not flagged, the AI also writes a short neutral **owner note** (max 100 characters), for example "Request: something by Oasis" or "Feedback: too loud near the café". The dashboard will list these.
 - Negative is gone as a reaction. Rude but not abusive messages ("your music is boring") are `PLAIN`, or `PLAYFUL` if clearly banter.
 
 This brief also writes one pending protocol decision into the contract: **the device acks every reaction it receives, including repeats it does not play again.**
@@ -78,7 +78,6 @@ Update every place that describes the idea, so nothing still talks about positiv
 - `CLAUDE.md` intro paragraph.
 - `docs/ARCHITECTURE.md`: "What it is" (include the "don't feed the trolls" reasoning in one or two sentences), the main flow, the threat model row on abusive messages (abuse gets the plain blink, no reward), data model columns.
 - `docs/DEVICE_PROTOCOL.md` as in Part 3.
-- `docs/TEAMMATE_START.md`: the project paragraph, and mention that the dashboard will list owner notes (requests and feedback) in addition to tips, summaries and flagged messages.
 - `README.md` and `CODEBASE.md`.
 
 ## Tests (required)
@@ -96,7 +95,7 @@ Update every place that describes the idea, so nothing still talks about positiv
 ## Do not
 
 - No firmware. That is Brief 05.
-- No dashboard work. The teammate builds the owner note list on top of `owner_note`.
+- No dashboard work.
 - Do not push.
 
 ## Human actions to list

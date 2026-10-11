@@ -151,4 +151,4 @@ Expect to list at least: create the PayPal sandbox app and fill `.env`; start ng
 
 ## Report
 
-Use the format in `CLAUDE.md`. Teammate activity: "none" for this brief, the remote does not exist yet.
+Use the format in `CLAUDE.md`.

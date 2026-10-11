@@ -1,6 +1,6 @@
 # Brief 04e: AI input hardening and UTF-8
 
-Work on `develop`. Commit locally, never push. End with the report format in `CLAUDE.md`, including "Teammate activity". This brief can run unattended: when something is unclear, decide, record the decision in the report, and carry on.
+Work on `develop`. Commit locally, never push. End with the report format in `CLAUDE.md`. This brief can run unattended: when something is unclear, decide, record the decision in the report, and carry on.
 
 ## Why
 
@@ -13,8 +13,8 @@ Flag accuracy is 41/41. Do not change the flagging rule or the kind definitions.
 
 ## Scope rules
 
-- Nothing in the `dashboard` package. The teammate works there.
-- No new migrations. `V6` is reserved for the teammate's issue 1.
+- Nothing in the `dashboard` package.
+- No new migrations. `V6` is reserved for issue 1.
 - Stay in `ai`, `tipping` (tests only, unless you find a real UTF-8 bug there), `src/tools`, docs, and Gradle config.
 
 ## 1. Treat the message as untrusted data

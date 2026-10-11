@@ -48,7 +48,7 @@ Briefs come from the lead, a Claude chat acting as tech lead. The humans relay t
 
 ## Git
 
-- Lead's agent works on `develop`. Teammate's agent works on the feature branch named in its brief.
+- Lead's agent works on `develop`.
 - Commit locally in small logical commits. Never push, never force push, never rewrite history, never touch `main`.
 - Commit message: short subject line, blank line, body grouped by area with `-` bullets. Include the root cause for bug fixes.
 - On Windows PowerShell, write multi line messages to `msg.txt` with a here-string (`@' ... '@ | Set-Content msg.txt`), commit with `git commit -F msg.txt`, then delete `msg.txt`. Never use `git commit -m` for multi line messages.
@@ -72,11 +72,4 @@ Briefs come from the lead, a Claude chat acting as tech lead. The humans relay t
 **Deviations from the brief:** or "none"
 **Open questions for the lead:** or "none"
 **Human actions needed:** secrets, dashboard settings, anything only a person can do, or "none"
-**Teammate activity:** lead's agent only, see below
 ```
-
-### Teammate activity (lead's agent only)
-
-Run `git fetch --all --prune` and `gh pr list --state all --limit 20 --json number,title,state,headRefName,updatedAt,author`. For every pull request created or updated since your previous report, list its number, title, state, branch and CI status (`gh pr checks <n>`), and copy its "Open questions" section from the description. Do not review, approve or merge pull requests yourself. If there is no activity, write "none".
-
-Teammate's agent: your report goes into the pull request description using the template in `.github/pull_request_template.md`.
