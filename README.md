@@ -142,6 +142,7 @@ The app runs on Render as a Docker web service with Render PostgreSQL. `docs/DEP
 ```
 src/main/java/dev/tip/
   ai/         Claude classification of tip messages, exactly once per tip, recovery job
+  dashboard/  owner tip history API
   devices/    devices, device secrets, demo seeder, device and observer WebSocket channels, reaction delivery, virtual panda page
   owners/     owner accounts, login, owner pages
   paypal/     PayPal gateway: Orders v2 and refunds through the PayPal Server SDK, webhook verification
