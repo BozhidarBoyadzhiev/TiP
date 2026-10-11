@@ -17,3 +17,7 @@ bin/
 # Local configuration and scratch
 .env
 msg.txt
+
+# Firmware
+firmware/.pio/
+firmware/include/secrets.h

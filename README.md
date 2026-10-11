@@ -10,6 +10,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 - A PayPal developer account with a sandbox REST app: <https://developer.paypal.com/dashboard/applications/sandbox>.
 - ngrok (or any HTTPS tunnel), only to receive PayPal webhooks locally.
 - An Anthropic API key from <https://console.anthropic.com>, unless you run with `TIP_AI_ENABLED=false`.
+- For the physical panda only: PlatformIO Core and an ESP32 DevKit. `firmware/README.md` has the setup, build and flash steps.
 
 ## Local setup
 
@@ -156,6 +157,7 @@ src/main/resources/
   db/migration/   Flyway migrations
   static/         tip page, virtual panda and owner pages (plain HTML, CSS, JS)
 docs/             architecture, device protocol and deployment
+firmware/         ESP32 firmware for the physical panda (PlatformIO, separate from the Gradle build)
 ```
 
 `CODEBASE.md` maps the classes, endpoints, tables and the tip flow in more detail.

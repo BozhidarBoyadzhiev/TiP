@@ -116,6 +116,10 @@ Fonts: `static/fonts/fonts.css` holds the `@font-face` rules for self hosted Fre
 
 Every `JavaExec` task runs with `-Dstdout.encoding=UTF-8` and `-Dstderr.encoding=UTF-8`: Gradle reads a tool's output as UTF-8, and a JVM writing to a pipe on Windows otherwise encodes in Cp1252, which turned `ö` into U+FFFD. `.editorconfig` and `.gitattributes` keep text files UTF-8 with LF (CRLF for `.ps1` and `.bat`). Windows PowerShell 5.1 still needs `[Console]::OutputEncoding = [Text.Encoding]::UTF8` to display the output.
 
+## Firmware
+
+`firmware/` is a PlatformIO project for the physical panda (ESP32 DevKit `esp32dev`, Arduino core 3.3.12 through the pioarduino platform pinned in `platformio.ini`). It sits outside the Gradle build: nothing in `build.gradle.kts` or Spotless reads it, and `firmware/.pio/` is git ignored. `src/main.cpp` is the Brief 05a bring up sketch: chip details over serial at 115200, LEDC fade and blinks on the onboard LED (GPIO2), WiFi station with sleep off, SNTP time, then HTTPS GETs checked against ESP-IDF's built in Mozilla CA bundle (`useBuiltinCACertBundle()`): production `/actuator/health` and two badssl.com hosts that must fail. WiFi credentials come from `include/secrets.h` (git ignored, template `include/secrets.example.h`); the build stops without it. The device protocol client is not there yet. `firmware/README.md` has setup, build, flash and monitor steps.
+
 ## How a refund flows
 
 1. A signed in owner posts `/api/owner/tips/{tipId}/refund` with the CSRF token.
