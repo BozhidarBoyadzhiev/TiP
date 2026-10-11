@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -113,22 +115,23 @@ class TipHistoryTest extends IntegrationTest {
     @Test
     void anotherOwnersTipIsNotFoundExactlyLikeAnUnknownTip() throws Exception {
         UUID othersTip = tip(otherDeviceId, "CAPTURED", DAY_1);
+        UUID unknownTip = UUID.randomUUID();
 
-        String othersAnswer = one(owner, othersTip.toString())
-                .andExpect(status().isNotFound())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.code").value("TIP_NOT_FOUND"))
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        String unknownAnswer = one(owner, UUID.randomUUID().toString())
-                .andExpect(status().isNotFound())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+        MockHttpServletResponse others =
+                one(owner, othersTip.toString()).andReturn().getResponse();
+        MockHttpServletResponse unknown =
+                one(owner, unknownTip.toString()).andReturn().getResponse();
 
-        assertThat(othersAnswer.replaceAll("[0-9a-f-]{36}", "ID"))
-                .isEqualTo(unknownAnswer.replaceAll("[0-9a-f-]{36}", "ID"));
+        assertThat(others.getStatus()).isEqualTo(404).isEqualTo(unknown.getStatus());
+        assertThat(others.getContentType())
+                .isEqualTo(MediaType.APPLICATION_PROBLEM_JSON_VALUE)
+                .isEqualTo(unknown.getContentType());
+        Map<String, Object> othersBody = JsonPath.read(others.getContentAsString(), "$");
+        Map<String, Object> unknownBody = JsonPath.read(unknown.getContentAsString(), "$");
+        // instance repeats the requested path, so it differs by the id that was asked for and nothing else
+        assertThat(othersBody.remove("instance")).isEqualTo("/api/owner/tips/" + othersTip);
+        assertThat(unknownBody.remove("instance")).isEqualTo("/api/owner/tips/" + unknownTip);
+        assertThat(othersBody).isEqualTo(unknownBody).containsEntry("code", "TIP_NOT_FOUND");
         one(otherOwner, othersTip.toString()).andExpect(status().isOk());
     }
 
@@ -272,8 +275,13 @@ class TipHistoryTest extends IntegrationTest {
         list(owner, "flagged=true")
                 .andExpect(jsonPath("$.items[0].message").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].flagReason").value("abusive language"));
-        String body = list(owner, "").andReturn().getResponse().getContentAsString();
-        assertThat(body).doesNotContain("You are useless").doesNotContain("should never show");
+        for (ResultActions response :
+                List.of(one(owner, flagged.toString()), list(owner, ""), list(owner, "flagged=true"))) {
+            assertThat(response.andReturn().getResponse().getContentAsString())
+                    .contains("abusive language")
+                    .doesNotContain("You are useless")
+                    .doesNotContain("should never show");
+        }
         one(owner, clean.toString())
                 .andExpect(jsonPath("$.message").value("Thank you"))
                 .andExpect(jsonPath("$.flagReason").value(nullValue()));
