@@ -57,6 +57,8 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
+
+   To see sample data without making payments, run with the `dev` profile: add `SPRING_PROFILES_ACTIVE=dev` to `.env`, or run `./gradlew bootRun --args='--spring.profiles.active=dev'`. On startup it adds 40 invented tips to the demo device once (later starts add nothing). Signed in, open `http://localhost:8080/api/owner/tips` to see them. Never set this profile on Render.
 7. Watch the virtual panda at `<TIP_PUBLIC_BASE_URL>/p/<your demo slug>` (the page must be opened from that origin). It plays the same light patterns as the physical one. With your operating system's reduce motion setting (`prefers-reduced-motion`) the panda holds a steady light in the reaction's colour instead of fading and flicking.
 
 The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes or is clearly not random (all bytes the same, or fewer than 16 distinct byte values).
@@ -142,6 +144,7 @@ The app runs on Render as a Docker web service with Render PostgreSQL. `docs/DEP
 ```
 src/main/java/dev/tip/
   ai/         Claude classification of tip messages, exactly once per tip, recovery job
+  dashboard/  owner tip history API, dev sample tips
   devices/    devices, device secrets, demo seeder, device and observer WebSocket channels, reaction delivery, virtual panda page
   owners/     owner accounts, login, owner pages
   paypal/     PayPal gateway: Orders v2 and refunds through the PayPal Server SDK, webhook verification
