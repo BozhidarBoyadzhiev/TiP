@@ -43,7 +43,7 @@ class DevTipSeederTest extends IntegrationTest {
     void startupAddedEverySampleToTheDemoDeviceOnce() {
         List<Map<String, Object>> rows = seededRows();
 
-        assertThat(rows).hasSize(DevTipSeeder.SAMPLES.size()).hasSizeBetween(35, 45);
+        assertThat(rows).hasSize(DevTipSeeder.sampleCount()).hasSizeBetween(45, 55);
         assertThat(rows)
                 .extracting(r -> r.get("device_id"))
                 .containsOnly(data.deviceRow("demo-panda").get("id"));
@@ -121,8 +121,77 @@ class DevTipSeederTest extends IntegrationTest {
 
         mvc.perform(get("/api/owner/tips?size=50").with(user(principal)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalItems").value(DevTipSeeder.SAMPLES.size()))
+                .andExpect(jsonPath("$.totalItems").value(DevTipSeeder.sampleCount()))
                 .andExpect(jsonPath("$.items[?(@.flagged == true)].message").value(everyItem(nullValue())));
+    }
+
+    @Test
+    void languageSamplesCarryTranslationsAndFlaggedOnesNone() {
+        List<Map<String, Object>> rows = seededRows();
+
+        assertThat(rows).extracting(r -> r.get("message_language")).contains("fr", "es", "de", "en");
+        assertThat(rows)
+                .filteredOn(r -> r.get("message_language") != null && !"en".equals(r.get("message_language")))
+                .hasSizeGreaterThanOrEqualTo(5)
+                .allSatisfy(r -> assertThat(r.get("message_english")).isNotNull());
+        assertThat(rows)
+                .filteredOn(r -> "en".equals(r.get("message_language")))
+                .allSatisfy(r -> assertThat(r.get("message_english")).isNull());
+        assertThat(rows).filteredOn(r -> (Boolean) r.get("flagged")).allSatisfy(r -> {
+            assertThat(r.get("message_language")).isNull();
+            assertThat(r.get("message_english")).isNull();
+            assertThat(r.get("requested_song")).isNull();
+        });
+    }
+
+    @Test
+    void wonderwallIsTheTopSongInThreeSpellingsAndTodaysNotesAreStored() throws Exception {
+        List<Map<String, Object>> wonderwall = seededRows().stream()
+                .filter(r -> "wonderwall".equals(r.get("requested_song_key")))
+                .filter(r -> ((Timestamp) r.get("created_at"))
+                        .toInstant()
+                        .isAfter(clock.instant().minus(Duration.ofDays(6))))
+                .toList();
+        assertThat(wonderwall)
+                .extracting(r -> r.get("requested_song"))
+                .hasSize(3)
+                .doesNotHaveDuplicates();
+
+        mvc.perform(get("/api/owner/requests").with(user(demoOwner())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topSong.title").value("Wonderwall"))
+                .andExpect(jsonPath("$.topSong.count").value(3))
+                .andExpect(jsonPath("$.grouped").value("ai"))
+                .andExpect(jsonPath("$.groups[?(@.label == 'Play Wonderwall')].count")
+                        .value(3));
+        mvc.perform(get("/api/owner/digest").with(user(demoOwner())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bullets.length()").value(DevTipSeeder.DIGEST_BULLETS.size()))
+                .andExpect(jsonPath("$.messageCount").value(DevTipSeeder.LANGUAGE_SAMPLES.size() - 1));
+    }
+
+    @Test
+    void secondRunOnTheSameDayAddsNoDigestAndALaterDayGetsItsOwn() {
+        long before = digestRows();
+
+        seeder.seed();
+        assertThat(digestRows()).isEqualTo(before);
+
+        clock.pin(clock.instant().plus(Duration.ofDays(2)));
+        seeder.seed();
+        assertThat(digestRows()).isEqualTo(before + 1);
+    }
+
+    private OwnerPrincipal demoOwner() {
+        Map<String, Object> row = data.ownerRow("demo-owner@example.com");
+        return new OwnerPrincipal((UUID) row.get("id"), "demo-owner@example.com", "Demo Owner", null);
+    }
+
+    private long digestRows() {
+        return jdbc.sql("SELECT count(*) FROM owner_digest WHERE owner_id = ?")
+                .param(demoOwner().id())
+                .query(Long.class)
+                .single();
     }
 
     private List<Map<String, Object>> seededRows() {
