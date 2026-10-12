@@ -26,7 +26,7 @@ One of the owner's tips was captured, classified (or skipped or failed, so its r
 { "type": "today" }
 ```
 
-Today's numbers may have changed; `GET /api/owner/today` has them. At most one per second per owner: the first change in a burst schedules it a second later and every change before it is sent rides along.
+Today's numbers may have changed; `GET /api/owner/today` has them. At most one per second per owner: a change marks the owner, and a job that runs every second sends one `today` to each marked owner, so a burst of changes in between rides along. The owner is marked before the `tip` message goes out, so the next `today` always covers a tip the page has heard about.
 
 ```json
 { "type": "digest" }

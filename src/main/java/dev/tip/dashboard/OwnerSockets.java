@@ -10,12 +10,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.DisposableBean;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -26,16 +23,16 @@ import tools.jackson.databind.json.JsonMapper;
  * The owner channel's open sockets, by owner, and the messages of {@code docs/OWNER_CHANNEL.md}. Messages
  * carry ids and states only, never tip content: the page fetches a tip through the owner API, so
  * authorisation stays in one place. At most {@link #MAX_PER_OWNER} sockets per owner; a new one closes the
- * oldest. {@code today} is sent at most once per {@link #TODAY_DELAY_MILLIS} per owner: the first change
- * schedules it and every change until it is sent rides along. Sessions are stored wrapped in a {@link
+ * oldest. {@code today} is sent at most once per {@code tip.dashboard.today-interval} (1 s) per owner: a
+ * change marks the owner, and {@link #flushToday} sends one {@code today} to each marked owner, so a burst
+ * of changes in between rides along. Sessions are stored wrapped in a {@link
  * org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator}. Changes to an owner's
  * sockets go through {@code compute}, so adding, evicting and removing are atomic per owner.
  */
 @Component
-class OwnerSockets implements DisposableBean {
+class OwnerSockets {
 
     static final int MAX_PER_OWNER = 5;
-    static final long TODAY_DELAY_MILLIS = 1_000;
 
     static final CloseStatus REPLACED = new CloseStatus(4000, "replaced");
     static final CloseStatus SIGNED_OUT = new CloseStatus(4001, "signed out");
@@ -45,8 +42,6 @@ class OwnerSockets implements DisposableBean {
 
     private final ConcurrentHashMap<UUID, Deque<WebSocketSession>> byOwner = new ConcurrentHashMap<>();
     private final Set<UUID> todayPending = ConcurrentHashMap.newKeySet();
-    private final ScheduledExecutorService todayTimer = Executors.newSingleThreadScheduledExecutor(
-            Thread.ofVirtual().name("owner-today").factory());
     private final JsonMapper json;
 
     OwnerSockets(JsonMapper json) {
@@ -110,16 +105,22 @@ class OwnerSockets implements DisposableBean {
         send(ownerId, new Signal("digest"));
     }
 
-    /** Schedules one {@code today} for the owner, unless one is already waiting to go. */
+    /** Marks the owner for the next {@code today}, if they have a socket to send it to. */
     void todayChanged(UUID ownerId) {
-        if (hasSockets(ownerId) && todayPending.add(ownerId)) {
-            todayTimer.schedule(
-                    () -> {
-                        todayPending.remove(ownerId);
-                        send(ownerId, new Signal("today"));
-                    },
-                    TODAY_DELAY_MILLIS,
-                    TimeUnit.MILLISECONDS);
+        if (hasSockets(ownerId)) {
+            todayPending.add(ownerId);
+        }
+    }
+
+    /** Sends one {@code today} to each owner marked since the last run. */
+    @Scheduled(
+            fixedDelayString = "${tip.dashboard.today-interval}",
+            initialDelayString = "${tip.dashboard.today-interval}")
+    void flushToday() {
+        for (UUID ownerId : List.copyOf(todayPending)) {
+            if (todayPending.remove(ownerId)) {
+                send(ownerId, new Signal("today"));
+            }
         }
     }
 
@@ -169,11 +170,6 @@ class OwnerSockets implements DisposableBean {
 
     private TextMessage text(Object message) {
         return new TextMessage(json.writeValueAsString(message));
-    }
-
-    @Override
-    public void destroy() {
-        todayTimer.shutdownNow();
     }
 
     record Owned(UUID ownerId, WebSocketSession session) {}

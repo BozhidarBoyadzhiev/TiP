@@ -46,6 +46,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.socket.WebSocketHttpHeaders;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 /** The owner's live channel over real HTTP and WebSockets, with a real sign in. */
@@ -53,6 +54,10 @@ class OwnerChannelTest extends IntegrationTest {
 
     private static final Pattern CSRF_TOKEN = Pattern.compile("name=\"_csrf\" value=\"([^\"]+)\"");
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final TypeReference<Map<String, Object>> FRAME = new TypeReference<>() {};
+
+    /** For what must happen; what must not is checked with a ping and pong sync, never a sleep. */
+    private static final Duration WAIT = Duration.ofSeconds(30);
 
     private final HttpClient http = HttpClient.newHttpClient();
 
@@ -139,17 +144,26 @@ class OwnerChannelTest extends IntegrationTest {
                 UUID tipId = UUID.randomUUID();
                 tips.add(tipId);
                 transactions.executeWithoutResult(
-                        status -> events.publishEvent(new TipCaptured(tipId, deviceId, Instant.now())));
+                        status -> events.publishEvent(new TipCaptured(tipId, deviceId, clock.instant())));
             }
 
-            List<Map<String, Object>> received = drain(mine, Duration.ofMillis(2_500));
-
+            List<Map<String, Object>> received = new ArrayList<>();
+            for (int i = 0; i < tips.size(); i++) {
+                received.add(mine.nextJson());
+            }
             assertThat(received)
-                    .filteredOn(m -> "tip".equals(m.get("type")))
+                    .allSatisfy(
+                            m -> assertThat(m).containsOnlyKeys("type", "id").containsEntry("type", "tip"))
                     .extracting(m -> UUID.fromString((String) m.get("id")))
                     .containsExactlyInAnyOrderElementsOf(tips);
-            assertThat(received).filteredOn(m -> "today".equals(m.get("type"))).hasSize(1);
-            assertThat(received).allSatisfy(m -> assertThat(m.keySet()).isSubsetOf("type", "id"));
+            mine.sync();
+            assertThat(mine.pending()).as("no today before the job runs").isZero();
+
+            sockets.flushToday();
+            assertThat(mine.nextJson()).isEqualTo(Map.of("type", "today"));
+            sockets.flushToday();
+            mine.sync();
+            assertThat(mine.pending()).as("one today for the whole burst").isZero();
             theirs.sync();
             assertThat(theirs.pending()).isZero();
         }
@@ -162,12 +176,12 @@ class OwnerChannelTest extends IntegrationTest {
             UUID refunded = UUID.randomUUID();
             UUID reversed = UUID.randomUUID();
             transactions.executeWithoutResult(status -> {
-                events.publishEvent(new TipRefunded(refunded, deviceId, Instant.now()));
-                events.publishEvent(new TipReversed(reversed, deviceId, Instant.now()));
+                events.publishEvent(new TipRefunded(refunded, deviceId, clock.instant()));
+                events.publishEvent(new TipReversed(reversed, deviceId, clock.instant()));
             });
 
-            assertThat(drain(socket, Duration.ofMillis(1_500)))
-                    .contains(
+            assertThat(List.of(socket.nextJson(), socket.nextJson()))
+                    .containsExactlyInAnyOrder(
                             Map.of("type", "tip", "id", refunded.toString()),
                             Map.of("type", "tip", "id", reversed.toString()));
         }
@@ -192,21 +206,23 @@ class OwnerChannelTest extends IntegrationTest {
             awaitSockets(ownerId, 1);
             mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
 
-            List<String> frames = new ArrayList<>();
-            while (frames.stream().filter(f -> f.contains("\"tip\"")).count() < 2
-                    || frames.stream().noneMatch(f -> f.contains("\"today\""))) {
-                frames.add(socket.readUntilText());
-            }
+            // Captured, then classified: a tip message each. Then the today job runs.
+            List<String> frames = new ArrayList<>(List.of(socket.readUntilText(), socket.readUntilText()));
+            sockets.flushToday();
+            frames.add(socket.readUntilText());
 
             assertThat(frames)
                     .allSatisfy(frame ->
                             assertThat(frame).doesNotContain(message, note, english, "Wonderwall", "REQUEST", "GBP"));
             // Only a type and an id: no amount, whatever digits a random tip id happens to contain.
             assertThat(frames)
-                    .allSatisfy(
-                            frame -> assertThat(JSON.readValue(frame, Map.class).keySet())
-                                    .isSubsetOf("type", "id"));
-            assertThat(frames).contains("{\"type\":\"tip\",\"id\":\"" + tipId + "\"}", "{\"type\":\"today\"}");
+                    .allSatisfy(frame ->
+                            assertThat(JSON.readValue(frame, FRAME).keySet()).isSubsetOf("type", "id"));
+            assertThat(frames)
+                    .containsExactly(
+                            "{\"type\":\"tip\",\"id\":\"" + tipId + "\"}",
+                            "{\"type\":\"tip\",\"id\":\"" + tipId + "\"}",
+                            "{\"type\":\"today\"}");
         }
     }
 
@@ -341,6 +357,8 @@ class OwnerChannelTest extends IntegrationTest {
             presence.reportOffline();
             device = TestSocket.connectDevice(port, deviceId, secret);
             device.next();
+            // hello comes before the server registers the session; the stored connect time comes after.
+            awaitLastSeen(start.plusSeconds(6));
             clock.advance(Duration.ofSeconds(10));
             presence.reportOffline();
             owner.sync();
@@ -384,25 +402,17 @@ class OwnerChannelTest extends IntegrationTest {
     }
 
     private void awaitSockets(UUID owner, int count) {
-        await().atMost(Duration.ofSeconds(5)).until(() -> sockets.count(owner) == count);
+        await().atMost(WAIT).until(() -> sockets.count(owner) == count);
     }
 
+    /** The tracker updates its memory before it stores the time, so this also waits for the memory. */
     private void awaitLastSeen(Instant at) {
-        await().atMost(Duration.ofSeconds(5))
+        await().atMost(WAIT)
                 .until(() -> Timestamp.from(at)
                         .equals(jdbc.sql("SELECT last_seen_at FROM device WHERE id = ?")
                                 .param(deviceId)
                                 .query(Timestamp.class)
                                 .single()));
-    }
-
-    private static List<Map<String, Object>> drain(TestSocket socket, Duration wait) throws InterruptedException {
-        Thread.sleep(wait.toMillis());
-        List<Map<String, Object>> messages = new ArrayList<>();
-        while (socket.pending() > 0) {
-            messages.add(socket.nextJson());
-        }
-        return messages;
     }
 
     private TestSocket connect(String cookie) {

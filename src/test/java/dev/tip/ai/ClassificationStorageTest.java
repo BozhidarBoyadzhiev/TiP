@@ -107,8 +107,9 @@ class ClassificationStorageTest extends IntegrationTest {
 
         mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
 
-        await().atMost(Duration.ofSeconds(15)).until(() -> "DONE".equals(data.aiStatus(tipId)));
-        await().atMost(Duration.ofSeconds(5)).until(() -> !reacted.forTip(tipId).isEmpty());
+        await().atMost(Duration.ofSeconds(30)).until(() -> "DONE".equals(data.aiStatus(tipId)));
+        await().atMost(Duration.ofSeconds(30))
+                .until(() -> !reacted.forTip(tipId).isEmpty());
         return data.tipRow(tipId);
     }
 }

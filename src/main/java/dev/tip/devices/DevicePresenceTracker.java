@@ -53,14 +53,18 @@ class DevicePresenceTracker implements DevicePresence {
         }
     }
 
-    /** Called when a session closes. Nothing happens while the device has another session. */
+    /**
+     * Called when a session closes. Nothing happens while the device has another session. Memory is updated
+     * before the stored time, like on connect, so once {@code last_seen_at} shows the change the tracker has
+     * it too.
+     */
     void disconnected(UUID deviceId) {
         if (sessions.find(deviceId).isPresent()) {
             return;
         }
         Instant now = clock.instant();
-        devices.markSeen(deviceId, now);
         goneSince.put(deviceId, now);
+        devices.markSeen(deviceId, now);
     }
 
     /** Reports the devices offline that have been gone long enough and did not come back. */

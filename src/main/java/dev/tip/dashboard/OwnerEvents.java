@@ -18,7 +18,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /**
  * Turns other features' events into owner channel messages, and marks the owner's digest stale on every
  * reaction. Every message goes only to the sockets of the tip's or device's own owner. Listeners that read
- * the database run after commit on the dashboard executor.
+ * the database run after commit on the dashboard executor. The owner is marked for {@code today} before the
+ * {@code tip} message goes out, so once a page has the tip, the next {@code today} covers it.
  */
 @Component
 class OwnerEvents {
@@ -47,8 +48,8 @@ class OwnerEvents {
     void on(TipReacted event) {
         tips.ownerOfDevice(event.deviceId()).ifPresent(ownerId -> {
             digests.markStale(ownerId, LocalDate.ofInstant(event.reactedAt(), owners.timeZone(ownerId)));
-            sockets.tipChanged(ownerId, event.tipId());
             sockets.todayChanged(ownerId);
+            sockets.tipChanged(ownerId, event.tipId());
         });
     }
 
@@ -76,8 +77,8 @@ class OwnerEvents {
 
     private void tipChanged(UUID deviceId, UUID tipId) {
         tips.ownerOfDevice(deviceId).ifPresent(ownerId -> {
-            sockets.tipChanged(ownerId, tipId);
             sockets.todayChanged(ownerId);
+            sockets.tipChanged(ownerId, tipId);
         });
     }
 }

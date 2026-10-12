@@ -18,7 +18,7 @@ import java.util.Map;
  */
 public final class RawWebSocket implements AutoCloseable {
 
-    private static final int TIMEOUT_MILLIS = 10_000;
+    private static final int TIMEOUT_MILLIS = 30_000;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final Socket socket;

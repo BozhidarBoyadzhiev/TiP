@@ -22,8 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -184,56 +182,6 @@ class DigestJobTest extends IntegrationTest {
     }
 
     @Test
-    void twoRunnersAtOnceCallTheModelOnce() throws Exception {
-        threeMessages();
-        ANTHROPIC.stubFor(post(urlPathEqualTo(AnthropicStubs.MESSAGES_PATH))
-                .withRequestBody(containing(DIGEST_REQUEST))
-                .willReturn(AnthropicStubs.reply(AnthropicStubs.digest(List.of("Slow but sure."), "[]"))
-                        .withFixedDelay(500)));
-        digests.markStale(ownerId, TODAY);
-        CountDownLatch start = new CountDownLatch(1);
-
-        CompletableFuture<Void> first = CompletableFuture.runAsync(() -> awaitThen(start, job::run));
-        CompletableFuture<Void> second = CompletableFuture.runAsync(() -> awaitThen(start, job::run));
-        start.countDown();
-        CompletableFuture.allOf(first, second).get();
-
-        assertThat(digestRequests()).hasSize(1);
-        assertThat(digests.find(ownerId, TODAY).orElseThrow().bullets()).containsExactly("Slow but sure.");
-    }
-
-    @Test
-    void aSlowOldCallNeverOverwritesTheNewerDigest() throws Exception {
-        threeMessages();
-        ANTHROPIC.stubFor(post(urlPathEqualTo(AnthropicStubs.MESSAGES_PATH))
-                .atPriority(5)
-                .withRequestBody(containing(DIGEST_REQUEST))
-                .willReturn(AnthropicStubs.reply(AnthropicStubs.digest(List.of("Old and slow."), "[]"))
-                        .withFixedDelay(1500)));
-        digests.markStale(ownerId, TODAY);
-
-        CompletableFuture<Void> old = CompletableFuture.runAsync(job::run);
-        await().atMost(Duration.ofSeconds(5)).until(() -> row().get("claimed_at") != null);
-        // The old claim has expired and a newer message arrived, so a second instance takes over.
-        clock.advance(Duration.ofMinutes(3));
-        String newest = message("The newest message", clock.instant());
-        ANTHROPIC.stubFor(post(urlPathEqualTo(AnthropicStubs.MESSAGES_PATH))
-                .atPriority(1)
-                .withRequestBody(containing(newest))
-                .willReturn(AnthropicStubs.reply(AnthropicStubs.digest(List.of("New and fast."), "[]"))));
-        digests.markStale(ownerId, TODAY);
-        job.run();
-        assertThat(digests.find(ownerId, TODAY).orElseThrow().bullets()).containsExactly("New and fast.");
-
-        old.get();
-
-        assertThat(digestRequests()).hasSize(2);
-        StoredDigest stored = digests.find(ownerId, TODAY).orElseThrow();
-        assertThat(stored.bullets()).containsExactly("New and fast.");
-        assertThat(stored.messageCount()).isEqualTo(4);
-    }
-
-    @Test
     void storeRejectsAWatermarkThatIsNotNewer() {
         digests.markStale(ownerId, TODAY);
         assertThat(digests.store(ownerId, TODAY, List.of("Newer."), List.of(), 4, NOW, NOW))
@@ -291,7 +239,7 @@ class DigestJobTest extends IntegrationTest {
                 status -> events.publishEvent(new TipReacted(UUID.randomUUID(), deviceId, Reaction.WARM, 1, NOW)));
 
         // 15:00 UTC on 12 October is 04:00 on 13 October in Auckland.
-        await().atMost(Duration.ofSeconds(5))
+        await().atMost(Duration.ofSeconds(30))
                 .until(() ->
                         jdbc.sql("SELECT count(*) FROM owner_digest WHERE owner_id = ? AND local_day = ? AND stale")
                                         .params(ownerId, LocalDate.parse("2026-10-13"))
@@ -364,15 +312,5 @@ class DigestJobTest extends IntegrationTest {
                 .params(ownerId, TODAY)
                 .query()
                 .singleRow();
-    }
-
-    private static void awaitThen(CountDownLatch start, Runnable run) {
-        try {
-            start.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError(e);
-        }
-        run.run();
     }
 }

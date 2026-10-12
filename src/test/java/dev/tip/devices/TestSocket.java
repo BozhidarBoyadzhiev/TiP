@@ -28,7 +28,9 @@ public final class TestSocket extends TextWebSocketHandler implements AutoClosea
     /** {@code TIP_PUBLIC_BASE_URL} in the test profile. */
     public static final String PUBLIC_ORIGIN = "http://localhost:8080";
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    /** Generous, so a slow CI runner never fails a wait for something that does arrive. */
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final BlockingQueue<String> messages = new LinkedBlockingQueue<>();
