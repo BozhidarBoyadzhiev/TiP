@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -43,6 +45,9 @@ class DeviceChannelTest extends IntegrationTest {
     @Autowired
     DeviceSessions sessions;
 
+    @Autowired
+    JdbcClient jdbc;
+
     /** A client IP of its own, through the forwarded header the app trusts, so rate limits do not leak between tests. */
     static String uniqueIp() {
         int n = IPS.incrementAndGet();
@@ -59,6 +64,24 @@ class DeviceChannelTest extends IntegrationTest {
             assertThat(device.nextJson())
                     .containsExactlyInAnyOrderEntriesOf(
                             Map.of("type", "hello", "deviceName", "Hello Panda", "serverTime", "2026-10-13T14:00:00Z"));
+        }
+    }
+
+    @Test
+    void helloComesOnlyOnceTheSessionIsRegistered() throws Exception {
+        clock.pin(NOW);
+        String secret = TestData.randomSecret();
+        UUID deviceId = data.device(TestData.uniqueSlug(), "Registered Panda", secret);
+
+        try (TestSocket device = TestSocket.connectDevice(port, deviceId, secret)) {
+            assertThat(device.nextJson()).containsEntry("type", "hello");
+
+            assertThat(sessions.find(deviceId)).isPresent();
+            assertThat(jdbc.sql("SELECT last_seen_at FROM device WHERE id = ?")
+                            .param(deviceId)
+                            .query(Timestamp.class)
+                            .single())
+                    .isEqualTo(Timestamp.from(NOW));
         }
     }
 

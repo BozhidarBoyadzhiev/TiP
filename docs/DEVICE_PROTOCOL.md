@@ -52,7 +52,7 @@ A flagged tip always has `repeats` 1, whatever the amount, so it looks exactly l
 { "type": "hello", "deviceName": "Busker Panda", "serverTime": "2026-10-13T14:00:00Z" }
 ```
 
-Sent once after a successful handshake.
+Sent once after a successful handshake, once the server has registered the session, so `hello` means the server holds this connection. A reaction published in that same moment can arrive just before `hello`; a device handles each message on its own and needs no order between them.
 
 ```json
 { "type": "closing", "reason": "replaced" }
@@ -78,7 +78,7 @@ Ack means "received", not "played". The device acks every reaction it receives, 
 
 - At least once. The server resends an unacknowledged reaction after 5 seconds, up to 3 times.
 - On connect, the server sends unacknowledged reactions from the last 60 seconds, oldest first. Older ones are dropped.
-- A reaction that is published while a device is connecting may arrive twice: once live and once from the replay. This is expected. The server keeps its connect order (hello, then register, then replay) on purpose: a rare duplicate costs one small message, while the alternative orderings delay a real reaction by up to 5 seconds.
+- A reaction that is published while a device is connecting may arrive twice: once live and once from the replay. This is expected. The server keeps its connect order (register, then hello, then replay) on purpose: a rare duplicate costs one small message, while the alternative orderings delay a real reaction by up to 5 seconds.
 
 ### Keepalive
 

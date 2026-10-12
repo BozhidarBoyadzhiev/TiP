@@ -14,8 +14,9 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 /**
- * The authenticated device channel. On connect the device gets {@code hello}, becomes the device's one
- * registered session, and gets its unacknowledged reactions of the last minute, oldest first. Inbound
+ * The authenticated device channel. On connect the session becomes the device's one registered session,
+ * the device is marked connected, and only then gets {@code hello}, so {@code hello} always means the
+ * server holds the session; then come its unacknowledged reactions of the last minute, oldest first. Inbound
  * messages are size checked and parsed; an {@code ack} acknowledges one of the device's own reactions,
  * anything else is ignored, and a session that keeps sending such messages is closed.
  */
@@ -61,9 +62,9 @@ class DeviceChannelHandler extends TextWebSocketHandler {
         raw.getAttributes().put(CONCURRENT, session);
         raw.getAttributes().put(INVALID, new InvalidMessages());
         keepalive.connected(raw);
-        session.sendMessage(messages.hello(device.displayName(), clock.instant()));
         sessions.register(device.id(), session);
         presence.connected(device.id());
+        session.sendMessage(messages.hello(device.displayName(), clock.instant()));
         log.info("Device {} connected", device.id());
         for (PendingReaction reaction :
                 deliveries.unacked(device.id(), clock.instant().minus(ReactionSender.MAX_AGE))) {

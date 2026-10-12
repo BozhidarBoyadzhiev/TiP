@@ -356,9 +356,8 @@ class OwnerChannelTest extends IntegrationTest {
             clock.advance(Duration.ofSeconds(5));
             presence.reportOffline();
             device = TestSocket.connectDevice(port, deviceId, secret);
+            // hello comes after the server registered the session and stored the connect time.
             device.next();
-            // hello comes before the server registers the session; the stored connect time comes after.
-            awaitLastSeen(start.plusSeconds(6));
             clock.advance(Duration.ofSeconds(10));
             presence.reportOffline();
             owner.sync();
