@@ -98,6 +98,16 @@ final class RawWebSocket implements AutoCloseable {
     }
 
     /** Reads frames until a close frame and returns its close code. */
+    /** The next text frame's payload, skipping pings and other frames. */
+    String readUntilText() throws IOException {
+        while (true) {
+            Frame frame = readFrame();
+            if (frame.opcode() == Frame.TEXT) {
+                return new String(frame.payload(), StandardCharsets.UTF_8);
+            }
+        }
+    }
+
     int readUntilCloseCode() throws IOException {
         while (true) {
             Frame frame = readFrame();

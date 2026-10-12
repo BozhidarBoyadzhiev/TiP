@@ -35,7 +35,7 @@ class KeepaliveTest extends IntegrationTest {
     SessionKeepalive keepalive;
 
     @Test
-    void deviceThatStopsAnsweringPingsIsClosedAfter45SecondsAndAnAnsweringOneStays() throws Exception {
+    void deviceThatStopsAnsweringPingsIsToldWhyAndClosedAfter45SecondsAndAnAnsweringOneStays() throws Exception {
         clock.pin(NOW);
         String frozenSecret = TestData.randomSecret();
         UUID frozenId = data.device(TestData.uniqueSlug(), "Frozen Panda", frozenSecret);
@@ -71,7 +71,9 @@ class KeepaliveTest extends IntegrationTest {
             clock.advance(SessionKeepalive.PONG_TIMEOUT.minus(PING_INTERVAL.multipliedBy(2)));
             keepalive.pingOrClose();
 
-            assertThat(frozen.readUntilCloseCode()).isEqualTo(1001);
+            // The reason comes as a message before the close, which follows it.
+            assertThat(frozen.readUntilText()).isEqualTo("{\"type\":\"closing\",\"reason\":\"timeout\"}");
+            assertThat(frozen.readFrame().opcode()).isEqualTo(RawWebSocket.Frame.CLOSE);
             live.sync();
             assertThat(live.isOpen()).isTrue();
             assertThat(sessions.find(liveId)).containsSame(liveSession);
@@ -104,7 +106,7 @@ class KeepaliveTest extends IntegrationTest {
     }
 
     @Test
-    void shutdownClosesDeviceAndObserverSessionsWith1001() throws Exception {
+    void shutdownTellsDevicesWhyAndClosesDeviceAndObserverSessionsWith1001() throws Exception {
         String slug = TestData.uniqueSlug();
         String secret = TestData.randomSecret();
         UUID deviceId = data.device(slug, "Deployed Panda", secret);
@@ -119,6 +121,9 @@ class KeepaliveTest extends IntegrationTest {
 
             assertThat(device.awaitClose().getCode()).isEqualTo(1001);
             assertThat(observer.awaitClose().getCode()).isEqualTo(1001);
+            assertThat(device.nextJson()).isEqualTo(Map.of("type", "closing", "reason", "shutdown"));
+            // Observers receive only reactions.
+            assertThat(observer.pending()).isZero();
         }
     }
 }

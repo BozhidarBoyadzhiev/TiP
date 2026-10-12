@@ -1,5 +1,6 @@
 package dev.tip.devices;
 
+import dev.tip.devices.ChannelMessages.ClosingReason;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Clock;
@@ -22,6 +23,8 @@ import org.springframework.web.socket.WebSocketSession;
  * Keeps device and observer sessions honest. Every 20 seconds each session gets a ping; a session whose
  * last pong (or connect) is 45 seconds old or more, two missed pings, is closed with 1001. On shutdown
  * every session is closed with 1001, so devices reconnect cleanly to the next instance after a deploy.
+ * Device sessions first get {@code closing} with reason {@code timeout} or {@code shutdown}; observers
+ * receive only reactions, so they get the close alone.
  */
 @Component
 class SessionKeepalive {
@@ -63,10 +66,17 @@ class SessionKeepalive {
     @Scheduled(fixedRateString = "${tip.devices.ping-interval}", initialDelayString = "${tip.devices.ping-interval}")
     void pingOrClose() {
         Instant deadline = clock.instant().minus(PONG_TIMEOUT);
-        for (WebSocketSession session : allSessions()) {
-            Instant lastPong = lastPong(session);
-            if (lastPong != null && !lastPong.isAfter(deadline)) {
-                log.debug("Session {} missed two pongs, closing it", session.getId());
+        for (WebSocketSession session : devices.all()) {
+            if (missedPongs(session, deadline)) {
+                log.debug("Device session {} missed two pongs, closing it", session.getId());
+                devices.closeWithReason(session, ClosingReason.TIMEOUT, CloseStatus.GOING_AWAY);
+            } else {
+                ping(session);
+            }
+        }
+        for (WebSocketSession session : observers.all()) {
+            if (missedPongs(session, deadline)) {
+                log.debug("Observer session {} missed two pongs, closing it", session.getId());
                 DeviceSessions.close(session, CloseStatus.GOING_AWAY);
             } else {
                 ping(session);
@@ -76,15 +86,17 @@ class SessionKeepalive {
 
     @EventListener(ContextClosedEvent.class)
     void closeAllOnShutdown() {
-        List<WebSocketSession> sessions = allSessions();
-        log.info("Shutting down, closing {} WebSocket sessions", sessions.size());
-        sessions.forEach(session -> DeviceSessions.close(session, CloseStatus.GOING_AWAY));
+        List<WebSocketSession> deviceSessions = new ArrayList<>(devices.all());
+        List<WebSocketSession> observerSessions = new ArrayList<>(observers.all());
+        log.info("Shutting down, closing {} WebSocket sessions", deviceSessions.size() + observerSessions.size());
+        deviceSessions.forEach(
+                session -> devices.closeWithReason(session, ClosingReason.SHUTDOWN, CloseStatus.GOING_AWAY));
+        observerSessions.forEach(session -> DeviceSessions.close(session, CloseStatus.GOING_AWAY));
     }
 
-    private List<WebSocketSession> allSessions() {
-        List<WebSocketSession> sessions = new ArrayList<>(devices.all());
-        sessions.addAll(observers.all());
-        return sessions;
+    private static boolean missedPongs(WebSocketSession session, Instant deadline) {
+        Instant lastPong = lastPong(session);
+        return lastPong != null && !lastPong.isAfter(deadline);
     }
 
     private static void ping(WebSocketSession session) {

@@ -39,6 +39,14 @@ class ChannelMessages {
         return text(new ObserverReaction("reaction", reaction.name(), repeats, time(at)));
     }
 
+    /**
+     * Why the server is about to close a device session. Sent just before the close, because close codes
+     * do not reach clients through Render's proxy: they arrive as 1005 (no status).
+     */
+    TextMessage closing(ClosingReason reason) {
+        return text(new Closing("closing", reason.wire));
+    }
+
     /** The tip id of a well formed {@code ack}, or empty for anything else. */
     Optional<UUID> ackedTipId(String payload) {
         try {
@@ -66,5 +74,23 @@ class ChannelMessages {
 
     record ObserverReaction(String type, String reaction, int repeats, String at) {}
 
+    record Closing(String type, String reason) {}
+
     record Inbound(String type, String id) {}
+
+    /** The {@code reason} of a {@code closing} message. */
+    enum ClosingReason {
+        /** Another connection authenticated as the same device. */
+        REPLACED("replaced"),
+        /** No pong for 45 seconds. */
+        TIMEOUT("timeout"),
+        /** The server is shutting down, for example during a deploy. */
+        SHUTDOWN("shutdown");
+
+        final String wire;
+
+        ClosingReason(String wire) {
+            this.wire = wire;
+        }
+    }
 }

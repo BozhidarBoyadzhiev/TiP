@@ -25,7 +25,7 @@ Authorization: Bearer <deviceSecret>
 
 - `deviceId` is the device uuid. `deviceSecret` is 32 random bytes, base64url encoded, shown once when the device is created.
 - The server rejects the handshake with 401 if the secret does not match. No details in the response.
-- One live connection per device. A new authenticated connection closes the old one with close code 4000 ("replaced").
+- One live connection per device. A new authenticated connection closes the old one with close code 4000 ("replaced"), after a `closing` message with reason `replaced`.
 - The firmware verifies the server certificate with the ESP32 CA bundle. It never disables certificate checks.
 
 ### Server to device
@@ -54,6 +54,20 @@ A flagged tip always has `repeats` 1, whatever the amount, so it looks exactly l
 
 Sent once after a successful handshake.
 
+```json
+{ "type": "closing", "reason": "replaced" }
+```
+
+Sent just before the server closes a device session for a reason the device should act on; the close follows at once with the same close code as before. Close codes do not reach clients through Render's proxy (they arrive as 1005, no status), so this message is the only way the device learns why.
+
+| `reason` | Close code | When | Device |
+|---|---|---|---|
+| `replaced` | 4000 | another connection authenticated as the same device | waits at least 60 seconds before reconnecting, so two clients with the same identity settle instead of replacing each other every second |
+| `timeout` | 1001 | no pong for 45 seconds | normal backoff |
+| `shutdown` | 1001 | the server is shutting down, for example during a deploy | normal backoff |
+
+A device treats an unknown `reason` like `timeout`. Observers never get `closing`.
+
 ### Device to server
 
 ```json
@@ -74,7 +88,7 @@ Ack means "received". The device sends it as soon as a reaction arrives, before 
 ### Keepalive
 
 - The server sends a WebSocket ping every 20 seconds. The device library answers with pong.
-- The server closes connections that miss two pongs.
+- The server closes connections that miss two pongs, after a `closing` message with reason `timeout`.
 - The device reconnects with backoff: 1, 2, 4, 8, 16, then 30 seconds, with up to 20 percent random jitter.
 
 ## Observer channel (public, read only)

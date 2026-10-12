@@ -2,6 +2,7 @@ package dev.tip.devices;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -20,11 +21,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import tools.jackson.databind.json.JsonMapper;
 
 class DeviceChannelTest extends IntegrationTest {
 
@@ -145,6 +148,9 @@ class DeviceChannelTest extends IntegrationTest {
                 CloseStatus status = first.awaitClose();
                 assertThat(status.getCode()).isEqualTo(4000);
                 assertThat(status.getReason()).isEqualTo("replaced");
+                // Close codes do not reach devices through Render's proxy, so the reason comes first as a message.
+                assertThat(first.nextJson()).isEqualTo(Map.of("type", "closing", "reason", "replaced"));
+                assertThat(first.pending()).isZero();
                 await().atMost(Duration.ofSeconds(5)).until(() -> !firstSession.isOpen());
 
                 // The first session's close callback has run by now and must not have removed the second.
@@ -163,7 +169,8 @@ class DeviceChannelTest extends IntegrationTest {
 
     @Test
     void lateCloseOfTheReplacedSessionNeverEvictsTheNewOne() throws Exception {
-        DeviceSessions registry = new DeviceSessions();
+        DeviceSessions registry =
+                new DeviceSessions(new ChannelMessages(JsonMapper.builder().build()));
         UUID deviceId = UUID.randomUUID();
         WebSocketSession old = mock(WebSocketSession.class);
         WebSocketSession replacement = mock(WebSocketSession.class);
@@ -172,7 +179,9 @@ class DeviceChannelTest extends IntegrationTest {
         registry.register(deviceId, replacement);
         registry.unregister(deviceId, old);
 
-        verify(old).close(DeviceSessions.REPLACED);
+        InOrder order = inOrder(old);
+        order.verify(old).sendMessage(new TextMessage("{\"type\":\"closing\",\"reason\":\"replaced\"}"));
+        order.verify(old).close(DeviceSessions.REPLACED);
         verify(replacement, never()).close(DeviceSessions.REPLACED);
         assertThat(registry.find(deviceId)).containsSame(replacement);
 

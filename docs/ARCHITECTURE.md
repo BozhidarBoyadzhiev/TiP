@@ -110,6 +110,8 @@ WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
 
 **Deploys.** On shutdown the server closes every device and observer session with 1001 (going away), so devices reconnect with their backoff to the new instance instead of waiting for a dead connection to time out.
 
+**Close codes do not survive the proxy.** Render's proxy delivers every server close to the client as 1005 (no status), so a device cannot read 4000 or 1001. Before closing a device session for replacement, a missed keepalive or shutdown, the server sends `{"type":"closing","reason":...}`, and the device acts on that. On `replaced` it waits at least a minute before reconnecting: two clients with the same identity otherwise replace each other every second, which happened in Brief 05b's end to end run with the fake device and the panda both connected as the demo device.
+
 **Delivery dispatch is in memory.** The dispatcher runs after commit on its own virtual thread executor. Run synchronously on the publisher's thread, it would hold the committed transaction's connection while taking a second one, and enough simultaneous reactions exhaust the pool. Known limit: a reaction handed to that executor is lost if the process dies before the task runs. The tip is safe, it is captured and its reaction is stored on it; only that one light pattern is missed. A reaction already in `reaction_delivery` survives a restart through replay on connect.
 
 **Single instance.** WebSocket sessions live in an in-memory registry, so the backend runs as one instance. For several instances, dispatch would go through PostgreSQL `LISTEN/NOTIFY` or Redis pub/sub. This is a deliberate limit for the hackathon, not an oversight.
@@ -134,9 +136,9 @@ TipReacted (after commit) ──▶ ReactionDispatcher (delivery executor)
                                  2. device connected? send reaction, sent_count + 1
                                  3. broadcast {type, reaction, repeats, at} to the device's observers
 ReactionResendJob (every 1 s) ──▶ unacked, sent_count < 4, last send 5 s ago, under 60 s old ──▶ send again
-Device connects ──▶ hello, register (closing a replaced session with 4000), replay unacked of the last 60 s
+Device connects ──▶ hello, register (closing a replaced session: closing "replaced", then 4000), replay unacked of the last 60 s
 Device acks ──▶ conditional UPDATE acked_at for its own device
-SessionKeepalive (every 20 s) ──▶ ping, or close with 1001 after 45 s without a pong
+SessionKeepalive (every 20 s) ──▶ ping, or close with 1001 after 45 s without a pong (devices get closing "timeout" first)
 ```
 
 The device channel `/ws/device/{deviceId}` authenticates in a handshake interceptor: the bearer secret goes through `DeviceSecretVerifier`, and every failure is the same empty 401. Failed handshakes are limited to 10 per minute per IP. The channel keeps Spring's same origin check; the ESP32 sends no `Origin`, and a browser cannot set an `Authorization` header on a WebSocket, so a cross site page cannot use this endpoint.
