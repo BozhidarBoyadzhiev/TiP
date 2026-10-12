@@ -326,6 +326,7 @@
         const list = el("notes-list");
         const has = digest !== null && Array.isArray(digest.bullets) && digest.bullets.length > 0;
         list.hidden = !has;
+        el("notes").classList.toggle("no-notes", !has);
         el("notes-waiting").hidden = has;
         el("notes-sig").hidden = !has;
         if (!has) {

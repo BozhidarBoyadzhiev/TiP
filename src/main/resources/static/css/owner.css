@@ -102,6 +102,7 @@ button {
 .login-card .sub {
     margin: 0 0 22px;
     text-align: center;
+    text-wrap: balance;
     color: var(--faint);
     font-size: 15px;
 }
@@ -485,42 +486,70 @@ button {
     margin-top: 70px;
 }
 
+/* No notes yet: the card stands alone, the tips' empty state already has a panda. */
+.notes-wrap.no-notes {
+    margin-top: 0;
+}
+
+.notes-wrap.no-notes .peek,
+.notes-wrap.no-notes .paws {
+    display: none;
+}
+
+/* Ruled paper: every line of text is one --rule tall and the ruling repeats every --rule from where the
+   text starts, with the ink --rule-ink down each line, just under the text's baseline. */
 .kraft {
-    padding: 22px 18px 14px;
-    background-image: repeating-linear-gradient(180deg, transparent 0 29px, rgba(90, 60, 30, 0.1) 29px 30px);
-    background-position: 0 14px;
+    --rule: 30px;
+    --rule-top: 22px;
+    --rule-ink: 24px;
+    padding: var(--rule-top) 18px 8px;
+    background-image:
+        linear-gradient(var(--paper), var(--paper)),
+        repeating-linear-gradient(
+            180deg,
+            transparent 0 calc(var(--rule-ink) - 1px),
+            rgba(90, 60, 30, 0.14) calc(var(--rule-ink) - 1px) var(--rule-ink),
+            transparent var(--rule-ink) var(--rule)
+        );
+    background-size: 100% var(--rule-top), auto;
+    background-position: 0 0, 0 var(--rule-top);
+    background-repeat: no-repeat, repeat;
 }
 
 .kraft h2 {
-    margin: 0 0 6px;
+    margin: 0;
     font: 600 18px var(--font);
+    line-height: var(--rule);
     color: #3b2414;
 }
 
 .kraft ul {
     margin: 0;
     padding: 0 0 0 18px;
-    line-height: 30px;
+    line-height: var(--rule);
     overflow-wrap: anywhere;
 }
 
 .kraft .waiting {
     margin: 0;
-    line-height: 30px;
+    line-height: var(--rule);
 }
 
 .kraft .sig {
-    margin: 8px 0 0;
+    margin: 0;
+    min-height: var(--rule);
+    line-height: var(--rule);
     font-size: 13px;
     color: #7a5a3e;
     display: flex;
-    gap: 8px;
-    align-items: center;
+    gap: 0 8px;
+    align-items: baseline;
     flex-wrap: wrap;
 }
 
 .ai-chip {
     font-size: 12px;
+    line-height: 18px;
     padding: 2px 8px;
     border-radius: 999px;
     background: rgba(90, 60, 30, 0.14);
