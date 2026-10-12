@@ -1,3 +1,4 @@
+#include "log.h"
 #include "tasks.h"
 #include "tip_config.h"
 #include "tip_player.h"
@@ -21,7 +22,7 @@ Player<kWaitingReactions> player;
 
 void playbackLoop(void *) {
   if (!ledcAttach(kLedPin, kLedFrequencyHz, kLedResolutionBits)) {
-    Serial.println("LED: ledcAttach failed");
+    logLine("LED: ledcAttach failed");
   }
   int lastLevel = -1;
   TickType_t wake = xTaskGetTickCount();
@@ -30,17 +31,17 @@ void playbackLoop(void *) {
     while (xQueueReceive(incoming, &reaction, 0) == pdTRUE) {
       Reaction dropped;
       if (player.enqueue(reaction, &dropped)) {
-        Serial.printf("LED: queue full, dropped waiting tip %s\n", dropped.id);
+        logLine("LED: queue full, dropped waiting tip %s", dropped.id);
       }
     }
     Player<kWaitingReactions>::Tick tick = player.tick(millis(), linkStatus());
     if (tick.started != nullptr) {
       const Reaction &started = *tick.started;
-      Serial.printf("LED: playing %s %s x%d (repeats %u, %.2f s) tip %s, %u waiting\n",
-                    kindName(started.kind), patternFor(started.kind).label,
-                    units(started.kind, started.repeats), started.repeats,
-                    durationMs(started.kind, started.repeats) / 1000.0, started.id,
-                    static_cast<unsigned>(player.waiting()));
+      logLine("LED: playing %s %s x%d (repeats %u, %.2f s) tip %s, %u waiting",
+              kindName(started.kind), patternFor(started.kind).label,
+              units(started.kind, started.repeats), started.repeats,
+              durationMs(started.kind, started.repeats) / 1000.0, started.id,
+              static_cast<unsigned>(player.waiting()));
     }
     if (tick.level != lastLevel) {
       ledcWrite(kLedPin, tick.level);

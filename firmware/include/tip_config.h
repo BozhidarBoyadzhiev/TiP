@@ -42,6 +42,8 @@ constexpr uint32_t kBackoffJitterPercent = 20;
 constexpr uint32_t kStableAfterMs = 60000;
 // After the server says another connection as this device replaced us.
 constexpr uint32_t kReplacedWaitMs = 60000;
+// After the server rejected the device id or secret (HTTP 401).
+constexpr uint32_t kAuthRetryMs = 600000;
 
 // Server messages longer than this are dropped unparsed. The server's own inbound limit is 1024.
 constexpr uint32_t kMaxFrameBytes = 1024;

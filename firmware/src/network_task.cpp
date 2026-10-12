@@ -6,6 +6,7 @@
 #include <atomic>
 
 #include "secure_transport.h"
+#include "log.h"
 #include "tasks.h"
 #include "tip_config.h"
 #include "tip_intake.h"
@@ -33,15 +34,16 @@ constexpr uint32_t kStackBytes = 12288;
 constexpr uint32_t kLoopDelayMs = 10;
 constexpr uint32_t kWifiRetryMs = 15000;
 
-enum class State : uint8_t { Idle, Connecting, Connected, Rejected };
+enum class State : uint8_t { Idle, Connecting, Connected };
 
 QueueHandle_t outgoing;
 std::atomic<LinkStatus> status{LinkStatus::Connecting};
 WebSocketsClient socket;
 Intake<kRecentIds> intake;
 uint32_t randomWord(void *) { return esp_random(); }
-Backoff backoff({kBackoffFirstMs, kBackoffCapMs, kBackoffJitterPercent, kStableAfterMs, kReplacedWaitMs}, randomWord,
-                nullptr);
+Backoff backoff({kBackoffFirstMs, kBackoffCapMs, kBackoffJitterPercent, kStableAfterMs, kReplacedWaitMs,
+                 kAuthRetryMs},
+                randomWord, nullptr);
 
 State state = State::Idle;
 uint32_t nextAttemptAt = 0;
@@ -53,8 +55,9 @@ const char *closeReason = nullptr;
 // Set when the server announced that another connection as this device replaced this one.
 bool replaced = false;
 
+// The rejected flicks stay through the retries after a 401, until a connection succeeds.
 void setStatus(LinkStatus next) {
-  if (status.load() != LinkStatus::AuthRejected) {
+  if (next == LinkStatus::Connected || status.load() != LinkStatus::AuthRejected) {
     status.store(next);
   }
 }
@@ -70,8 +73,8 @@ void scheduleRetry(uint32_t connectedForMs, const char *why) {
   nextAttemptAt = millis() + delay;
   state = State::Idle;
   setStatus(LinkStatus::Connecting);
-  Serial.printf("WS: %s, attempt %lu in %.1f s\n", why, static_cast<unsigned long>(backoff.attempt() + 1),
-                delay / 1000.0);
+  logLine("WS: %s, attempt %lu in %.1f s", why, static_cast<unsigned long>(backoff.attempt() + 1),
+          delay / 1000.0);
 }
 
 // Closes an open or opening connection. The library's disconnect event schedules the retry; when
@@ -92,10 +95,10 @@ void onDisconnected() {
   closeReason = nullptr;
   if (state == State::Connected) {
     uint32_t upMs = millis() - connectedAt;
-    Serial.printf("WS: disconnected after %.1f s (%s)\n", upMs / 1000.0, why != nullptr ? why : "closed");
+    logLine("WS: disconnected after %.1f s (%s)", upMs / 1000.0, why != nullptr ? why : "closed");
     if (replaced) {
-      Serial.printf("WS: replaced by another connection as %s, waiting at least %lu s\n", TIP_DEVICE_SLUG,
-                    static_cast<unsigned long>(kReplacedWaitMs / 1000));
+      logLine("WS: replaced by another connection as %s, waiting at least %lu s", TIP_DEVICE_SLUG,
+              static_cast<unsigned long>(kReplacedWaitMs / 1000));
     }
     scheduleRetry(upMs, "reconnecting");
     return;
@@ -105,14 +108,17 @@ void onDisconnected() {
   }
   int httpStatus = transport::handshakeStatus();
   if (httpStatus == 401) {
-    state = State::Rejected;
+    socket.setReconnectInterval(kLibraryNeverReconnects);
+    nextAttemptAt = millis() + backoff.afterAuthRejected();
+    state = State::Idle;
     status.store(LinkStatus::AuthRejected);
-    Serial.println("WS: auth rejected (401). Check TIP_DEVICE_ID and TIP_DEVICE_SECRET in secrets.h, "
-                   "then reboot. No reconnect until then.");
+    logLine("WS: auth rejected (401). Check TIP_DEVICE_ID and TIP_DEVICE_SECRET in secrets.h. "
+            "Retrying in %lu minutes.",
+            static_cast<unsigned long>(kAuthRetryMs / 60000));
     return;
   }
   if (httpStatus != 0) {
-    Serial.printf("WS: handshake answered HTTP %d\n", httpStatus);
+    logLine("WS: handshake answered HTTP %d", httpStatus);
   }
   scheduleRetry(0, why != nullptr ? why : "handshake failed");
 }
@@ -123,20 +129,20 @@ void onReaction(const ParsedMessage &message) {
   char ack[64];
   size_t ackLength = buildAck(reaction.id, ack, sizeof(ack));
   bool acked = decision.ack && ackLength > 0 && socket.sendTXT(ack, ackLength);
-  Serial.printf("WS: reaction %s x%u tip %s received, ack %s\n", kindName(reaction.kind), reaction.repeats,
-                reaction.id, acked ? "sent" : "FAILED");
+  logLine("WS: reaction %s x%u tip %s received, ack %s", kindName(reaction.kind), reaction.repeats,
+          reaction.id, acked ? "sent" : "FAILED");
   if (message.unknownKind) {
-    Serial.println("WS: unknown kind, playing PLAIN with repeats 1");
+    logLine("WS: unknown kind, playing PLAIN with repeats 1");
   }
   if (message.repeatsDefaulted) {
-    Serial.println("WS: repeats missing or not an integer, using 1");
+    logLine("WS: repeats missing or not an integer, using 1");
   }
   if (!decision.play) {
-    Serial.printf("WS: tip %s is a repeat, acked again, not played again\n", reaction.id);
+    logLine("WS: tip %s is a repeat, acked again, not played again", reaction.id);
     return;
   }
   if (xQueueSend(outgoing, &reaction, 0) != pdTRUE) {
-    Serial.printf("WS: LED hand over full, dropped tip %s\n", reaction.id);
+    logLine("WS: LED hand over full, dropped tip %s", reaction.id);
   }
 }
 
@@ -144,21 +150,21 @@ void onText(uint8_t *payload, size_t length) {
   ParsedMessage message = parseServerMessage(reinterpret_cast<const char *>(payload), length, kMaxFrameBytes);
   switch (message.type) {
     case MessageType::Hello:
-      Serial.println("WS: hello from the server");
+      logLine("WS: hello from the server");
       break;
     case MessageType::Reaction:
       onReaction(message);
       break;
     case MessageType::Closing:
-      Serial.printf("WS: the server is closing the connection (%s)\n", closingReasonName(message.closingReason));
+      logLine("WS: the server is closing the connection (%s)", closingReasonName(message.closingReason));
       replaced = message.closingReason == ClosingReason::Replaced;
       break;
     case MessageType::Ignored:
-      Serial.printf("WS: ignored a message (%s)\n", message.problem);
+      logLine("WS: ignored a message (%s)", message.problem);
       break;
     case MessageType::Malformed:
-      Serial.printf("WS: malformed message of %u bytes, not acked (%s)\n", static_cast<unsigned>(length),
-                    message.problem);
+      logLine("WS: malformed message of %u bytes, not acked (%s)", static_cast<unsigned>(length),
+              message.problem);
       break;
   }
 }
@@ -172,7 +178,7 @@ void onEvent(WStype_t type, uint8_t *payload, size_t length) {
       state = State::Connected;
       connectedAt = millis();
       setStatus(LinkStatus::Connected);
-      Serial.printf("WS: connected as %s\n", TIP_DEVICE_SLUG);
+      logLine("WS: connected as %s", TIP_DEVICE_SLUG);
       break;
     case WStype_DISCONNECTED:
       onDisconnected();
@@ -184,10 +190,10 @@ void onEvent(WStype_t type, uint8_t *payload, size_t length) {
     case WStype_PONG:
       break;
     case WStype_ERROR:
-      Serial.println("WS: protocol error");
+      logLine("WS: protocol error");
       break;
     default:
-      Serial.printf("WS: ignored a frame of type %d\n", static_cast<int>(type));
+      logLine("WS: ignored a frame of type %d", static_cast<int>(type));
       break;
   }
 }
@@ -200,7 +206,7 @@ void logTime() {
   gmtime_r(&now, &utc);
   char text[32];
   strftime(text, sizeof(text), "%Y-%m-%dT%H:%M:%SZ", &utc);
-  Serial.printf("Time: %s\n", text);
+  logLine("Time: %s", text);
 }
 
 // WiFi stays up on its own (auto reconnect); this only logs and nudges it.
@@ -211,19 +217,19 @@ bool wifiReady() {
   uint32_t now = millis();
   if (WiFi.status() == WL_CONNECTED) {
     if (!wasUp) {
-      Serial.printf("WiFi: connected, IP %s, RSSI %d dBm, sleep %s\n", WiFi.localIP().toString().c_str(),
-                    WiFi.RSSI(), WiFi.getSleep() ? "on" : "off");
+      logLine("WiFi: connected, IP %s, RSSI %d dBm, sleep %s", WiFi.localIP().toString().c_str(),
+              WiFi.RSSI(), WiFi.getSleep() ? "on" : "off");
       wasUp = true;
     }
     return true;
   }
   if (wasUp) {
-    Serial.println("WiFi: lost");
+    logLine("WiFi: lost");
     wasUp = false;
     lastRetry = now;
   }
   if (now - lastLog >= kWaitLogIntervalMs) {
-    Serial.printf("WiFi: waiting for %s (status %d)\n", TIP_WIFI_SSID, static_cast<int>(WiFi.status()));
+    logLine("WiFi: waiting for %s (status %d)", TIP_WIFI_SSID, static_cast<int>(WiFi.status()));
     lastLog = now;
   }
   if (now - lastRetry >= kWifiRetryMs) {
@@ -245,8 +251,8 @@ bool timeReady() {
   }
   uint32_t now = millis();
   if (now - lastLog >= kWaitLogIntervalMs) {
-    Serial.printf("Time: waiting for SNTP from %s, %s, %s. No TLS until the clock is set.\n", kNtpServer1,
-                  kNtpServer2, kNtpServer3);
+    logLine("Time: waiting for SNTP from %s, %s, %s. No TLS until the clock is set.", kNtpServer1,
+            kNtpServer2, kNtpServer3);
     lastLog = now;
   }
   return false;
@@ -261,7 +267,7 @@ void startAttempt() {
   lastReceivedAt = attemptStartedAt;
   transportAttempts = transport::attempts();
   replaced = false;
-  Serial.printf("WS: connecting to wss://%s as %s\n", TIP_SERVER_HOST, TIP_DEVICE_SLUG);
+  logLine("WS: connecting to wss://%s as %s", TIP_SERVER_HOST, TIP_DEVICE_SLUG);
 }
 
 void step() {
@@ -272,7 +278,7 @@ void step() {
     setStatus(LinkStatus::Connecting);
     return;
   }
-  if (!timeReady() || state == State::Rejected) {
+  if (!timeReady()) {
     return;
   }
   uint32_t now = millis();
@@ -289,7 +295,7 @@ void step() {
   } else if (state == State::Connecting && millis() - attemptStartedAt >= kHandshakeDeadlineMs) {
     closeConnection("no answer to the handshake");
   } else if (state == State::Connected && isSilent(millis(), lastReceivedAt, kSilenceLimitMs)) {
-    Serial.printf("WS: nothing received for %lu s\n", static_cast<unsigned long>(kSilenceLimitMs / 1000));
+    logLine("WS: nothing received for %lu s", static_cast<unsigned long>(kSilenceLimitMs / 1000));
     closeConnection("silent connection");
   }
 }
@@ -301,7 +307,7 @@ bool deviceIdValid() {
 
 void networkLoop(void *) {
   if (!deviceIdValid() || strcmp(TIP_DEVICE_SECRET, "your-device-secret") == 0) {
-    Serial.println("Config: set TIP_DEVICE_ID (a lowercase uuid) and TIP_DEVICE_SECRET in secrets.h");
+    logLine("Config: set TIP_DEVICE_ID (a lowercase uuid) and TIP_DEVICE_SECRET in secrets.h");
     status.store(LinkStatus::AuthRejected);
     vTaskDelete(nullptr);
     return;
@@ -309,7 +315,7 @@ void networkLoop(void *) {
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
   WiFi.setAutoReconnect(true);
-  Serial.printf("WiFi: connecting to %s\n", TIP_WIFI_SSID);
+  logLine("WiFi: connecting to %s", TIP_WIFI_SSID);
   WiFi.begin(TIP_WIFI_SSID, TIP_WIFI_PASSWORD);
   configTime(0, 0, kNtpServer1, kNtpServer2, kNtpServer3);
 

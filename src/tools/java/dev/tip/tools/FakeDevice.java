@@ -23,8 +23,8 @@ import tools.jackson.databind.json.JsonMapper;
  * A command line device that speaks the device channel exactly as the ESP32 firmware will: it connects
  * with the device secret, acks each reaction as soon as it arrives, plays it after any reaction already
  * playing or queued, prints it with a text picture of its LED pattern scaled by {@code repeats}, ignores
- * repeats of the last 16 tip ids, and reconnects with the protocol backoff.
- * A rejected secret (401) stops it, like the firmware, which waits for a reboot. When the server says it is
+ * repeats of the last 16 tip ids, and reconnects with the client policy's backoff.
+ * A rejected secret (401) stops it; the firmware retries every 10 minutes instead. When the server says it is
  * closing because another connection replaced this one, it waits at least a minute before reconnecting, so
  * two clients with the same identity settle instead of replacing each other every second.
  *
@@ -82,14 +82,16 @@ public final class FakeDevice {
             while (stopped.getCount() > 0) {
                 out.println("Connecting to " + endpoint);
                 CompletableFuture<Integer> closed = new CompletableFuture<>();
+                Duration connectedFor = Duration.ZERO;
                 try {
                     socket = http.newWebSocketBuilder()
                             .header("Authorization", "Bearer " + secret)
                             .connectTimeout(CONNECT_TIMEOUT)
                             .buildAsync(endpoint, new Listener(closed))
                             .join();
-                    backoff.reset();
+                    long connectedAt = System.nanoTime();
                     closed.join();
+                    connectedFor = Duration.ofNanos(System.nanoTime() - connectedAt);
                 } catch (CompletionException e) {
                     if (handshakeStatus(e) == 401) {
                         out.println("Auth rejected (401). Check the device id and secret, then start again.");
@@ -97,7 +99,7 @@ public final class FakeDevice {
                     }
                     out.println("Connection failed: " + describe(e.getCause()));
                 }
-                Duration delay = backoff.next();
+                Duration delay = backoff.next(connectedFor);
                 if (replaced.getAndSet(false) && delay.compareTo(REPLACED_WAIT) < 0) {
                     delay = REPLACED_WAIT;
                 }
@@ -170,12 +172,16 @@ public final class FakeDevice {
      * seconds, so an ack after playback would bring resends mid pattern.
      */
     private void handleReaction(String tipId, String reaction, int repeats) {
-        LedPattern pattern;
         try {
             UUID.fromString(tipId);
-            pattern = LedPattern.valueOf(reaction);
         } catch (IllegalArgumentException e) {
             return;
+        }
+        LedPattern pattern = knownPattern(reaction);
+        if (pattern == null) {
+            out.println("Unknown kind from tip " + tipId + ", acked, playing PLAIN with repeats 1");
+            pattern = LedPattern.PLAIN;
+            repeats = LedPattern.MIN_REPEATS;
         }
         if (!recent.add(tipId)) {
             out.println("Repeat of tip " + tipId + ", not played again, acked again");
@@ -187,6 +193,16 @@ public final class FakeDevice {
         if (dropped != null) {
             out.println("Queue full, dropped tip " + dropped.tipId());
         }
+    }
+
+    /** The pattern for one of the four kinds, or null for anything else, which the client policy plays as PLAIN. */
+    private static LedPattern knownPattern(String reaction) {
+        for (LedPattern pattern : LedPattern.values()) {
+            if (pattern.name().equals(reaction)) {
+                return pattern;
+            }
+        }
+        return null;
     }
 
     /** Sends one ack. The JDK WebSocket allows one outstanding send at a time, hence the lock. */

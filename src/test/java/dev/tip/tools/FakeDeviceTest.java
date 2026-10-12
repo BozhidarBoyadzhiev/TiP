@@ -7,6 +7,7 @@ import dev.tip.IntegrationTest;
 import dev.tip.TestData;
 import dev.tip.ai.api.Reaction;
 import dev.tip.ai.api.TipReacted;
+import dev.tip.devices.DeviceSessionProbe;
 import dev.tip.devices.ResendJobRunner;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -14,6 +15,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -45,6 +47,9 @@ class FakeDeviceTest extends IntegrationTest {
 
     @Autowired
     ResendJobRunner resendJob;
+
+    @Autowired
+    DeviceSessionProbe probe;
 
     @Test
     void playsAndAcksAReaction() throws Exception {
@@ -127,6 +132,43 @@ class FakeDeviceTest extends IntegrationTest {
             String played = output(bytes);
             assertThat(played).contains("blink x2", "repeats 2");
             assertThat(played.indexOf("tip " + longest)).isLessThan(played.indexOf("tip " + queued));
+        } finally {
+            device.stop();
+        }
+        assertThat(exit.get(10, TimeUnit.SECONDS)).isZero();
+    }
+
+    @Test
+    void acksAnUnknownKindAndPlaysItAsPlainOnce() throws Exception {
+        String secret = TestData.randomSecret();
+        UUID deviceId = data.device(TestData.uniqueSlug(), "Fake Panda", secret);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        FakeDevice device = fakeDevice(deviceId, secret, bytes);
+        CompletableFuture<Integer> exit = CompletableFuture.supplyAsync(device::run);
+        try {
+            await().atMost(Duration.ofSeconds(10)).until(() -> output(bytes).contains("Connected as \"Fake Panda\""));
+            await().atMost(Duration.ofSeconds(5)).until(() -> probe.isConnected(deviceId));
+            UUID tipId = UUID.randomUUID();
+            // The server only ever sends the four kinds, so the delivery row is stored with one of them and
+            // the unknown kind goes straight to the device's session.
+            jdbc.sql("""
+                            insert into reaction_delivery (tip_id, device_id, reaction, repeats, reacted_at)
+                            values (:tipId, :deviceId, 'PLAIN', 1, :at)""")
+                    .param("tipId", tipId)
+                    .param("deviceId", deviceId)
+                    .param("at", clock.instant().atOffset(ZoneOffset.UTC))
+                    .update();
+
+            probe.sendRaw(
+                    deviceId,
+                    "{\"type\":\"reaction\",\"id\":\"" + tipId
+                            + "\",\"reaction\":\"SPARKLY\",\"repeats\":4,\"at\":\"2026-10-13T14:02:11Z\"}");
+
+            await().atMost(Duration.ofSeconds(10)).until(() -> acked(tipId));
+            await().atMost(Duration.ofSeconds(5)).until(() -> output(bytes).contains("blink x1"));
+            assertThat(output(bytes))
+                    .contains("Unknown kind from tip " + tipId + ", acked, playing PLAIN with repeats 1")
+                    .contains("PLAIN", "blink x1", "repeats 1", "tip " + tipId);
         } finally {
             device.stop();
         }

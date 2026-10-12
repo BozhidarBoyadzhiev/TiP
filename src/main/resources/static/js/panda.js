@@ -3,11 +3,13 @@
 // The virtual panda: watches /ws/observe/{slug} and plays the LED patterns of docs/DEVICE_PROTOCOL.md
 // with the same timings as the physical panda, scaled by the reaction's repeats.
 (function () {
-    const QUEUE_SIZE = 4;
+    // The client policy of docs/DEVICE_PROTOCOL.md, shared with the physical panda and the fake device.
+    const QUEUE_SIZE = 8;
     const MIN_REPEATS = 1;
     const MAX_REPEATS = 5;
-    const BACKOFF_SECONDS = [1, 2, 4, 8, 16, 30];
+    const BACKOFF_SECONDS = [1, 2, 4, 8, 16, 32, 60];
     const JITTER = 0.2;
+    const STABLE_MS = 60000;
     const FLICK_PERIOD_MS = 1000;
     const FLICK_MS = 30;
 
@@ -72,6 +74,7 @@
         connected: false,
         stopped: false,
         attempt: 0,
+        openedAt: null,
         queue: [],
         playing: null,
         frame: null,
@@ -137,6 +140,7 @@
         caption.classList.add("shown");
     }
 
+    // The queue holds only waiting reactions; the playing one has left it, so it is never dropped.
     function enqueue(reaction) {
         state.queue.push(reaction);
         if (state.queue.length > QUEUE_SIZE) {
@@ -221,24 +225,29 @@
         );
         socket.addEventListener("open", () => {
             state.connected = true;
-            state.attempt = 0;
+            state.openedAt = performance.now();
             setStatus("live", "Live");
             ensureLoop();
         });
         socket.addEventListener("message", onMessage);
         socket.addEventListener("close", () => {
             state.connected = false;
+            // The backoff starts over only after a connection that stayed up a minute.
+            if (state.openedAt !== null && performance.now() - state.openedAt >= STABLE_MS) {
+                state.attempt = 0;
+            }
+            state.openedAt = null;
             setStatus("reconnecting", "Reconnecting");
             ensureLoop();
             window.setTimeout(connect, nextDelayMillis());
         });
     }
 
-    // 1, 2, 4, 8, 16, then 30 seconds, each with up to 20 percent random jitter.
+    // 1, 2, 4, 8, 16, 32, then 60 seconds, each shortened by up to 20 percent at random.
     function nextDelayMillis() {
         const seconds = BACKOFF_SECONDS[Math.min(state.attempt, BACKOFF_SECONDS.length - 1)];
         state.attempt += 1;
-        return seconds * 1000 * (1 + Math.random() * JITTER);
+        return seconds * 1000 * (1 - Math.random() * JITTER);
     }
 
     function fail(text) {

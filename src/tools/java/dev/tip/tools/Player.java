@@ -8,12 +8,13 @@ import java.util.ArrayDeque;
 
 /**
  * Plays reactions one after another, like the LED on the panda: a reaction that arrives while another
- * plays waits in a queue of 4, and the oldest waiting one is dropped when the queue is full. Acks are not
- * sent from here: the device acks on receipt, before playback.
+ * plays waits in a queue of 8, and the oldest waiting one is dropped when the queue is full; the one playing
+ * has already left the queue, so it is never dropped. Acks are not sent from here: the device acks on
+ * receipt, before playback.
  */
 final class Player implements Runnable {
 
-    static final int QUEUE_SIZE = 4;
+    static final int QUEUE_SIZE = 8;
 
     record Reaction(String tipId, LedPattern pattern, int repeats) {}
 

@@ -1,5 +1,7 @@
 #include "secure_transport.h"
 
+#include "log.h"
+
 #include <Arduino.h>
 #include <NetworkClientSecure.h>
 #include <WebSocketsNetworkClientSecure.h>
@@ -50,7 +52,7 @@ CertTime fromX509(const mbedtls_x509_time &time) {
 // Checks notBefore and notAfter of every certificate the server presented, leaf first.
 bool chainDatesValid(const mbedtls_x509_crt *chain) {
   if (chain == nullptr) {
-    Serial.println("TLS: the server presented no certificate");
+    logLine("TLS: the server presented no certificate");
     return false;
   }
   CertTime now = certTimeFromUnix(static_cast<int64_t>(::time(nullptr)));
@@ -59,17 +61,17 @@ bool chainDatesValid(const mbedtls_x509_crt *chain) {
     const mbedtls_x509_time &from = cert->valid_from;
     const mbedtls_x509_time &to = cert->valid_to;
     Validity validity = checkValidity(fromX509(from), fromX509(to), now);
-    Serial.printf("TLS: certificate %d valid %04d-%02d-%02d to %04d-%02d-%02d: %s\n", index, from.year,
-                  from.mon, from.day, to.year, to.mon, to.day,
-                  validity == Validity::Valid         ? "ok"
-                  : validity == Validity::Expired     ? "EXPIRED"
-                                                      : "NOT YET VALID");
+    logLine("TLS: certificate %d valid %04d-%02d-%02d to %04d-%02d-%02d: %s", index, from.year,
+            from.mon, from.day, to.year, to.mon, to.day,
+            validity == Validity::Valid         ? "ok"
+            : validity == Validity::Expired     ? "EXPIRED"
+                                                : "NOT YET VALID");
     if (validity != Validity::Valid) {
       return false;
     }
     index++;
   }
-  Serial.printf("TLS: chain date check passed for %d certificates\n", index);
+  logLine("TLS: chain date check passed for %d certificates", index);
   return true;
 }
 
@@ -169,14 +171,14 @@ int WebSocketsNetworkClientSecure::connect(const char *host, uint16_t port, int3
   NetworkClientSecure &tls = *_impl->secure;
   tls.useBuiltinCACertBundle();
   tls.setHandshakeTimeout(tip::kTlsHandshakeTimeoutS);
-  Serial.printf("TLS: connecting to %s:%u\n", host, port);
+  tip::logLine("TLS: connecting to %s:%u", host, port);
   if (!tls.connect(host, port, timeout)) {
     char error[100] = "";
     int code = tls.lastError(error, sizeof(error));
-    Serial.printf("TLS: handshake failed: %s (%d)\n", error, code);
+    tip::logLine("TLS: handshake failed: %s (%d)", error, code);
     return fail("TLS handshake failed");
   }
-  Serial.println("TLS: chain verified against the CA bundle, hostname matches");
+  tip::logLine("TLS: chain verified against the CA bundle, hostname matches");
   if (!chainDatesValid(tls.getPeerCertificate())) {
     tls.stop();
     return fail("certificate date check failed");

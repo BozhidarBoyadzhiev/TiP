@@ -21,23 +21,30 @@ import tools.jackson.databind.json.JsonMapper;
 class FakeDevicePartsTest {
 
     @Test
-    void backoffFollowsTheProtocolAndStaysAt30Seconds() {
+    void backoffDoublesFromOneSecondAndStaysAt60Seconds() {
         Backoff backoff = new Backoff(() -> 0);
         List<Long> seconds = new ArrayList<>();
-        for (int i = 0; i < 8; i++) {
-            seconds.add(backoff.next().toSeconds());
+        for (int i = 0; i < 9; i++) {
+            seconds.add(backoff.next(Duration.ZERO).toSeconds());
         }
-        assertThat(seconds).containsExactly(1L, 2L, 4L, 8L, 16L, 30L, 30L, 30L);
-
-        backoff.reset();
-        assertThat(backoff.next()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(seconds).containsExactly(1L, 2L, 4L, 8L, 16L, 32L, 60L, 60L, 60L);
     }
 
     @Test
-    void backoffJitterIsAtMost20Percent() {
+    void backoffStartsOverOnlyAfterAConnectionStayedUpAMinute() {
+        Backoff backoff = new Backoff(() -> 0);
+        backoff.next(Duration.ZERO);
+        backoff.next(Duration.ZERO);
+
+        assertThat(backoff.next(Duration.ofSeconds(59))).isEqualTo(Duration.ofSeconds(4));
+        assertThat(backoff.next(Duration.ofSeconds(60))).isEqualTo(Duration.ofSeconds(1));
+    }
+
+    @Test
+    void backoffJitterShortensByAtMost20Percent() {
         Backoff backoff = new Backoff(() -> 0.999_999);
-        assertThat(backoff.next()).isEqualTo(Duration.ofMillis(1200));
-        assertThat(backoff.next()).isEqualTo(Duration.ofMillis(2400));
+        assertThat(backoff.next(Duration.ZERO)).isEqualTo(Duration.ofMillis(800));
+        assertThat(backoff.next(Duration.ZERO)).isEqualTo(Duration.ofMillis(1600));
     }
 
     @Test
@@ -111,14 +118,15 @@ class FakeDevicePartsTest {
     }
 
     @Test
-    void playerQueueKeeps4AndDropsTheOldest() {
+    void playerQueueKeeps8WaitingAndDropsTheOldestWaitingOne() {
         Player player = new Player(new PrintStream(new ByteArrayOutputStream()));
         for (int i = 1; i <= Player.QUEUE_SIZE; i++) {
             assertThat(player.enqueue(new Player.Reaction("tip-" + i, LedPattern.PLAIN, 1)))
                     .isNull();
         }
 
-        Player.Reaction dropped = player.enqueue(new Player.Reaction("tip-5", LedPattern.PLAIN, 1));
+        assertThat(Player.QUEUE_SIZE).isEqualTo(8);
+        Player.Reaction dropped = player.enqueue(new Player.Reaction("tip-9", LedPattern.PLAIN, 1));
 
         assertThat(dropped.tipId()).isEqualTo("tip-1");
         assertThat(player.waiting()).isEqualTo(Player.QUEUE_SIZE);
@@ -140,7 +148,8 @@ class FakeDevicePartsTest {
         device.handle("{\"type\":\"reaction\",\"id\":\"" + UUID.randomUUID() + "\",\"reaction\":\"PURPLE\"}");
         device.handle("not json");
 
-        assertThat(device.waitingReactions()).isEqualTo(1);
+        // The unknown kind is queued too, as PLAIN; the repeat and the broken message are not.
+        assertThat(device.waitingReactions()).isEqualTo(2);
         assertThat(bytes.toString(StandardCharsets.UTF_8)).contains("Repeat of tip " + tipId);
     }
 

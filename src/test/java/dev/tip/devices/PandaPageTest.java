@@ -177,6 +177,19 @@ class PandaPageTest extends IntegrationTest {
     }
 
     @Test
+    void pandaFollowsTheClientPolicyLikeTheFirmware() throws Exception {
+        String script =
+                mvc.perform(get("/js/panda.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .contains("const QUEUE_SIZE = 8;")
+                .contains("const BACKOFF_SECONDS = [1, 2, 4, 8, 16, 32, 60];")
+                .contains("const STABLE_MS = 60000;")
+                .contains("(1 - Math.random() * JITTER)")
+                .contains("performance.now() - state.openedAt >= STABLE_MS");
+    }
+
+    @Test
     void tipSuccessScreenLinksToThePanda() throws Exception {
         mvc.perform(get("/t/demo-panda")).andExpect(content().string(containsString("Watch the panda react")));
         mvc.perform(get("/js/tip.js")).andExpect(content().string(containsString("\"/p/\" + encodeURIComponent")));

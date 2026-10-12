@@ -14,6 +14,8 @@ struct BackoffConfig {
   uint32_t stableAfterMs;
   // The shortest wait after the server closed this connection because another one replaced it.
   uint32_t replacedWaitMs;
+  // The wait after the server rejected the device's credentials (HTTP 401).
+  uint32_t authRetryMs;
 };
 
 // Exponential backoff: firstMs, doubling up to capMs, each delay shortened by up to jitterPercent
@@ -34,6 +36,10 @@ class Backoff {
   // Like next(), but at least replacedWaitMs: another client with the same identity took over, and
   // reconnecting at once would only replace it back. Both then settle instead of fighting.
   uint32_t nextAfterReplaced(uint32_t connectedForMs);
+
+  // The fixed wait after a 401. Wrong credentials stay wrong until someone fixes them, so retrying
+  // sooner only fills the server's failed handshake limit; the backoff itself is left untouched.
+  uint32_t afterAuthRejected() const { return config_.authRetryMs; }
 
   uint32_t attempt() const { return attempt_; }
 

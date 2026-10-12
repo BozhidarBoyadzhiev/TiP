@@ -67,7 +67,13 @@ class AiEvalTest {
                                 List.of("REQUEST", "PLAIN"),
                                 true,
                                 AiEval.Note.NO),
-                        new AiEval.Case("Danke schön", List.of("PLAIN", "WARM"), false, AiEval.Note.NO));
+                        new AiEval.Case("Danke schön", List.of("PLAIN", "WARM"), false, AiEval.Note.NO),
+                        // Brief 05b's end to end run: Claude read it as REQUEST, a playful reading is as fair.
+                        new AiEval.Case(
+                                "Does the panda take requests for dance moves?",
+                                List.of("PLAYFUL", "REQUEST"),
+                                false,
+                                AiEval.Note.IF_REQUEST));
     }
 
     @Test

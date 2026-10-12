@@ -78,7 +78,12 @@ The playback task runs above the network task on the same core, so its 10 ms tic
 - Untrusted input: frames over 1024 bytes are dropped unparsed. The JSON goes into a 256 byte `StaticJsonDocument` through a filter that keeps only `type`, `id`, `reaction`, `repeats` and `reason`, so anything else the server might send is never stored. The id must be a lowercase uuid. A missing or non integer `repeats` is 1, others are clamped to 1 to 5. An unknown kind is acked and played as `PLAIN` with repeats 1. A malformed message is logged and not acked.
 - Dead connection: nothing received for 45 s (the server pings every 20 s) closes and reconnects.
 - Reconnect: 1 s doubling to 60 s, each delay shortened by up to 20 % at random. The backoff starts over only after a connection stayed up 60 s, after WiFi drops too. After `closing` with reason `replaced` the wait is at least 60 s.
-- A 401 on the handshake stops reconnecting until a reboot and shows three quick flicks every 5 s. While connecting the LED flicks for 30 ms every second.
+- A 401 on the handshake logs "auth rejected", shows three quick flicks every 5 s and tries again every 10 minutes, so a corrected secret on the server is picked up without touching the panda. While connecting the LED flicks for 30 ms every second.
+- These are the client policy of `docs/DEVICE_PROTOCOL.md`; the fake device and the virtual panda follow it too.
+
+### Logging
+
+Everything that reaches the serial port goes through `tip::logLine` (`src/log.cpp`): it formats the whole line into a 256 byte local buffer and writes it under a FreeRTOS mutex, so lines from the two tasks never interleave. ESP-IDF's own log output (WiFi, TLS) is routed through it with `esp_log_set_vprintf`. The Arduino HAL's `log_e` writes straight to the UART with `ets_printf`, past any lock, so it is off (`CORE_DEBUG_LEVEL=0`); the firmware logs TLS failures itself. Only the ROM's boot messages and a panic dump still bypass it.
 
 ## WebSocket library
 

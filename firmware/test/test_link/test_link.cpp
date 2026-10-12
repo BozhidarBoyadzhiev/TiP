@@ -14,7 +14,7 @@ void tearDown() {}
 namespace {
 
 const tip::BackoffConfig kConfig{tip::kBackoffFirstMs, tip::kBackoffCapMs, tip::kBackoffJitterPercent,
-                                 tip::kStableAfterMs, tip::kReplacedWaitMs};
+                                 tip::kStableAfterMs, tip::kReplacedWaitMs, tip::kAuthRetryMs};
 
 uint32_t zero(void *) { return 0; }
 
@@ -99,12 +99,25 @@ void test_replaced_waits_at_least_60_seconds() {
 }
 
 void test_replaced_never_shortens_a_longer_backoff() {
-  const tip::BackoffConfig longer{1000, 120000, 0, 60000, 60000};
+  const tip::BackoffConfig longer{1000, 120000, 0, 60000, 60000, 600000};
   Backoff backoff(longer, zero, nullptr);
   for (int i = 0; i < 7; i++) {
     backoff.next(0);
   }
   TEST_ASSERT_EQUAL_UINT32(120000, backoff.nextAfterReplaced(0));
+}
+
+void test_auth_rejected_retries_every_10_minutes() {
+  TEST_ASSERT_EQUAL_UINT32(600000, tip::kAuthRetryMs);
+  Backoff backoff(kConfig, zero, nullptr);
+  TEST_ASSERT_EQUAL_UINT32(1000, backoff.next(0));
+  TEST_ASSERT_EQUAL_UINT32(2000, backoff.next(0));
+  // Every 401 waits 10 minutes, however often it repeats, and leaves the backoff where it was.
+  for (int i = 0; i < 5; i++) {
+    TEST_ASSERT_EQUAL_UINT32(600000, backoff.afterAuthRejected());
+  }
+  TEST_ASSERT_EQUAL_UINT32(2, backoff.attempt());
+  TEST_ASSERT_EQUAL_UINT32(4000, backoff.next(0));
 }
 
 void test_silence_limit_is_45_seconds() {
@@ -174,6 +187,7 @@ int main() {
   RUN_TEST(test_backoff_resets_only_after_a_connection_stayed_up_60_seconds);
   RUN_TEST(test_replaced_waits_at_least_60_seconds);
   RUN_TEST(test_replaced_never_shortens_a_longer_backoff);
+  RUN_TEST(test_auth_rejected_retries_every_10_minutes);
   RUN_TEST(test_silence_limit_is_45_seconds);
   RUN_TEST(test_http_status_line);
   RUN_TEST(test_cert_time_from_unix);

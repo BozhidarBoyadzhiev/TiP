@@ -58,15 +58,13 @@ Sent once after a successful handshake.
 { "type": "closing", "reason": "replaced" }
 ```
 
-Sent just before the server closes a device session for a reason the device should act on; the close follows at once with the same close code as before. Close codes do not reach clients through Render's proxy (they arrive as 1005, no status), so this message is the only way the device learns why.
+Sent just before the server closes a device session for a reason the device should act on; the close follows at once with the same close code as before. Close codes do not reach clients through Render's proxy (they arrive as 1005, no status), so this message is the only way the device learns why. Observers never get `closing`.
 
-| `reason` | Close code | When | Device |
-|---|---|---|---|
-| `replaced` | 4000 | another connection authenticated as the same device | waits at least 60 seconds before reconnecting, so two clients with the same identity settle instead of replacing each other every second |
-| `timeout` | 1001 | no pong for 45 seconds | normal backoff |
-| `shutdown` | 1001 | the server is shutting down, for example during a deploy | normal backoff |
-
-A device treats an unknown `reason` like `timeout`. Observers never get `closing`.
+| `reason` | Close code | When |
+|---|---|---|
+| `replaced` | 4000 | another connection authenticated as the same device |
+| `timeout` | 1001 | no pong for 45 seconds |
+| `shutdown` | 1001 | the server is shutting down, for example during a deploy |
 
 ### Device to server
 
@@ -74,22 +72,18 @@ A device treats an unknown `reason` like `timeout`. Observers never get `closing
 { "type": "ack", "id": "<tipId>" }
 ```
 
-Ack means "received". The device sends it as soon as a reaction arrives, before playback starts, and also for a repeat it does not play again. Resends come 5 seconds apart and a pattern can run up to 10 seconds, or wait behind others in the queue, so an ack sent after playback would bring resends in the middle of a pattern.
+Ack means "received", not "played". The device acks every reaction it receives, as soon as it arrives, including a repeat it does not play again. Resends come 5 seconds apart and a pattern can run up to 10 seconds, or wait behind others in the queue, so an ack sent after playback would bring resends in the middle of a pattern, and a repeat left unacked would bring three needless resends.
 
 ### Delivery rules
 
 - At least once. The server resends an unacknowledged reaction after 5 seconds, up to 3 times.
-- The device keeps the last 16 tip ids it has played and does not play repeats again.
-- The device acks every reaction it receives, including repeats it does not play again. A lost ack otherwise leads to three needless resends.
 - On connect, the server sends unacknowledged reactions from the last 60 seconds, oldest first. Older ones are dropped.
-- Playback is queued. A reaction that arrives while another is playing waits and plays after it, in order of arrival (queue size 4, drop oldest when full). It is acked on arrival, not when it plays.
-- A reaction that is published while a device is connecting may arrive twice: once live and once from the replay. This is expected. The device acks the repeat and does not play it again. The server keeps its connect order (hello, then register, then replay) on purpose: a rare duplicate costs one small message, while the alternative orderings delay a real reaction by up to 5 seconds.
+- A reaction that is published while a device is connecting may arrive twice: once live and once from the replay. This is expected. The server keeps its connect order (hello, then register, then replay) on purpose: a rare duplicate costs one small message, while the alternative orderings delay a real reaction by up to 5 seconds.
 
 ### Keepalive
 
-- The server sends a WebSocket ping every 20 seconds. The device library answers with pong.
+- The server sends a WebSocket ping every 20 seconds. The device's WebSocket library answers with pong.
 - The server closes connections that miss two pongs, after a `closing` message with reason `timeout`.
-- The device reconnects with backoff: 1, 2, 4, 8, 16, then 30 seconds, with up to 20 percent random jitter.
 
 ## Observer channel (public, read only)
 
@@ -108,6 +102,18 @@ wss://<host>/ws/observe/{deviceSlug}
 
 - `repeats` is the same value the device gets, so the virtual panda plays what the LED plays. It shows the tier of a tip publicly on purpose: the people standing around should see a big tip land. Missing means 1, out of range is clamped, as on the device channel.
 - No tip id, amount, message, message kind, flag or payer data. Observers never send anything. Messages from observers are ignored.
+
+## Client policy
+
+What the clients decide for themselves, within the protocol above. The physical panda (`firmware/`), the fake device (`./gradlew fakeDevice`) and the virtual panda (`static/js/panda.js`) follow it, so the three behave alike; where one differs, it says so.
+
+- Repeats: a device keeps the last 16 tip ids and does not play one of them again (it still acks it). The virtual panda gets no ids and plays what arrives.
+- Queue: a reaction that arrives while another plays waits and plays after it, in order of arrival. Up to 8 wait behind the one playing. When the queue is full, the oldest waiting reaction is dropped, never the one playing, so the newest tipper, who is probably standing there, still sees theirs.
+- Reconnect: 1 second, doubling to a cap of 60 seconds (1, 2, 4, 8, 16, 32, 60), each delay shortened by up to 20 percent at random. The backoff starts over only after a connection stayed up 60 seconds, so a server that accepts and drops at once cannot cause a tight loop.
+- Replaced: after `closing` with reason `replaced`, a device waits at least 60 seconds before reconnecting, so two clients with the same identity settle instead of replacing each other every second. Any other or unknown `reason` uses the normal backoff.
+- Dead connection: the physical panda closes and reconnects when nothing (a ping or any frame) has arrived for 45 seconds.
+- Rejected (401): the physical panda logs it, shows the rejected status pattern and tries again every 10 minutes, so a corrected secret on the server is picked up without anyone touching the device. The fake device exits instead.
+- Unknown kind: a device acks it and plays `PLAIN` with repeats 1, like a plain tip. The virtual panda, which sends no acks, ignores it.
 
 ## LED patterns
 
@@ -141,6 +147,6 @@ Status patterns, only when no reaction is playing:
 |---|---|
 | Connecting to WiFi or server | Short 30 ms flick every 1 s |
 | Connected and idle | Off |
-| Auth rejected (401) | Three quick flicks every 5 s, no reconnect until reboot |
+| Auth rejected (401) | Three quick flicks every 5 s, until a connection succeeds; retries every 10 minutes |
 
 The virtual panda plays the same timings so the video and the judges' experience match.
