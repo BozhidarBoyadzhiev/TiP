@@ -14,6 +14,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -23,7 +24,9 @@ import tools.jackson.databind.json.JsonMapper;
  * with the device secret, acks each reaction as soon as it arrives, plays it after any reaction already
  * playing or queued, prints it with a text picture of its LED pattern scaled by {@code repeats}, ignores
  * repeats of the last 16 tip ids, and reconnects with the protocol backoff.
- * A rejected secret (401) stops it, like the firmware, which waits for a reboot.
+ * A rejected secret (401) stops it, like the firmware, which waits for a reboot. When the server says it is
+ * closing because another connection replaced this one, it waits at least a minute before reconnecting, so
+ * two clients with the same identity settle instead of replacing each other every second.
  *
  * <pre>./gradlew fakeDevice --args="--url=ws://localhost:8080 --device=&lt;uuid&gt; --secret=&lt;secret&gt;"</pre>
  *
@@ -34,6 +37,9 @@ public final class FakeDevice {
 
     static final int EXIT_AUTH_REJECTED = 2;
     static final int EXIT_USAGE = 64;
+
+    /** The shortest wait after {@code closing} with reason {@code replaced}. */
+    static final Duration REPLACED_WAIT = Duration.ofSeconds(60);
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -46,6 +52,7 @@ public final class FakeDevice {
     private final RecentIds recent = new RecentIds();
     private final Player player;
     private final CountDownLatch stopped = new CountDownLatch(1);
+    private final AtomicBoolean replaced = new AtomicBoolean();
     private volatile WebSocket socket;
 
     FakeDevice(URI endpoint, String secret, PrintStream out, Backoff backoff) {
@@ -91,6 +98,9 @@ public final class FakeDevice {
                     out.println("Connection failed: " + describe(e.getCause()));
                 }
                 Duration delay = backoff.next();
+                if (replaced.getAndSet(false) && delay.compareTo(REPLACED_WAIT) < 0) {
+                    delay = REPLACED_WAIT;
+                }
                 if (stopped.getCount() > 0) {
                     out.printf("Reconnecting in %.1f s%n", delay.toMillis() / 1000.0);
                 }
@@ -133,6 +143,13 @@ public final class FakeDevice {
                     "Connected as \"%s\", server time %s%n",
                     message.path("deviceName").asString(""),
                     message.path("serverTime").asString(""));
+        } else if (type.equals("closing")) {
+            String reason = message.path("reason").asString("");
+            out.println("Server is closing the connection: " + reason);
+            if (reason.equals("replaced")) {
+                out.println("Replaced by another connection as this device");
+                replaced.set(true);
+            }
         } else if (type.equals("reaction")) {
             handleReaction(
                     message.path("id").asString(""), message.path("reaction").asString(""), repeats(message));

@@ -134,6 +134,40 @@ class FakeDeviceTest extends IntegrationTest {
     }
 
     @Test
+    void replacedDeviceSaysWhyAndWaitsAMinuteBeforeReconnecting() throws Exception {
+        String secret = TestData.randomSecret();
+        UUID deviceId = data.device(TestData.uniqueSlug(), "Fake Panda", secret);
+        ByteArrayOutputStream firstBytes = new ByteArrayOutputStream();
+        ByteArrayOutputStream secondBytes = new ByteArrayOutputStream();
+        FakeDevice first = fakeDevice(deviceId, secret, firstBytes);
+        FakeDevice second = fakeDevice(deviceId, secret, secondBytes);
+        CompletableFuture<Integer> firstExit = CompletableFuture.supplyAsync(first::run);
+        CompletableFuture<Integer> secondExit = null;
+        try {
+            await().atMost(Duration.ofSeconds(10))
+                    .until(() -> output(firstBytes).contains("Connected as \"Fake Panda\""));
+            secondExit = CompletableFuture.supplyAsync(second::run);
+            await().atMost(Duration.ofSeconds(10))
+                    .until(() -> output(secondBytes).contains("Connected as \"Fake Panda\""));
+
+            // The backoff here gives 1 s without jitter, so 60 s can only come from the replaced rule.
+            await().atMost(Duration.ofSeconds(10))
+                    .until(() -> output(firstBytes).contains("Reconnecting in"));
+            assertThat(output(firstBytes))
+                    .contains(
+                            "Server is closing the connection: replaced",
+                            "Replaced by another connection as this device",
+                            "Reconnecting in 60.0 s");
+            assertThat(output(secondBytes)).doesNotContain("closing");
+        } finally {
+            first.stop();
+            second.stop();
+        }
+        assertThat(firstExit.get(10, TimeUnit.SECONDS)).isZero();
+        assertThat(secondExit.get(10, TimeUnit.SECONDS)).isZero();
+    }
+
+    @Test
     void rejectedSecretStopsWithoutReconnecting() throws Exception {
         UUID deviceId = data.device(TestData.uniqueSlug(), "Fake Panda", TestData.randomSecret());
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
