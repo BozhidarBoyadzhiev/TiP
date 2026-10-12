@@ -50,8 +50,9 @@ Briefs come from the lead, a Claude chat acting as tech lead. The humans relay t
 
 - Lead's agent works on `develop`.
 - Commit locally in small logical commits. Never push, never force push, never rewrite history, never touch `main`.
+- Unpushed local commits may be reworded only with explicit lead approval; pushed history is never rewritten.
 - Commit message: short subject line, blank line, body grouped by area with `-` bullets. Include the root cause for bug fixes.
-- On Windows PowerShell, write multi line messages to `msg.txt` with a here-string (`@' ... '@ | Set-Content msg.txt`), commit with `git commit -F msg.txt`, then delete `msg.txt`. Never use `git commit -m` for multi line messages.
+- On Windows PowerShell, write multi line messages to `msg.txt` from a here-string without a BOM (`[IO.File]::WriteAllText($p, $msg, [Text.UTF8Encoding]::new($false))`; `Set-Content -Encoding utf8` adds one), commit with `git commit -F msg.txt`, then delete `msg.txt`. Never use `git commit -m` for multi line messages.
 - Never chain a check and a commit with ;. Run the check, confirm it passed ($LASTEXITCODE -eq 0), then commit in a separate command.
 
 ## Finishing a task
