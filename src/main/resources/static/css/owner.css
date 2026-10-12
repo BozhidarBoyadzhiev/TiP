@@ -706,6 +706,27 @@ button {
     font-style: italic;
 }
 
+/* A hidden message the owner asked to read: in memory only, gone after a reload. */
+.revealed {
+    flex: 1 1 100%;
+    background: rgba(239, 143, 122, 0.07);
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: var(--cream);
+    overflow-wrap: anywhere;
+}
+
+.revealed small {
+    display: block;
+    font-size: 12px;
+    color: var(--faint);
+}
+
+.moderate {
+    justify-self: start;
+}
+
 /* tips */
 .chips {
     display: flex;
@@ -829,6 +850,14 @@ button {
     border-radius: 999px;
     background: rgba(243, 227, 200, 0.08);
     color: var(--muted);
+}
+
+.unhid {
+    font-size: 12px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(233, 187, 82, 0.12);
+    color: var(--gold);
 }
 
 .badge {

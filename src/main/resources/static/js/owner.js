@@ -65,6 +65,11 @@
         devices: [],
         ui: new Map(),
         refunds: new Map(),
+        // Hidden messages read on demand, in memory only, and verdicts in flight. Rows unhidden in this tab
+        // stay in the hidden panel until the page is reloaded, so the owner can take it back.
+        reveals: new Map(),
+        verdicts: new Map(),
+        kept: new Set(),
         socket: null,
         attempt: 0,
         openedAt: null,
@@ -100,6 +105,7 @@
             cache: "no-store",
             method: (options && options.method) || "GET",
             headers: Object.assign({ Accept: "application/json" }, options && options.headers),
+            body: options && options.body,
         });
         if (response.status === 401) {
             toLogin();
@@ -427,6 +433,25 @@
         return state.refunds.get(id);
     }
 
+    function revealOf(id) {
+        if (!state.reveals.has(id)) {
+            state.reveals.set(id, { step: "idle", text: "" });
+        }
+        return state.reveals.get(id);
+    }
+
+    function verdictOf(id) {
+        if (!state.verdicts.has(id)) {
+            state.verdicts.set(id, { step: "idle", hidden: false });
+        }
+        return state.verdicts.get(id);
+    }
+
+    function revealedText(view) {
+        const reveal = state.reveals.get(view.id);
+        return view.flagged && reveal && reveal.step === "shown" ? reveal.text : null;
+    }
+
     function kindOf(view) {
         if (view.flagged) {
             return "FLAG";
@@ -440,6 +465,10 @@
     }
 
     function messageNode(view) {
+        const revealed = revealedText(view);
+        if (revealed !== null) {
+            return make("span", "msg", revealed);
+        }
         if (view.flagged) {
             return make("span", "msg none", view.flagReason ? "Message hidden · " + view.flagReason : "Message hidden");
         }
@@ -466,6 +495,9 @@
         // Only a language other than English is worth a tag.
         if (view.languageName && view.language !== "en" && !view.flagged) {
             line.append(make("span", "lang", view.languageName));
+        }
+        if (view.unhidden) {
+            line.append(make("span", "unhid", "Unhidden by you"));
         }
         const statusBadge = badge(view.status);
         if (statusBadge) {
@@ -527,6 +559,9 @@
         if (view.flagged) {
             return "blinks ×1 (hidden messages always get the smallest reaction)";
         }
+        if (view.unhidden) {
+            return "blinks ×1 (it arrived hidden, so it got the smallest reaction)";
+        }
         const name = REACTION_NAMES[view.reaction] || REACTION_NAMES.PLAIN;
         return name + " ×" + view.repeats + " " + (view.repeats === 1 ? "round" : "rounds");
     }
@@ -546,35 +581,188 @@
             note.append(make("small", null, "AI note from the message"), document.createTextNode(view.ownerNote));
             detail.append(note);
         }
+        if (view.flagged || view.unhidden) {
+            detail.append(moderationSlot(view));
+        }
         const refund = refundSlot(view);
         if (refund) {
             detail.append(refund);
         }
     }
 
+    // A row the owner unhid in this tab stays in the panel, saying so, with the way back.
     function hiddenRow(view) {
         const row = make("li");
         row.dataset.id = view.id;
         const first = make("div", "row1");
         first.append(
             make("span", "amt", money(view.amountMinor, view.currency)),
-            make("span", "why", view.flagReason || "Hidden by the AI"),
+            make("span", "why", view.flagged ? view.flagReason || "Hidden by the AI" : "Unhidden by you"),
             timeSpan("when", view.createdAt),
         );
         const second = make("div", "row2");
-        second.append(make("span", "hidden-msg", "Message hidden"));
+        const revealed = revealedText(view);
+        if (!view.flagged) {
+            second.append(make("p", "result ok", "Not abusive. It's with your tips now."));
+        } else if (revealed !== null) {
+            const text = make("div", "revealed");
+            text.append(make("small", null, "What they wrote"), document.createTextNode(revealed));
+            second.append(text);
+        } else {
+            second.append(make("span", "hidden-msg", "Message hidden"));
+        }
         const statusBadge = badge(view.status);
         if (statusBadge) {
             second.append(statusBadge);
         }
         row.append(first, second);
-        const refund = refundSlot(view);
+        const third = make("div", "row2");
+        third.append(moderationSlot(view));
+        const refund = view.flagged ? refundSlot(view) : null;
         if (refund) {
-            const third = make("div", "row2");
             third.append(refund);
-            row.append(third);
         }
+        row.append(third);
         return row;
+    }
+
+    // ---------- reading and overruling hidden messages ----------
+
+    // Show message, then Not abusive; Hide again once unhidden. Each keeps focus in its place, like refund.
+    function moderationSlot(view) {
+        const verdict = verdictOf(view.id);
+        const reveal = revealOf(view.id);
+        const slot = make("div", "btns moderate");
+        if (verdict.step === "error") {
+            slot.append(
+                make("p", "result err", verdict.hidden ? "Couldn't hide it again." : "Couldn't unhide it."),
+                button("ghost", "Try again", "verdict-retry", () => sendVerdict(view.id, verdict.hidden)),
+            );
+            return slot;
+        }
+        if (!view.flagged) {
+            slot.append(verdictButton(view, "Hide again", true));
+            return slot;
+        }
+        switch (reveal.step) {
+            case "shown":
+                slot.append(verdictButton(view, "Not abusive", false));
+                return slot;
+            case "working": {
+                const loading = button("ghost", "Loading the message…", "reveal", () => {});
+                loading.setAttribute("aria-disabled", "true");
+                slot.append(loading);
+                return slot;
+            }
+            case "error":
+                slot.append(
+                    make("p", "result err", "The message didn't load."),
+                    button("ghost", "Try again", "reveal-retry", () => loadMessage(view.id)),
+                );
+                return slot;
+            default:
+                slot.append(button("ghost", "Show message", "reveal", () => loadMessage(view.id)));
+                return slot;
+        }
+    }
+
+    function verdictButton(view, text, hidden) {
+        const working = verdictOf(view.id).step === "working";
+        const node = button("ghost", working ? "Saving…" : text, "verdict", () => sendVerdict(view.id, hidden));
+        // aria-disabled rather than disabled, so keyboard focus stays on the button while it works.
+        if (working) {
+            node.setAttribute("aria-disabled", "true");
+        }
+        return node;
+    }
+
+    // The text is fetched each time it is asked for and kept in memory only, never stored by the browser.
+    async function loadMessage(id) {
+        const reveal = revealOf(id);
+        if (reveal.step === "working") {
+            return;
+        }
+        reveal.step = "working";
+        rerender(id, "reveal");
+        let next = "error";
+        try {
+            const response = await request("/api/owner/tips/" + encodeURIComponent(id) + "/message");
+            if (response.ok) {
+                const body = await response.json();
+                if (body && typeof body.text === "string") {
+                    reveal.text = body.text;
+                    next = "shown";
+                }
+            } else if (response.status === 404) {
+                next = "idle";
+                quietly(refreshTip(id));
+                quietly(refreshHidden());
+            }
+        } catch (e) {
+            if (e instanceof SignedOut) {
+                return;
+            }
+        }
+        reveal.step = next;
+        rerender(id, next === "shown" ? "verdict" : next === "error" ? "reveal-retry" : "reveal");
+    }
+
+    async function sendVerdict(id, hidden) {
+        const verdict = verdictOf(id);
+        if (verdict.step === "working") {
+            return;
+        }
+        verdict.step = "working";
+        verdict.hidden = hidden;
+        rerender(id, "verdict");
+        let view = null;
+        let gone = false;
+        try {
+            const headers = { "Content-Type": "application/json" };
+            headers[csrf.header] = csrf.token;
+            const response = await request("/api/owner/tips/" + encodeURIComponent(id) + "/verdict", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ hidden }),
+            });
+            if (response.ok) {
+                view = await response.json();
+            } else if (response.status === 404) {
+                gone = true;
+            }
+        } catch (e) {
+            if (e instanceof SignedOut) {
+                return;
+            }
+        }
+        if (gone) {
+            verdict.step = "idle";
+            quietly(refreshTip(id));
+            quietly(refreshHidden());
+            return;
+        }
+        if (!view) {
+            verdict.step = "error";
+            rerender(id, "verdict-retry");
+            return;
+        }
+        verdict.step = "idle";
+        const inPanel = state.hidden.findIndex((v) => v.id === id);
+        if (view.flagged) {
+            state.reveals.delete(id);
+            state.kept.delete(id);
+        } else if (inPanel >= 0) {
+            state.kept.add(id);
+        }
+        if (inPanel >= 0) {
+            state.hidden[inPanel] = view;
+        }
+        applyTip(view, false);
+        rerender(id, view.flagged ? "reveal" : "verdict");
+        quietly(refreshHidden());
+        quietly(refreshToday());
+        quietly(refreshRequests());
+        quietly(refreshDigest());
     }
 
     // Rebuilds a tip's rows in both lists from its current view and UI state, keeping keyboard focus.
@@ -823,6 +1011,7 @@
         }
         const top = state.tips[0];
         if (top && Date.parse(view.createdAt) < Date.parse(top.createdAt)) {
+            insertOlder(view);
             return;
         }
         state.tips.unshift(view);
@@ -838,6 +1027,22 @@
         }
     }
 
+    // An older tip that now matches, such as one the owner unhid, goes in its place among the loaded ones,
+    // quietly; one that belongs on a page not loaded yet comes with that page.
+    function insertOlder(view) {
+        const at = state.tips.findIndex((t) => Date.parse(t.createdAt) < Date.parse(view.createdAt));
+        if (at < 0 && state.tips.length < state.total) {
+            return;
+        }
+        const index = at < 0 ? state.tips.length : at;
+        const next = state.tips[index];
+        state.tips.splice(index, 0, view);
+        state.total += 1;
+        const list = el("tips");
+        list.insertBefore(tipRow(view), next ? list.querySelector("li[data-id='" + next.id + "']") : null);
+        renderTipsMeta();
+    }
+
     function removeFromList(id) {
         const index = state.tips.findIndex((t) => t.id === id);
         if (index < 0) {
@@ -847,7 +1052,15 @@
         state.total = Math.max(0, state.total - 1);
         const row = el("tips").querySelector("li[data-id='" + id + "']");
         if (row) {
+            // A row that leaves the filter while focused hands focus to the filter it left.
+            const hadFocus = row.contains(document.activeElement);
             row.remove();
+            if (hadFocus) {
+                const chip = document.querySelector("#chips .chip[aria-pressed='true']");
+                if (chip) {
+                    chip.focus();
+                }
+            }
         }
         renderTipsMeta();
     }
@@ -921,7 +1134,7 @@
         const list = el("flag-list");
         const focused = document.activeElement;
         const row = list.contains(focused) ? focused.closest("li[data-id]") : null;
-        el("flag-panel").hidden = state.hiddenTotal === 0;
+        el("flag-panel").hidden = state.hidden.length === 0;
         el("flag-count").textContent = String(state.hiddenTotal);
         list.replaceChildren(...state.hidden.map(hiddenRow));
         if (row) {
@@ -934,7 +1147,12 @@
 
     const refreshHidden = coalesced(async () => {
         const page = await getJson("/api/owner/tips?flagged=true&page=0&size=" + HIDDEN_PANEL_SIZE);
-        state.hidden = page.items;
+        const fresh = new Set(page.items.map((t) => t.id));
+        const kept = state.hidden
+            .filter((v) => state.kept.has(v.id) && !fresh.has(v.id))
+            .map((v) => state.tips.find((t) => t.id === v.id) || v)
+            .filter((v) => !v.flagged);
+        state.hidden = page.items.concat(kept);
         state.hiddenTotal = page.totalItems;
         renderHidden();
     });
