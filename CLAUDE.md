@@ -45,6 +45,7 @@ Briefs come from the lead, a Claude chat acting as tech lead. The humans relay t
 - PayPal and Anthropic are always stubbed with WireMock. Tests never call a real external service.
 - Cover the failure paths the brief lists, not only the happy path.
 - `./gradlew build` must pass (compile, Spotless, tests, ArchUnit) before you report done. If Docker is not running, say so in the report. Never skip or disable a test to get green.
+- New screenshots go in `briefs/assets/screenshots/<brief>/`, for example `briefs/assets/screenshots/06c/06c-hidden-revealed-390.png`. Design previews, icons and other assets stay in `briefs/assets/`.
 
 ## Git
 

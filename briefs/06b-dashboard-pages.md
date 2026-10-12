@@ -114,7 +114,7 @@ tests that relied on the old order.
 - Then check it in a real browser: run the app with the dev profile and look at
   both pages at 390 and 1280 wide (Playwright or Chrome), including a live tip
   from the fake device or a sandbox tip, a refund, the translate link and the
-  empty state of a new owner. Save screenshots to briefs/assets/06b-*.png and
+  empty state of a new owner. Save screenshots to briefs/assets/screenshots/06b/06b-*.png and
   list any differences from the preview in the report.
 
 ## Done when

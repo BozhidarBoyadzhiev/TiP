@@ -73,5 +73,5 @@ Public pages, observers and devices are unaffected.
 
 ## Docs
 CODEBASE.md, ARCHITECTURE.md (the decision change), README.md.
-Screenshots at 390 and 1280 in briefs/assets/: hidden row revealed, overruled
+Screenshots at 390 and 1280 in briefs/assets/screenshots/06c/: hidden row revealed, overruled
 tip in the list and in its detail.
