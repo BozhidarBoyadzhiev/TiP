@@ -59,7 +59,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
 
-   To see sample data without making payments, run with the `dev` profile: add `SPRING_PROFILES_ACTIVE=dev` to `.env`, or run `./gradlew bootRun --args='--spring.profiles.active=dev'`. On startup it adds 40 invented tips to the demo device once (later starts add nothing). Signed in, open `http://localhost:8080/api/owner/tips` to see them. Never set this profile on Render.
+   To see sample data without making payments, run with the `dev` profile: add `SPRING_PROFILES_ACTIVE=dev` to `.env`, or run `./gradlew bootRun --args='--spring.profiles.active=dev'`. On startup it adds 49 invented tips to the demo device once (later starts add nothing), some in French, Spanish and German with translations and some asking for songs, plus today's panda's notes. Signed in, open `http://localhost:8080/api/owner/tips`, `/api/owner/today`, `/api/owner/requests` or `/api/owner/digest` to see them. Never set this profile on Render.
 7. Watch the virtual panda at `<TIP_PUBLIC_BASE_URL>/p/<your demo slug>` (the page must be opened from that origin). It plays the same light patterns as the physical one. With your operating system's reduce motion setting (`prefers-reduced-motion`) the panda holds a steady light in the reaction's colour instead of fading and flicking.
 
 The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes or is clearly not random (all bytes the same, or fewer than 16 distinct byte values).
@@ -122,7 +122,7 @@ This compiles, checks formatting with Spotless (fix with `./gradlew spotlessAppl
 
 ## Measuring the AI classifier
 
-`aiEval` runs about 50 labelled tip messages through the real Claude model with the app's own prompt, schema and parser, and prints every disagreement plus the accuracy for kind, flag and owner note. It calls the paid API, so it is never part of the build or CI; run it by hand after changing the prompt:
+`aiEval` runs about 60 labelled tip messages through the real Claude model with the app's own prompt, schema and parser, and prints every disagreement plus the accuracy for kind, flag and owner note, and for the language, translation and song on the cases that label them. It calls the paid API, so it is never part of the build or CI; run it by hand after changing the prompt:
 
 ```bash
 ./gradlew aiEval

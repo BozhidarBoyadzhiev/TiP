@@ -1,6 +1,6 @@
 # TiP device protocol
 
-This is a shared contract. The backend, the ESP32 firmware and the virtual panda all follow it. Change it only through a brief from the lead.
+This is a shared contract. The backend, the ESP32 firmware and the virtual panda all follow it. Change it only through a brief from the lead. The owner dashboard's live channel is a separate contract, `docs/OWNER_CHANNEL.md`.
 
 ## NFC tag
 
