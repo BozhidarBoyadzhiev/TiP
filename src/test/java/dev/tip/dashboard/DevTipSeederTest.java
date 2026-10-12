@@ -233,7 +233,12 @@ class DevTipSeederTest extends IntegrationTest {
                 .andExpect(jsonPath("$.topSong.count").value(3))
                 .andExpect(jsonPath("$.grouped").value("ai"))
                 .andExpect(jsonPath("$.groups[?(@.label == 'Play Wonderwall')].count")
-                        .value(3));
+                        .value(3))
+                // Like a real digest, which sees every note of the week: no group falls back to a raw note.
+                .andExpect(jsonPath("$.groups[?(@.label =~ /^(Request|Feedback):.*/)]")
+                        .isEmpty())
+                .andExpect(jsonPath("$.groups[?(@.label == 'Too loud near the café')].count")
+                        .value(1));
         mvc.perform(get("/api/owner/digest").with(user(demoOwner())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bullets.length()").value(DevTipSeeder.DIGEST_BULLETS.size()))

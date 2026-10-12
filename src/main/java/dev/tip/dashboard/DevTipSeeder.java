@@ -144,13 +144,29 @@ class DevTipSeeder {
             "Tippers wrote in French, Spanish and German as well as English.",
             "Lots of warm thanks, and the panda's dancing got a laugh.");
 
-    /** Today's request groups, each naming its tips by their index in {@link #LANGUAGE_SAMPLES}. */
+    /**
+     * Today's request groups as the digester labels them (its prompt asks for labels like "Play Wonderwall"
+     * or "Too loud near the café"). The digester gets every owner note of the last seven days, so the groups
+     * cover every request sample in that window; otherwise the older ones would fall back to groups labelled
+     * with their raw "Request:" and "Feedback:" notes. Each names its tips by order index: {@link #SAMPLES}
+     * first, then {@link #LANGUAGE_SAMPLES} through {@link #language(int)}.
+     */
     static final Map<String, List<Integer>> DIGEST_GROUPS = new LinkedHashMap<>();
 
     static {
-        DIGEST_GROUPS.put("Play Wonderwall", List.of(2, 4, 7));
-        DIGEST_GROUPS.put("Play Despacito", List.of(1));
-        DIGEST_GROUPS.put("Play La Vie en rose", List.of(5));
+        DIGEST_GROUPS.put("Play Wonderwall", List.of(language(2), language(4), language(7)));
+        DIGEST_GROUPS.put("Play Despacito", List.of(language(1)));
+        DIGEST_GROUPS.put("Play La Vie en rose", List.of(language(5)));
+        DIGEST_GROUPS.put("Play something by Oasis", List.of(1));
+        DIGEST_GROUPS.put("Too loud near the café", List.of(6));
+        DIGEST_GROUPS.put("Play something by ABBA", List.of(11));
+        DIGEST_GROUPS.put("Wedding booking", List.of(14));
+        DIGEST_GROUPS.put("More jazz on Sundays", List.of(20));
+    }
+
+    /** The order index of {@link #LANGUAGE_SAMPLES} entry {@code k}. */
+    static int language(int k) {
+        return SAMPLES.size() + k;
     }
 
     private final JdbcClient jdbc;
@@ -232,7 +248,7 @@ class DevTipSeeder {
                 "tipIds",
                 indexes.stream()
                         .map(index -> jdbc.sql("SELECT id FROM tip WHERE paypal_order_id = :orderId")
-                                .param("orderId", orderId(SAMPLES.size() + index))
+                                .param("orderId", orderId(index))
                                 .query(UUID.class)
                                 .single())
                         .toList())));
