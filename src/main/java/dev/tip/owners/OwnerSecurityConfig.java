@@ -1,8 +1,10 @@
 package dev.tip.owners;
 
 import dev.tip.owners.api.OwnerPrincipal;
+import dev.tip.owners.api.OwnerSignedOut;
 import dev.tip.shared.ProblemWriter;
 import dev.tip.shared.SecurityDefaults;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -31,15 +33,19 @@ class OwnerSecurityConfig {
     static final String EMAIL = "email";
     static final String PASSWORD = "password";
 
+    /** The owner's live channel, see {@code docs/OWNER_CHANNEL.md}. It needs the owner's session too. */
+    static final String CHANNEL_PATH = "/ws/owner";
+
     @Bean
     @Order(1)
-    SecurityFilterChain ownerSecurityFilterChain(HttpSecurity http, ProblemWriter problems, LoginRateLimiter limiter)
+    SecurityFilterChain ownerSecurityFilterChain(
+            HttpSecurity http, ProblemWriter problems, LoginRateLimiter limiter, ApplicationEventPublisher events)
             throws Exception {
         SimpleUrlAuthenticationSuccessHandler toHome = new SimpleUrlAuthenticationSuccessHandler(HOME_PATH);
         toHome.setAlwaysUseDefaultTargetUrl(true);
 
         SecurityDefaults.apply(http, problems)
-                .securityMatcher("/owner", "/owner/**", "/api/owner/**")
+                .securityMatcher("/owner", "/owner/**", "/api/owner/**", CHANNEL_PATH)
                 .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.GET, LOGIN_PATH)
                         .permitAll()
                         .anyRequest()
@@ -57,6 +63,12 @@ class OwnerSecurityConfig {
                                 "LOGIN_FAILED",
                                 "Email or password is incorrect.")))
                 .logout(logout -> logout.logoutUrl(LOGOUT_PATH)
+                        // Lets other features close what the session opened, such as the live channel.
+                        .addLogoutHandler((request, response, authentication) -> {
+                            if (authentication != null && authentication.getPrincipal() instanceof OwnerPrincipal o) {
+                                events.publishEvent(new OwnerSignedOut(o.id()));
+                            }
+                        })
                         .logoutSuccessUrl(LOGIN_PATH + "?signedOut")
                         .deleteCookies("JSESSIONID"))
                 .requestCache(cache -> cache.disable())
@@ -67,9 +79,14 @@ class OwnerSecurityConfig {
         return http.build();
     }
 
-    /** The JSON API answers 401 problem details; pages send the browser to the sign in page. */
+    /**
+     * The JSON API and the live channel answer 401 problem details; pages send the browser to the sign in
+     * page.
+     */
     private static AuthenticationEntryPoint entryPoint(ProblemWriter problems) {
-        RequestMatcher api = PathPatternRequestMatcher.withDefaults().matcher("/api/owner/**");
+        RequestMatcher apiOnly = PathPatternRequestMatcher.withDefaults().matcher("/api/owner/**");
+        RequestMatcher channel = PathPatternRequestMatcher.withDefaults().matcher(CHANNEL_PATH);
+        RequestMatcher api = request -> apiOnly.matches(request) || channel.matches(request);
         AuthenticationEntryPoint unauthorized = SecurityDefaults.unauthorized(problems);
         AuthenticationEntryPoint loginPage = new LoginUrlAuthenticationEntryPoint(LOGIN_PATH);
         return (request, response, e) ->

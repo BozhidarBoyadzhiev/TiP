@@ -1,8 +1,11 @@
 package dev.tip.owners;
 
+import dev.tip.owners.api.OwnerDirectory;
 import dev.tip.owners.api.OwnerPrincipal;
+import dev.tip.owners.api.OwnerProfile;
 import dev.tip.owners.api.OwnerProvisioning;
 import java.time.Clock;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  * stops Spring Boot from creating its default in memory user with a generated password.
  */
 @Service
-class OwnerService implements UserDetailsService, OwnerProvisioning {
+class OwnerService implements UserDetailsService, OwnerProvisioning, OwnerDirectory {
 
     static final int MIN_PASSWORD_LENGTH = 12;
 
@@ -56,5 +59,11 @@ class OwnerService implements UserDetailsService, OwnerProvisioning {
             log.info("Created owner {}", owner.id());
             return owner.id();
         });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<OwnerProfile> find(UUID ownerId) {
+        return owners.findById(ownerId).map(o -> new OwnerProfile(o.displayName(), o.timeZone()));
     }
 }

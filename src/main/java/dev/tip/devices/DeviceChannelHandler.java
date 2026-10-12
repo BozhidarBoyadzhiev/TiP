@@ -34,6 +34,7 @@ class DeviceChannelHandler extends TextWebSocketHandler {
     private final ReactionDeliveryRepository deliveries;
     private final ReactionSender sender;
     private final SessionKeepalive keepalive;
+    private final DevicePresenceTracker presence;
     private final Clock clock;
 
     DeviceChannelHandler(
@@ -42,12 +43,14 @@ class DeviceChannelHandler extends TextWebSocketHandler {
             ReactionDeliveryRepository deliveries,
             ReactionSender sender,
             SessionKeepalive keepalive,
+            DevicePresenceTracker presence,
             Clock clock) {
         this.sessions = sessions;
         this.messages = messages;
         this.deliveries = deliveries;
         this.sender = sender;
         this.keepalive = keepalive;
+        this.presence = presence;
         this.clock = clock;
     }
 
@@ -60,6 +63,7 @@ class DeviceChannelHandler extends TextWebSocketHandler {
         keepalive.connected(raw);
         session.sendMessage(messages.hello(device.displayName(), clock.instant()));
         sessions.register(device.id(), session);
+        presence.connected(device.id());
         log.info("Device {} connected", device.id());
         for (PendingReaction reaction :
                 deliveries.unacked(device.id(), clock.instant().minus(ReactionSender.MAX_AGE))) {
@@ -97,6 +101,7 @@ class DeviceChannelHandler extends TextWebSocketHandler {
         if (session != null) {
             sessions.unregister(deviceId, session);
         }
+        presence.disconnected(deviceId);
         log.info("Device {} disconnected with close code {}", deviceId, status.getCode());
     }
 

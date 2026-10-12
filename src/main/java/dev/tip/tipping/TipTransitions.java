@@ -1,6 +1,8 @@
 package dev.tip.tipping;
 
 import dev.tip.tipping.api.TipCaptured;
+import dev.tip.tipping.api.TipRefunded;
+import dev.tip.tipping.api.TipReversed;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -44,14 +46,23 @@ class TipTransitions {
         return tips.markFailed(tipId) == 1;
     }
 
+    /** Moves CAPTURED to REFUNDED. Only the caller that wins publishes {@link TipRefunded}. */
     @Transactional
     public boolean refund(UUID tipId) {
-        return tips.markRefunded(tipId) == 1;
+        if (tips.markRefunded(tipId) != 1) {
+            return false;
+        }
+        events.publishEvent(new TipRefunded(tipId, tips.findDeviceId(tipId).orElseThrow(), clock.instant()));
+        return true;
     }
 
-    /** A chargeback: PayPal took a captured payment back. */
+    /** A chargeback: PayPal took a captured payment back. Only the winner publishes {@link TipReversed}. */
     @Transactional
     public boolean reverse(UUID tipId) {
-        return tips.markReversed(tipId) == 1;
+        if (tips.markReversed(tipId) != 1) {
+            return false;
+        }
+        events.publishEvent(new TipReversed(tipId, tips.findDeviceId(tipId).orElseThrow(), clock.instant()));
+        return true;
     }
 }

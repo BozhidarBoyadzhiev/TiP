@@ -30,6 +30,10 @@ class Device {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** Written only by {@link DeviceRepository#markSeen}, see {@link DevicePresenceTracker}. */
+    @Column(name = "last_seen_at", insertable = false, updatable = false)
+    private Instant lastSeenAt;
+
     protected Device() {}
 
     Device(UUID id, String slug, String displayName, UUID ownerId, byte[] secretHash, Instant createdAt) {
@@ -55,6 +59,10 @@ class Device {
 
     UUID ownerId() {
         return ownerId;
+    }
+
+    Instant lastSeenAt() {
+        return lastSeenAt;
     }
 
     byte[] secretHash() {
