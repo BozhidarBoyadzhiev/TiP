@@ -11,12 +11,14 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -74,7 +76,8 @@ class DemoDeviceSeederTest extends IntegrationTest {
     }
 
     @Test
-    void changedDeviceSecretReplacesTheStoredHash() {
+    @ExtendWith(OutputCaptureExtension.class)
+    void changedDeviceSecretReplacesTheStoredHash(CapturedOutput output) {
         DemoOwnerProperties owner = new DemoOwnerProperties(TestData.uniqueEmail(), "owner-password-123", null);
         String slug = TestData.uniqueSlug();
         run(owner, new DemoDeviceProperties(slug, null, TestData.randomSecret()));
@@ -83,6 +86,10 @@ class DemoDeviceSeederTest extends IntegrationTest {
         run(owner, new DemoDeviceProperties(slug, null, rotated));
 
         assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(decode(rotated)));
+        assertThat(output.getOut().lines().filter(line -> line.contains("Rotated the secret of demo device " + slug)))
+                .singleElement()
+                .asString()
+                .contains(" INFO ");
     }
 
     @Test
@@ -103,17 +110,61 @@ class DemoDeviceSeederTest extends IntegrationTest {
     }
 
     @Test
-    void existingDeviceIsTakenOverByTheDemoOwner() {
+    @ExtendWith(OutputCaptureExtension.class)
+    void deviceOfAnotherOwnerStaysWithThemOutsideDev(CapturedOutput output) {
         String slug = TestData.uniqueSlug();
-        data.device(slug, "Unclaimed Panda");
-        String email = TestData.uniqueEmail();
-        String secret = TestData.randomSecret();
+        String theirSecret = TestData.randomSecret();
+        UUID ownerA = data.owner();
+        data.device(ownerA, slug, "Their Panda", theirSecret);
+        byte[] hashBefore = (byte[]) data.deviceRow(slug).get("secret_hash");
+        String emailB = TestData.uniqueEmail();
+        String secretB = TestData.randomSecret();
 
-        run(new DemoOwnerProperties(email, "owner-password-123", null), new DemoDeviceProperties(slug, null, secret));
+        run(new DemoOwnerProperties(emailB, "owner-password-123", null), new DemoDeviceProperties(slug, null, secretB));
+
+        Object ownerB = data.ownerRow(emailB).get("id");
+        assertThat(data.deviceRow(slug)).containsEntry("owner_id", ownerA);
+        assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(hashBefore);
+        String warning = "Demo device " + slug + " belongs to owner " + ownerA + ", not to the demo owner " + ownerB;
+        assertThat(output.getOut())
+                .containsOnlyOnce(warning)
+                .doesNotContain(emailB, secretB, theirSecret, "Assigned demo device " + slug, "Rotated");
+        assertThat(output.getOut().lines().filter(line -> line.contains(warning)))
+                .singleElement()
+                .asString()
+                .contains(" WARN ");
+    }
+
+    @Test
+    void deviceOfAnotherOwnerMovesToTheDemoOwnerUnderDev() {
+        String slug = TestData.uniqueSlug();
+        UUID ownerA = data.owner();
+        data.device(ownerA, slug, "Their Panda", TestData.randomSecret());
+        String emailB = TestData.uniqueEmail();
+        String secretB = TestData.randomSecret();
+
+        run(
+                new DemoOwnerProperties(emailB, "owner-password-123", null),
+                new DemoDeviceProperties(slug, null, secretB),
+                DemoDeviceSeeder.DEV_PROFILE);
 
         assertThat(data.deviceRow(slug))
-                .containsEntry("owner_id", data.ownerRow(email).get("id"));
-        assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(decode(secret)));
+                .containsEntry("owner_id", data.ownerRow(emailB).get("id"));
+        assertThat((byte[]) data.deviceRow(slug).get("secret_hash")).isEqualTo(sha256(decode(secretB)));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void sameSecretOnRestartLeavesTheStoredHashByteIdentical(CapturedOutput output) {
+        DemoOwnerProperties owner = validOwner();
+        DemoDeviceProperties device = new DemoDeviceProperties(TestData.uniqueSlug(), null, TestData.randomSecret());
+        run(owner, device);
+        byte[] stored = (byte[]) data.deviceRow(device.slug()).get("secret_hash");
+
+        run(owner, device);
+
+        assertThat((byte[]) data.deviceRow(device.slug()).get("secret_hash")).isEqualTo(stored);
+        assertThat(output.getOut()).doesNotContain("Rotated the secret of demo device " + device.slug());
     }
 
     @Test
@@ -179,8 +230,11 @@ class DemoDeviceSeederTest extends IntegrationTest {
         return new DemoOwnerProperties(TestData.uniqueEmail(), "owner-password-123", null);
     }
 
-    private void run(DemoOwnerProperties owner, DemoDeviceProperties device) {
-        DemoDeviceSeeder seeder = new DemoDeviceSeeder(owner, device, owners, devices, Clock.systemUTC());
+    /** Runs the seeder as a start with these profiles would; none is how Render runs. */
+    private void run(DemoOwnerProperties owner, DemoDeviceProperties device, String... profiles) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles(profiles);
+        DemoDeviceSeeder seeder = new DemoDeviceSeeder(owner, device, owners, devices, Clock.systemUTC(), environment);
         transactions.executeWithoutResult(status -> seeder.run(new DefaultApplicationArguments()));
     }
 

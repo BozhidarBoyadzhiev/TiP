@@ -63,7 +63,7 @@ Flyway creates and migrates the schema on startup, also on an empty database, so
 
 | Variable | Secret | What it is |
 |---|---|---|
-| `TIP_DEMO_OWNER_EMAIL` | no | Owner login, created on the first start. |
+| `TIP_DEMO_OWNER_EMAIL` | no | Owner login, created on the first start. Changing it later creates a new owner but never moves an existing demo device to them: the device stays with its owner and the log shows one WARN naming the slug and both owner ids. |
 | `TIP_DEMO_OWNER_PASSWORD` | yes | **Differs from local.** 12 to 72 characters. Only used when the owner is created; changing it later has no effect. |
 | `TIP_DEMO_OWNER_NAME` | no | Display name, defaults to the email. |
 | `TIP_DEMO_DEVICE_SLUG` | no | Slug of the demo panda, the last part of the NFC tag URL. |
