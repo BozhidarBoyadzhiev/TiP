@@ -30,16 +30,16 @@ class TodayReportTest {
     }
 
     @Test
-    void onlyCapturedMoneyCountsAndPendingTipsCountAsTips() {
+    void onlyCapturedMoneyCountsAndTipsAndRequestsCountOnlyCapturedAndPending() {
         TodayReport report = TodayReport.of(
                 day(LONDON, "2026-10-12T15:00:00Z"),
                 List.of(
                         tip("2026-10-12T09:00:00Z", 500, "GBP", "CAPTURED", false),
                         tip("2026-10-12T09:10:00Z", 200, "GBP", "CAPTURED", true),
                         tip("2026-10-12T09:20:00Z", 300, "EUR", "CAPTURED", false),
-                        tip("2026-10-12T09:30:00Z", 1000, "GBP", "PENDING", false),
+                        tip("2026-10-12T09:30:00Z", 1000, "GBP", "PENDING", true),
                         tip("2026-10-12T09:40:00Z", 2000, "GBP", "REFUNDED", true),
-                        tip("2026-10-12T09:50:00Z", 4000, "GBP", "REVERSED", false)));
+                        tip("2026-10-12T09:50:00Z", 4000, "GBP", "REVERSED", true)));
 
         assertThat(report.totals()).containsExactly(new Total("EUR", 300), new Total("GBP", 700));
         assertThat(report.tipCount()).isEqualTo(4);

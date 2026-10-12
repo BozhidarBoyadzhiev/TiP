@@ -150,7 +150,7 @@ The registries are in memory: one `ConcurrentHashMap<UUID, WebSocketSession>` fo
 
 ## Owner dashboard
 
-Everything an owner sees is scoped to them in SQL: each query joins the tip's device and keeps only rows whose `owner_id` is the signed in owner, so another owner's data never leaves the database and an unknown id and another owner's id get the same 404. Times are stored in UTC and computed in the owner's `time_zone`: today runs from local midnight, the requests panel covers the last seven local days, and the busiest hour chart steps through local hours with `ZonedDateTime`, so the day the clocks change has 23 or 25 hours.
+Everything an owner sees is scoped to them in SQL: each query joins the tip's device and keeps only rows whose `owner_id` is the signed in owner, so another owner's data never leaves the database and an unknown id and another owner's id get the same 404. Times are stored in UTC and computed in the owner's `time_zone`: today runs from local midnight and counts tips and requests in `CAPTURED` or `PENDING` only, the requests panel covers the last seven local days in every visible status, refunded included, and the busiest hour chart steps through local hours with `ZonedDateTime`, so the day the clocks change has 23 or 25 hours.
 
 The classification also names the message's language, translates it when it is not in English, and picks out a requested song, in the same call. The song key (lowercase, no accents or punctuation, no leading "the") is computed in Java, so "Wonderwall!" and "The Wonderwall" count as one song. Flagged tips keep none of these, and every owner endpoint returns null for a flagged tip's message, note, language, translation and song.
 

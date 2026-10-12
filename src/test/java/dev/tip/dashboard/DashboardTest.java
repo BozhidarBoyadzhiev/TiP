@@ -123,6 +123,22 @@ class DashboardTest extends IntegrationTest {
     }
 
     @Test
+    void aRefundedRequestShowsInTheRequestsPanelButIsNotOneOfTodaysRequests() throws Exception {
+        UUID kept = captured(deviceId, NOW.minusSeconds(900), 200, request("Request: Wonderwall", null, null));
+        Map<String, Object> refundedColumns = new LinkedHashMap<>(request("Request: Wonderwall", null, null));
+        refundedColumns.put("amount_minor", 500L);
+        refundedColumns.put("paypal_capture_id", TestData.uniqueId("CAPTURE"));
+        UUID refunded = data.tip(deviceId, "REFUNDED", NOW.minusSeconds(600), refundedColumns);
+
+        as(owner, "/api/owner/today")
+                .andExpect(jsonPath("$.tipCount").value(1))
+                .andExpect(jsonPath("$.requestCount").value(1));
+        as(owner, "/api/owner/requests")
+                .andExpect(jsonPath("$.groups[0].count").value(2))
+                .andExpect(jsonPath("$.groups[0].tipIds").value(contains(refunded.toString(), kept.toString())));
+    }
+
+    @Test
     void requestsCoverSevenLocalDaysAndLeaveFlaggedAndOtherOwnersOut() throws Exception {
         // The window opens at local midnight six days back: 2026-10-06 00:00 BST, 2026-10-05T23:00Z.
         UUID outside = captured(

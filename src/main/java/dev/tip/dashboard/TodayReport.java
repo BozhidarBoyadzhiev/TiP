@@ -14,8 +14,9 @@ import java.util.TreeMap;
 
 /**
  * The owner's today, from local midnight to now in their time zone. Totals count only {@code CAPTURED}
- * money; the tip count and the hours count {@code CAPTURED} and {@code PENDING}; requests count classified,
- * unflagged requests in any visible status.
+ * money; the tip count, the request count and the hours count {@code CAPTURED} and {@code PENDING} tips,
+ * the request count only classified, unflagged requests among them. A refunded request still shows in the
+ * requests panel, which keeps every visible status, but is not one of today's requests.
  *
  * <p>Hours run from the first tip's local hour to the current hour, with at least {@link #MIN_HOURS}
  * buckets, so early in the day they reach back before midnight, where they count nothing. Each bucket is a
@@ -45,7 +46,9 @@ record TodayReport(
                 .filter(t -> COUNTED.contains(t.status()))
                 .map(TipFact::createdAt)
                 .toList();
-        long requests = tips.stream().filter(TipFact::request).count();
+        long requests = tips.stream()
+                .filter(t -> t.request() && COUNTED.contains(t.status()))
+                .count();
         List<Hour> hours = counted.isEmpty() ? null : hours(day, counted);
         return new TodayReport(
                 day.today(),
