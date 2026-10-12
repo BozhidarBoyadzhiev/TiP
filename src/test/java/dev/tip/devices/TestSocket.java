@@ -23,10 +23,10 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.jackson.databind.json.JsonMapper;
 
 /** A real WebSocket client ({@link StandardWebSocketClient}) that records what it receives. */
-final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
+public final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
 
     /** {@code TIP_PUBLIC_BASE_URL} in the test profile. */
-    static final String PUBLIC_ORIGIN = "http://localhost:8080";
+    public static final String PUBLIC_ORIGIN = "http://localhost:8080";
 
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -38,21 +38,21 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
 
     private TestSocket() {}
 
-    static TestSocket connectDevice(int port, UUID deviceId, String secret) {
+    public static TestSocket connectDevice(int port, UUID deviceId, String secret) {
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
         headers.setBearerAuth(secret);
         return connect(URI.create("ws://localhost:" + port + "/ws/device/" + deviceId), headers);
     }
 
     /** An observer with the app's public origin, from its own client IP. */
-    static TestSocket connectObserver(int port, String slug, String clientIp) {
+    public static TestSocket connectObserver(int port, String slug, String clientIp) {
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
         headers.setOrigin(PUBLIC_ORIGIN);
         headers.set("X-Forwarded-For", clientIp);
         return connect(URI.create("ws://localhost:" + port + "/ws/observe/" + slug), headers);
     }
 
-    static TestSocket connect(URI uri, WebSocketHttpHeaders headers) {
+    public static TestSocket connect(URI uri, WebSocketHttpHeaders headers) {
         TestSocket socket = new TestSocket();
         try {
             new StandardWebSocketClient().execute(socket, headers, uri).get(TIMEOUT.toSeconds(), TimeUnit.SECONDS);
@@ -85,7 +85,7 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
         closed.complete(status);
     }
 
-    String next() {
+    public String next() {
         try {
             String message = messages.poll(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             assertThat(message).as("message within %s", TIMEOUT).isNotNull();
@@ -97,16 +97,16 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
     }
 
     @SuppressWarnings("unchecked")
-    Map<String, Object> nextJson() {
+    public Map<String, Object> nextJson() {
         return JSON.readValue(next(), Map.class);
     }
 
     /** Messages received and not yet taken, without waiting. */
-    int pending() {
+    public int pending() {
         return messages.size();
     }
 
-    void send(String text) {
+    public void send(String text) {
         try {
             session.sendMessage(new TextMessage(text));
         } catch (Exception e) {
@@ -114,7 +114,7 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
         }
     }
 
-    void ack(UUID tipId) {
+    public void ack(UUID tipId) {
         send("{\"type\":\"ack\",\"id\":\"" + tipId + "\"}");
     }
 
@@ -122,7 +122,7 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
      * Pings the server and waits for the pong. The server handles a session's frames in order, so every
      * message sent before has been handled when this returns.
      */
-    void sync() {
+    public void sync() {
         String marker = UUID.randomUUID().toString().substring(0, 8);
         try {
             session.sendMessage(new PingMessage(ByteBuffer.wrap(marker.getBytes(StandardCharsets.UTF_8))));
@@ -139,7 +139,7 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
         }
     }
 
-    CloseStatus awaitClose() {
+    public CloseStatus awaitClose() {
         try {
             return closed.get(TIMEOUT.toSeconds(), TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -147,7 +147,7 @@ final class TestSocket extends TextWebSocketHandler implements AutoCloseable {
         }
     }
 
-    boolean isOpen() {
+    public boolean isOpen() {
         return !closed.isDone() && session.isOpen();
     }
 

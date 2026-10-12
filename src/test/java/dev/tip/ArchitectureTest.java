@@ -40,6 +40,33 @@ class ArchitectureTest {
     static final ArchRule apiPackagesDoNotReachIntoTheirFeature =
             classes().that().resideInAPackage(ROOT + "*.api..").should(notDependOnFeatureInternals());
 
+    /** The dashboard reads other features only through these, never PayPal. */
+    @ArchTest
+    static final ArchRule dashboardUsesOnlyTheApisItNeeds = noClasses()
+            .that()
+            .resideInAPackage(ROOT + "dashboard..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(ROOT + "paypal..", ROOT + "ai", ROOT + "devices", ROOT + "owners", ROOT + "tipping");
+
+    /** What the model writes for owners, the digest, never reaches the device or observer channels. */
+    @ArchTest
+    static final ArchRule devicesNeverSeeTheDigest = noClasses()
+            .that()
+            .resideInAPackage(ROOT + "devices..")
+            .should()
+            .dependOnClassesThat()
+            .belongToAnyOf(dev.tip.ai.api.TipDigester.class);
+
+    /** Owner sockets live in the dashboard only, so nothing else can send an owner tip content. */
+    @ArchTest
+    static final ArchRule onlyTheDashboardTalksToOwnerSockets = noClasses()
+            .that()
+            .resideOutsideOfPackage(ROOT + "dashboard..")
+            .should()
+            .dependOnClassesThat()
+            .haveSimpleNameStartingWith("OwnerSockets");
+
     private static ArchCondition<JavaClass> onlyDependOnOwnFeatureOtherApisOrShared() {
         return new ArchCondition<>("only depend on their own feature, other features' api packages or shared") {
             @Override

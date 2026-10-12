@@ -70,6 +70,24 @@ public class TestData {
         return id;
     }
 
+    public void setTimeZone(UUID ownerId, String zoneId) {
+        jdbc.sql("UPDATE owner SET time_zone = ? WHERE id = ?")
+                .params(zoneId, ownerId)
+                .update();
+    }
+
+    /**
+     * A tip in {@code status} created at {@code createdAt}, with any other columns set as given. Column names
+     * come from the test, never from data.
+     */
+    public UUID tip(UUID deviceId, String status, Instant createdAt, Map<String, Object> columns) {
+        UUID id = tip(deviceId, status, uniqueId("ORDER"), createdAt);
+        columns.forEach((column, value) -> jdbc.sql("UPDATE tip SET " + column + " = ? WHERE id = ?")
+                .params(value instanceof Instant instant ? Timestamp.from(instant) : value, id)
+                .update());
+        return id;
+    }
+
     public UUID owner() {
         return owner(uniqueEmail(), "Test Owner", OWNER_PASSWORD);
     }
@@ -87,7 +105,12 @@ public class TestData {
 
     /** A device whose secret is {@code secret} (base64url), so a test can connect as it. */
     public UUID device(String slug, String displayName, String secret) {
-        UUID id = device(owner(), slug, displayName);
+        return device(owner(), slug, displayName, secret);
+    }
+
+    /** A device of {@code ownerId} whose secret is {@code secret} (base64url). */
+    public UUID device(UUID ownerId, String slug, String displayName, String secret) {
+        UUID id = device(ownerId, slug, displayName);
         jdbc.sql("UPDATE device SET secret_hash = sha256(?) WHERE id = ?")
                 .params(Base64.getUrlDecoder().decode(secret), id)
                 .update();

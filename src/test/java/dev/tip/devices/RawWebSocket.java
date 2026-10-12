@@ -16,16 +16,16 @@ import java.util.Map;
  * A WebSocket client on a plain socket. It shows the handshake response byte for byte, and once
  * connected it never reads unless asked, so it never answers a ping: a device that froze.
  */
-final class RawWebSocket implements AutoCloseable {
+public final class RawWebSocket implements AutoCloseable {
 
     private static final int TIMEOUT_MILLIS = 10_000;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final Socket socket;
     private final InputStream in;
-    final int status;
-    final Map<String, String> headers;
-    final String body;
+    public final int status;
+    public final Map<String, String> headers;
+    public final String body;
 
     private RawWebSocket(Socket socket, int status, Map<String, String> headers, String body) throws IOException {
         this.socket = socket;
@@ -36,7 +36,7 @@ final class RawWebSocket implements AutoCloseable {
     }
 
     /** Sends an upgrade request for {@code path} with the extra headers and reads the response head and body. */
-    static RawWebSocket handshake(int port, String path, Map<String, String> extraHeaders) throws IOException {
+    public static RawWebSocket handshake(int port, String path, Map<String, String> extraHeaders) throws IOException {
         Socket socket = new Socket("localhost", port);
         socket.setSoTimeout(TIMEOUT_MILLIS);
         StringBuilder request = new StringBuilder()
@@ -81,7 +81,7 @@ final class RawWebSocket implements AutoCloseable {
     }
 
     /** The next frame from the server: opcode and payload. Server frames are never masked. */
-    Frame readFrame() throws IOException {
+    public Frame readFrame() throws IOException {
         int first = readByte();
         int second = readByte();
         long length = second & 0x7f;
@@ -97,9 +97,8 @@ final class RawWebSocket implements AutoCloseable {
         return new Frame(first & 0x0f, payload);
     }
 
-    /** Reads frames until a close frame and returns its close code. */
     /** The next text frame's payload, skipping pings and other frames. */
-    String readUntilText() throws IOException {
+    public String readUntilText() throws IOException {
         while (true) {
             Frame frame = readFrame();
             if (frame.opcode() == Frame.TEXT) {
@@ -108,7 +107,8 @@ final class RawWebSocket implements AutoCloseable {
         }
     }
 
-    int readUntilCloseCode() throws IOException {
+    /** Reads frames until a close frame and returns its close code. */
+    public int readUntilCloseCode() throws IOException {
         while (true) {
             Frame frame = readFrame();
             if (frame.opcode() == Frame.CLOSE) {
@@ -177,9 +177,9 @@ final class RawWebSocket implements AutoCloseable {
         socket.close();
     }
 
-    record Frame(int opcode, byte[] payload) {
-        static final int TEXT = 0x1;
-        static final int CLOSE = 0x8;
-        static final int PING = 0x9;
+    public record Frame(int opcode, byte[] payload) {
+        public static final int TEXT = 0x1;
+        public static final int CLOSE = 0x8;
+        public static final int PING = 0x9;
     }
 }

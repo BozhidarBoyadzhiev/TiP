@@ -2,6 +2,7 @@ package dev.tip.ai;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import dev.tip.ai.api.TipDigester;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,6 +48,11 @@ class AiConfig {
         MessageClassifier claudeMessageClassifier(
                 AnthropicClient client, AiProperties properties, JsonMapper jsonMapper) {
             return new ClaudeMessageClassifier(client, properties.model(), jsonMapper);
+        }
+
+        @Bean
+        TipDigester claudeTipDigester(AnthropicClient client, AiProperties properties, JsonMapper jsonMapper) {
+            return new ClaudeTipDigester(client, properties.model(), jsonMapper);
         }
     }
 }
