@@ -12,8 +12,8 @@ interface MessageClassifier {
      * {@code flagReason} is at most 200 characters and only set when flagged. {@code ownerNote} is at
      * most 100 characters, has no control characters and is only set for {@link MessageKind#REQUEST}.
      * {@code language} is a known ISO 639-1 code or null. {@code englishText} (at most 280 characters) is
-     * only set for an unflagged message in another language than English, {@code song} (at most 80) only
-     * for an unflagged request that names one. Every text is sanitised like a tipper's message.
+     * only set for a message in another language than English, {@code song} (at most 80) only for a request
+     * that names one, flagged or not. Every text is sanitised like a tipper's message.
      */
     record Classification(
             MessageKind kind,

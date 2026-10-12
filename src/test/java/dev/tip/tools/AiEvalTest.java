@@ -150,7 +150,7 @@ class AiEvalTest {
                 message -> answers.removeFirst(),
                 new PrintStream(bytes, true, StandardCharsets.UTF_8));
 
-        assertThat(score).isEqualTo(new AiEval.Score(4, 3, 4, 3, 2));
+        assertThat(score).isEqualTo(new AiEval.Score(4, new AiEval.Part(3, 4), 4, 3, 2));
         assertThat(bytes.toString(StandardCharsets.UTF_8))
                 .contains("expected PLAIN|REQUEST +note if REQUEST  got REQUEST")
                 .contains("expected PLAIN|REQUEST +note if REQUEST  got WARM");
@@ -174,7 +174,7 @@ class AiEvalTest {
 
         AiEval.Score score = AiEval.run(cases, answers::get, new PrintStream(bytes, true, StandardCharsets.UTF_8));
 
-        assertThat(score).isEqualTo(new AiEval.Score(5, 3, 3, 3, 1));
+        assertThat(score).isEqualTo(new AiEval.Score(5, new AiEval.Part(2, 4), 3, 3, 1));
         String output = bytes.toString(StandardCharsets.UTF_8);
         assertThat(output.lines().filter(line -> line.startsWith("MISS"))).hasSize(4);
         assertThat(output)
@@ -182,8 +182,25 @@ class AiEvalTest {
                 .contains("expected PLAIN flagged  got PLAIN")
                 .contains("expected REQUEST +note  got REQUEST")
                 .contains("INVALID (invalid response: not JSON)")
-                .contains("kind         3/5   60.0 %", "all three    1/5   20.0 %")
+                .contains("kind         2/4   50.0 %", "all three    1/5   20.0 %")
                 .doesNotContain("\"right\"");
+    }
+
+    @Test
+    void theKindOfAFlaggedCaseIsNotScored() {
+        List<AiEval.Case> cases =
+                List.of(only("threat", "PLAIN", true, AiEval.Note.NO), only("thanks", "WARM", false, AiEval.Note.NO));
+        Map<String, EvalClassifier.Verdict> answers = Map.of(
+                "threat", new EvalClassifier.Verdict("REQUEST", true, null, null),
+                "thanks", new EvalClassifier.Verdict("WARM", false, null, null));
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        AiEval.Score score = AiEval.run(cases, answers::get, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+        assertThat(score).isEqualTo(new AiEval.Score(2, new AiEval.Part(1, 1), 2, 2, 2));
+        assertThat(bytes.toString(StandardCharsets.UTF_8))
+                .doesNotContain("MISS")
+                .contains("kind         1/1  100.0 %");
     }
 
     @Test

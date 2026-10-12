@@ -48,15 +48,17 @@ public final class EvalClassifier {
     public Verdict classify(String message) {
         try {
             Classification classification = classifier.classify(message);
-            // The stored outcome decides which note the owner sees; the amount only sets repeats, unused here.
+            // The stored outcome decides what is kept; the amount only sets repeats, unused here. A flagged
+            // message stays hidden until the owner overrules it, so by default they see none of its read.
             TipReactions.Outcome outcome = TipReactions.Outcome.classified(classification, 0, "GBP");
+            boolean hidden = classification.flagged();
             return new Verdict(
                     classification.kind().name(),
-                    classification.flagged(),
-                    outcome.ownerNote(),
-                    outcome.language(),
-                    outcome.englishText(),
-                    outcome.song(),
+                    hidden,
+                    hidden ? null : outcome.ownerNote(),
+                    hidden ? null : outcome.language(),
+                    hidden ? null : outcome.englishText(),
+                    hidden ? null : outcome.song(),
                     null);
         } catch (ClassificationFailed e) {
             return new Verdict(null, false, null, null, null, null, e.getMessage());
@@ -64,8 +66,8 @@ public final class EvalClassifier {
     }
 
     /**
-     * What the app would store. {@code ownerNote}, {@code language}, {@code englishText} and {@code song}
-     * are what the owner sees, so null for a flagged message. {@code failure} is set, and the rest empty,
+     * What the owner sees by default. {@code ownerNote}, {@code language}, {@code englishText} and {@code
+     * song} are null for a flagged message, which stays hidden until the owner overrules the flag. {@code failure} is set, and the rest empty,
      * when the model's output was invalid or the call failed.
      */
     public record Verdict(

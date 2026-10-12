@@ -103,9 +103,14 @@ public final class AiEval {
         }
     }
 
+    /**
+     * {@code kind} is scored over the unflagged cases only: a flagged message stays hidden from the owner
+     * until they overrule the flag, so its kind is not scored. "All three" takes the flag and the note of a
+     * flagged case.
+     */
     record Score(
             int total,
-            int kindRight,
+            Part kind,
             int flaggedRight,
             int noteRight,
             int allRight,
@@ -113,8 +118,8 @@ public final class AiEval {
             Part translation,
             Part song) {
 
-        Score(int total, int kindRight, int flaggedRight, int noteRight, int allRight) {
-            this(total, kindRight, flaggedRight, noteRight, allRight, Part.NONE, Part.NONE, Part.NONE);
+        Score(int total, Part kind, int flaggedRight, int noteRight, int allRight) {
+            this(total, kind, flaggedRight, noteRight, allRight, Part.NONE, Part.NONE, Part.NONE);
         }
     }
 
@@ -197,7 +202,7 @@ public final class AiEval {
 
     /** Runs the cases in order and prints one line per disagreement, then the accuracy of each part. */
     static Score run(List<Case> cases, Function<String, EvalClassifier.Verdict> classify, PrintStream out) {
-        int kindRight = 0;
+        Part kindPart = Part.NONE;
         int flaggedRight = 0;
         int noteRight = 0;
         int allRight = 0;
@@ -206,10 +211,12 @@ public final class AiEval {
         Part song = Part.NONE;
         for (Case c : cases) {
             EvalClassifier.Verdict verdict = classify.apply(c.message());
-            boolean kind = verdict.valid() && c.accepts(verdict.kind());
+            boolean kind = c.flagged() || (verdict.valid() && c.accepts(verdict.kind()));
             boolean flagged = verdict.valid() && c.flagged() == verdict.flagged();
             boolean note = verdict.valid() && c.note().expectedFor(verdict.kind()) == (verdict.ownerNote() != null);
-            kindRight += kind ? 1 : 0;
+            if (!c.flagged()) {
+                kindPart = kindPart.add(kind);
+            }
             flaggedRight += flagged ? 1 : 0;
             noteRight += note ? 1 : 0;
             if (c.languages() != null) {
@@ -249,9 +256,8 @@ public final class AiEval {
                                     + (verdict.ownerNote() == null ? "" : " " + quoted(verdict.ownerNote()))
                             : "INVALID (" + verdict.failure() + ")");
         }
-        Score score =
-                new Score(cases.size(), kindRight, flaggedRight, noteRight, allRight, language, translation, song);
-        out.println(line("kind", score.kindRight(), score.total()));
+        Score score = new Score(cases.size(), kindPart, flaggedRight, noteRight, allRight, language, translation, song);
+        out.println(line("kind", kindPart.right(), kindPart.total()));
         out.println(line("flagged", score.flaggedRight(), score.total()));
         out.println(line("owner note", score.noteRight(), score.total()));
         out.println(line("all three", score.allRight(), score.total()));

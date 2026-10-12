@@ -55,14 +55,25 @@ class ClassificationExtrasTest {
     }
 
     @Test
-    void aFlaggedMessageKeepsItsFlagAndKindButGetsNoTranslationOrSong() {
+    void aFlaggedMessageKeepsItsFlagKindTranslationAndSongUnderTheSameRules() {
         Classification c = parse(
                 "REQUEST", true, Map.of("language", "fr", "englishText", "You are useless", "song", "Wonderwall"));
 
         assertThat(c.flagged()).isTrue();
         assertThat(c.kind()).isEqualTo(MessageKind.REQUEST);
-        assertThat(c.englishText()).isNull();
-        assertThat(c.song()).isNull();
+        assertThat(c.language()).isEqualTo("fr");
+        assertThat(c.englishText()).isEqualTo("You are useless");
+        assertThat(c.song()).isEqualTo("Wonderwall");
+
+        Classification broken =
+                parse("PLAYFUL", true, Map.of("language", "en", "englishText", "x".repeat(281), "song", "Wonderwall"));
+        assertThat(broken.flagged()).isTrue();
+        assertThat(broken.englishText()).as("English needs no translation").isNull();
+        assertThat(broken.song()).as("a song only on a request").isNull();
+        assertThat(parse("REQUEST", true, Map.of("language", "fr", "englishText", "x".repeat(281)))
+                        .englishText())
+                .as("the cap applies to a flagged message too")
+                .isNull();
     }
 
     @ParameterizedTest

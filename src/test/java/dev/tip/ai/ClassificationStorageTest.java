@@ -62,7 +62,7 @@ class ClassificationStorageTest extends IntegrationTest {
     }
 
     @Test
-    void aFlaggedTipStoresNoLanguageTranslationOrSongAndStillReactsPlainOnce() throws Exception {
+    void aFlaggedTipKeepsItsLanguageTranslationAndSongForTheOwnerAndStillReactsPlainOnce() throws Exception {
         String message = TestData.uniqueMessage("Joue Wonderwall ou gare a toi");
         UUID[] tip = new UUID[1];
         Map<String, Object> row = captureAndClassify(
@@ -73,10 +73,12 @@ class ClassificationStorageTest extends IntegrationTest {
 
         assertThat(row)
                 .containsEntry("flagged", true)
-                .containsEntry("message_language", null)
-                .containsEntry("message_english", null)
-                .containsEntry("requested_song", null)
-                .containsEntry("requested_song_key", null);
+                .containsEntry("reaction", "PLAIN")
+                .containsEntry("message_language", "fr")
+                .containsEntry("message_english", "Play Wonderwall or watch out")
+                .containsEntry("requested_song", "Wonderwall")
+                .containsEntry("requested_song_key", "wonderwall")
+                .containsEntry("owner_verdict", null);
         assertThat(reacted.forTip(tip[0])).singleElement().satisfies(e -> {
             assertThat(e.reaction()).isEqualTo(Reaction.PLAIN);
             assertThat(e.repeats()).isOne();

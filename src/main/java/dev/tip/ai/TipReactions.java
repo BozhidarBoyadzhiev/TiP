@@ -44,9 +44,11 @@ class TipReactions {
 
     /**
      * What gets stored and delivered. {@code kind} is null when the model never read the message. A
-     * flagged message plays PLAIN once and keeps no owner note, language, translation or song, whatever its
-     * kind and amount. Every other outcome repeats by the amount, see {@link ReactionRepeats}. {@code
-     * songKey} is computed here from the song, see {@link SongKey}. None of the texts ever reaches a device.
+     * flagged message plays PLAIN once, whatever its kind and amount, and still keeps the model's whole read
+     * (kind, owner note, language, translation, song), so the owner can overrule the flag later without
+     * another call; the dashboard decides when the owner sees it. Every other outcome repeats by the amount,
+     * see {@link ReactionRepeats}. {@code songKey} is computed here from the song, see {@link SongKey}. None
+     * of the texts ever reaches a device.
      */
     record Outcome(
             MessageKind kind,
@@ -69,11 +71,11 @@ class TipReactions {
                     ReactionRepeats.of(amountMinor, currency, flagged),
                     flagged,
                     classification.flagReason(),
-                    flagged ? null : classification.ownerNote(),
-                    flagged ? null : classification.language(),
-                    flagged ? null : classification.englishText(),
-                    flagged ? null : classification.song(),
-                    flagged ? null : SongKey.of(classification.song()),
+                    classification.ownerNote(),
+                    classification.language(),
+                    classification.englishText(),
+                    classification.song(),
+                    SongKey.of(classification.song()),
                     AiStatus.DONE);
         }
 

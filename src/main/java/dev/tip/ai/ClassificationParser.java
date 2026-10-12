@@ -17,7 +17,8 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>The language, the English text and the song are extras: one that breaks its rule is dropped, never
  * the whole classification, so the kind and the flag never depend on them. Every text the model wrote goes
- * through {@link MessageSanitizer}, like a tipper's message.
+ * through {@link MessageSanitizer}, like a tipper's message. A flagged message gets the same read and the
+ * same checks as any other; whether the owner sees it is decided when it is read, never here.
  */
 final class ClassificationParser {
 
@@ -70,10 +71,10 @@ final class ClassificationParser {
         }
         boolean isFlagged = flagged.booleanValue();
         String language = language(root.get("language"));
-        String englishText = language == null || language.equals(ENGLISH) || isFlagged
+        String englishText = language == null || language.equals(ENGLISH)
                 ? null
                 : extraText(root.get("englishText"), MAX_ENGLISH_TEXT);
-        String song = messageKind == MessageKind.REQUEST && !isFlagged ? extraText(root.get("song"), MAX_SONG) : null;
+        String song = messageKind == MessageKind.REQUEST ? extraText(root.get("song"), MAX_SONG) : null;
         return new Classification(messageKind, isFlagged, isFlagged ? reason : null, note, language, englishText, song);
     }
 

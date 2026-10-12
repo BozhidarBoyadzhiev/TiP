@@ -112,7 +112,7 @@ class AiClassificationTest extends IntegrationTest {
         "PLAYFUL,Bet you cannot play Wonderwall you idiot,",
         "REQUEST,Play Oasis or I will find you,Request: something by Oasis"
     })
-    void flaggedMessageReactsPlainOnceKeepsItsKindAndLosesTheOwnerNote(String kind, String text, String ownerNote) {
+    void flaggedMessageReactsPlainOnceAndKeepsItsKindAndOwnerNote(String kind, String text, String ownerNote) {
         String message = TestData.uniqueMessage(text);
         UUID tipId = data.capturedTip(deviceId, message);
         data.setAmount(tipId, 2_000);
@@ -126,7 +126,7 @@ class AiClassificationTest extends IntegrationTest {
                 .containsEntry("reaction", "PLAIN")
                 .containsEntry("flagged", true)
                 .containsEntry("flag_reason", "threat")
-                .containsEntry("owner_note", null);
+                .containsEntry("owner_note", ownerNote);
         TipReacted event = awaitOneEvent(tipId);
         assertThat(event.reaction()).isEqualTo(Reaction.PLAIN);
         assertThat(event.repeats())

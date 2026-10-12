@@ -69,11 +69,11 @@ class ClaudeMessageClassifier implements MessageClassifier {
             such as "en", "fr" or "es". A mostly English message with a foreign word or two is "en". Null \
             when there is no language to name, such as emoji only.
 
-            englishText: only when language is not "en" and the message is not flagged, otherwise null. A \
+            englishText: only when language is not "en", otherwise null. A\
             faithful English translation of the whole message, at most 280 characters. It is the tipper's \
             own words in English: never a summary, an answer or a reply to them.
 
-            song: only when kind is REQUEST, the message is not flagged and it names a song, otherwise null. \
+            song: only when kind is REQUEST and the message names a song, otherwise null.\
             Just the title as the tipper meant it, at most 80 characters, without the artist, quotes or \
             other words. "Could you play Wonderwall by Oasis?" gives "Wonderwall"; "Play some Oasis" names \
             no song, so null.
