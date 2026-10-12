@@ -1,7 +1,7 @@
 # TiP
 
 TiP (Tip integrated Panda) is an NFC tipping device: a cardboard panda holds a coin with an NFC tag, a phone tap opens a tip page, and the tipper pays with PayPal and can leave a message.
-The backend takes the payment through PayPal Orders v2, confirms it through verified webhooks, and has Claude read what kind of message it is (warm, playful, a request, or plain) so the panda plays a light pattern for it. Abusive messages are flagged and get the plain blink, so trolls get no show. Owners sign in to refund tips.
+The backend takes the payment through PayPal Orders v2, confirms it through verified webhooks, and has Claude read what kind of message it is (warm, playful, a request, or plain) so the panda plays a light pattern for it. Abusive messages are flagged and get the plain blink, so trolls get no show. Owners sign in to see their tips and refund them; a flagged message stays hidden from them until they choose to read it, and they can mark it not abusive to see it like any other tip.
 
 ## Prerequisites
 
@@ -122,7 +122,7 @@ This compiles, checks formatting with Spotless (fix with `./gradlew spotlessAppl
 
 ## Measuring the AI classifier
 
-`aiEval` runs about 60 labelled tip messages through the real Claude model with the app's own prompt, schema and parser, and prints every disagreement plus the accuracy for kind, flag and owner note, and for the language, translation and song on the cases that label them. It calls the paid API, so it is never part of the build or CI; run it by hand after changing the prompt:
+`aiEval` runs about 60 labelled tip messages through the real Claude model with the app's own prompt, schema and parser, and prints every disagreement plus the accuracy for kind (not scored on flagged cases), flag and owner note, and for the language, translation and song on the cases that label them. It calls the paid API, so it is never part of the build or CI; run it by hand after changing the prompt:
 
 ```bash
 ./gradlew aiEval

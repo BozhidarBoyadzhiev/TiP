@@ -20,7 +20,7 @@ wss://<host>/ws/owner
 { "type": "tip", "id": "<tipId>" }
 ```
 
-One of the owner's tips was captured, classified (or skipped or failed, so its reaction is final), refunded or reversed. `GET /api/owner/tips/{id}` has its current state.
+One of the owner's tips was captured, classified (or skipped or failed, so its reaction is final), refunded or reversed, or the owner changed its verdict (unhid a flagged message or hid it again). `GET /api/owner/tips/{id}` has its current state.
 
 ```json
 { "type": "today" }
@@ -32,7 +32,7 @@ Today's numbers may have changed; `GET /api/owner/today` has them. At most one p
 { "type": "digest" }
 ```
 
-Today's panda's notes were regenerated; `GET /api/owner/digest` has them.
+Today's panda's notes were regenerated, or dropped because the owner hid a message again; `GET /api/owner/digest` has them, or `null`.
 
 ```json
 { "type": "device", "slug": "busker-panda", "online": false, "lastSeenAt": "2026-10-13T14:02:11Z" }
