@@ -56,6 +56,32 @@ jobs:
       - name: Scan full history
         run: ./gitleaks git --redact --verbose --exit-code 1 .
 
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      # The platform and toolchain are about 1 GB; platformio.ini pins them, so it keys the cache.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+      # The build needs secrets.h; the committed placeholders are enough to compile.
+      - name: Placeholder secrets
+        run: cp include/secrets.example.h include/secrets.h
+      - name: Build
+        run: pio run
+      - name: Native tests
+        run: pio test -e native
+
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build, secrets-scan]
