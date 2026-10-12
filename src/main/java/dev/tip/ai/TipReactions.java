@@ -43,8 +43,9 @@ class TipReactions {
 
     /**
      * What gets stored and delivered. {@code kind} is null when the model never read the message. A
-     * flagged message plays PLAIN once and keeps no owner note, whatever its kind and amount. Every other
-     * outcome repeats by the amount, see {@link ReactionRepeats}.
+     * flagged message plays PLAIN once and keeps no owner note, language, translation or song, whatever its
+     * kind and amount. Every other outcome repeats by the amount, see {@link ReactionRepeats}. {@code
+     * songKey} is computed here from the song, see {@link SongKey}. None of the texts ever reaches a device.
      */
     record Outcome(
             MessageKind kind,
@@ -53,6 +54,10 @@ class TipReactions {
             boolean flagged,
             String flagReason,
             String ownerNote,
+            String language,
+            String englishText,
+            String song,
+            String songKey,
             AiStatus status) {
 
         static Outcome classified(MessageClassifier.Classification classification, long amountMinor, String currency) {
@@ -64,6 +69,10 @@ class TipReactions {
                     flagged,
                     classification.flagReason(),
                     flagged ? null : classification.ownerNote(),
+                    flagged ? null : classification.language(),
+                    flagged ? null : classification.englishText(),
+                    flagged ? null : classification.song(),
+                    flagged ? null : SongKey.of(classification.song()),
                     AiStatus.DONE);
         }
 
@@ -75,6 +84,10 @@ class TipReactions {
                     false,
                     null,
                     null,
+                    null,
+                    null,
+                    null,
+                    null,
                     AiStatus.SKIPPED);
         }
 
@@ -84,6 +97,10 @@ class TipReactions {
                     Reaction.PLAIN,
                     ReactionRepeats.of(amountMinor, currency, false),
                     false,
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     AiStatus.FAILED);

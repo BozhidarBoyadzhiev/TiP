@@ -11,7 +11,8 @@ import org.springframework.stereotype.Repository;
 
 /**
  * The AI columns of the {@code tip} table ({@code message_kind}, {@code reaction}, {@code flagged},
- * {@code flag_reason}, {@code owner_note}, {@code ai_*}, {@code reaction_at}) belong to this feature. Every write is conditional, so PostgreSQL
+ * {@code flag_reason}, {@code owner_note}, {@code message_language}, {@code message_english}, {@code
+ * requested_song}, {@code requested_song_key}, {@code ai_*}, {@code reaction_at}) belong to this feature. Every write is conditional, so PostgreSQL
  * row locking decides which worker owns a tip and whose result counts. Instants must already be
  * truncated to microseconds, the precision of {@code timestamptz}, because the claim time is compared
  * for equality.
@@ -61,6 +62,8 @@ class AiTipRepository {
         return jdbc.sql("""
                         UPDATE tip SET message_kind = :kind, reaction = :reaction, flagged = :flagged,
                                        flag_reason = :flagReason, owner_note = :ownerNote,
+                                       message_language = :language, message_english = :englishText,
+                                       requested_song = :song, requested_song_key = :songKey,
                                        ai_status = :status, reaction_at = :reactedAt
                         WHERE id = :id AND ai_status = 'PROCESSING' AND ai_claimed_at = :claimedAt""")
                 .param("id", tipId)
@@ -70,6 +73,10 @@ class AiTipRepository {
                 .param("flagged", outcome.flagged())
                 .param("flagReason", outcome.flagReason())
                 .param("ownerNote", outcome.ownerNote())
+                .param("language", outcome.language())
+                .param("englishText", outcome.englishText())
+                .param("song", outcome.song())
+                .param("songKey", outcome.songKey())
                 .param("status", outcome.status().name())
                 .param("reactedAt", utc(reactedAt))
                 .update();
@@ -83,7 +90,8 @@ class AiTipRepository {
     Optional<Exhausted> failExhausted(UUID tipId, Instant staleBefore, Instant reactedAt) {
         return jdbc.sql("""
                         UPDATE tip SET message_kind = NULL, reaction = 'PLAIN', flagged = false,
-                                       flag_reason = NULL, owner_note = NULL,
+                                       flag_reason = NULL, owner_note = NULL, message_language = NULL,
+                                       message_english = NULL, requested_song = NULL, requested_song_key = NULL,
                                        ai_status = 'FAILED', reaction_at = :reactedAt
                         WHERE id = :id AND status = 'CAPTURED' AND ai_status = 'PROCESSING'
                           AND ai_claimed_at < :staleBefore AND ai_attempts >= :maxAttempts

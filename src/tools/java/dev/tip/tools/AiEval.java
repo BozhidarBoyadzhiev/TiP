@@ -58,9 +58,23 @@ public final class AiEval {
 
     /**
      * One labelled message: the kinds accepted as correct (more than one for a message that is genuinely
-     * ambiguous), the expected flag and whether the owner should see a note.
+     * ambiguous), the expected flag and whether the owner should see a note. The extras are scored only on
+     * cases that label them: {@code language} exactly, {@code translation} only on whether an English text
+     * is there, and {@code song} as a case insensitive match, where an expected null means no song.
      */
-    record Case(String message, List<String> kinds, boolean flagged, Note note) {
+    record Case(
+            String message,
+            List<String> kinds,
+            boolean flagged,
+            Note note,
+            String language,
+            Boolean translation,
+            boolean songLabelled,
+            String song) {
+
+        Case(String message, List<String> kinds, boolean flagged, Note note) {
+            this(message, kinds, flagged, note, null, null, false, null);
+        }
 
         boolean accepts(String kind) {
             return kinds.contains(kind);
@@ -88,7 +102,30 @@ public final class AiEval {
         }
     }
 
-    record Score(int total, int kindRight, int flaggedRight, int noteRight, int allRight) {}
+    record Score(
+            int total,
+            int kindRight,
+            int flaggedRight,
+            int noteRight,
+            int allRight,
+            Part language,
+            Part translation,
+            Part song) {
+
+        Score(int total, int kindRight, int flaggedRight, int noteRight, int allRight) {
+            this(total, kindRight, flaggedRight, noteRight, allRight, Part.NONE, Part.NONE, Part.NONE);
+        }
+    }
+
+    /** The score of an extra over the cases that label it. */
+    record Part(int right, int total) {
+
+        static final Part NONE = new Part(0, 0);
+
+        Part add(boolean correct) {
+            return new Part(right + (correct ? 1 : 0), total + 1);
+        }
+    }
 
     static List<Case> loadCases() {
         try (InputStream in = AiEval.class.getClassLoader().getResourceAsStream(CASES)) {
@@ -137,11 +174,16 @@ public final class AiEval {
         try {
             JsonNode node = JSON.readTree(line);
             JsonNode kind = node.required("kind");
+            JsonNode song = node.get("song");
             return new Case(
                     node.required("message").asString(),
                     kind.isArray() ? kind.valueStream().map(JsonNode::asString).toList() : List.of(kind.asString()),
                     node.required("flagged").asBoolean(),
-                    Note.parse(node.required("ownerNote")));
+                    Note.parse(node.required("ownerNote")),
+                    node.has("language") ? node.get("language").asString() : null,
+                    node.has("translation") ? node.get("translation").asBoolean() : null,
+                    song != null,
+                    song == null || song.isNull() ? null : song.asString());
         } catch (RuntimeException e) {
             throw new IllegalArgumentException(CASES + " line " + lineNumber + ": " + e.getMessage(), e);
         }
@@ -153,6 +195,9 @@ public final class AiEval {
         int flaggedRight = 0;
         int noteRight = 0;
         int allRight = 0;
+        Part language = Part.NONE;
+        Part translation = Part.NONE;
+        Part song = Part.NONE;
         for (Case c : cases) {
             EvalClassifier.Verdict verdict = classify.apply(c.message());
             boolean kind = verdict.valid() && c.accepts(verdict.kind());
@@ -161,6 +206,30 @@ public final class AiEval {
             kindRight += kind ? 1 : 0;
             flaggedRight += flagged ? 1 : 0;
             noteRight += note ? 1 : 0;
+            if (c.language() != null) {
+                boolean right = verdict.valid() && c.language().equals(verdict.language());
+                language = language.add(right);
+                missExtra(out, right, c, "language", c.language(), verdict.language());
+            }
+            if (c.translation() != null) {
+                boolean right = verdict.valid() && c.translation() == (verdict.englishText() != null);
+                translation = translation.add(right);
+                missExtra(
+                        out,
+                        right,
+                        c,
+                        "translation",
+                        c.translation() ? "present" : "absent",
+                        verdict.englishText() == null ? "absent" : quoted(verdict.englishText()));
+            }
+            if (c.songLabelled()) {
+                boolean right = verdict.valid()
+                        && (c.song() == null
+                                ? verdict.song() == null
+                                : verdict.song() != null && c.song().equalsIgnoreCase(verdict.song()));
+                song = song.add(right);
+                missExtra(out, right, c, "song", c.song(), verdict.song());
+            }
             if (kind && flagged && note) {
                 allRight++;
                 continue;
@@ -174,12 +243,22 @@ public final class AiEval {
                                     + (verdict.ownerNote() == null ? "" : " " + quoted(verdict.ownerNote()))
                             : "INVALID (" + verdict.failure() + ")");
         }
-        Score score = new Score(cases.size(), kindRight, flaggedRight, noteRight, allRight);
+        Score score =
+                new Score(cases.size(), kindRight, flaggedRight, noteRight, allRight, language, translation, song);
         out.println(line("kind", score.kindRight(), score.total()));
         out.println(line("flagged", score.flaggedRight(), score.total()));
         out.println(line("owner note", score.noteRight(), score.total()));
         out.println(line("all three", score.allRight(), score.total()));
+        out.println(line("language", language.right(), language.total()));
+        out.println(line("translation", translation.right(), translation.total()));
+        out.println(line("song", song.right(), song.total()));
         return score;
+    }
+
+    private static void missExtra(PrintStream out, boolean right, Case c, String part, String expected, String got) {
+        if (!right) {
+            out.printf("MISS  %-50s  %s expected %s  got %s%n", quoted(c.message()), part, expected, got);
+        }
     }
 
     private static String expected(Case c) {

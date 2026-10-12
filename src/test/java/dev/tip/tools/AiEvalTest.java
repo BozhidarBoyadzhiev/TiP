@@ -22,7 +22,7 @@ class AiEvalTest {
     void casesCoverEveryKindTheBoundaryRowsAndFridaysTips() {
         List<AiEval.Case> cases = AiEval.loadCases();
 
-        assertThat(cases).hasSizeBetween(35, 50);
+        assertThat(cases).hasSizeBetween(35, 70);
         Map<String, Long> byKind = cases.stream()
                 .flatMap(c -> c.kinds().stream())
                 .collect(Collectors.groupingBy(kind -> kind, Collectors.counting()));
@@ -184,6 +184,53 @@ class AiEvalTest {
                 .contains("INVALID (invalid response: not JSON)")
                 .contains("kind         3/5   60.0 %", "all three    1/5   20.0 %")
                 .doesNotContain("\"right\"");
+    }
+
+    @Test
+    void languageIsScoredExactlyTranslationOnPresenceAndSongIgnoringCaseOnlyWhereLabelled() {
+        AiEval.Note no = AiEval.Note.NO;
+        List<AiEval.Case> cases = List.of(
+                new AiEval.Case("fr", List.of("WARM"), false, no, "fr", true, true, null),
+                new AiEval.Case("es", List.of("REQUEST"), false, AiEval.Note.YES, "es", true, true, "Despacito"),
+                new AiEval.Case("en", List.of("REQUEST"), false, AiEval.Note.YES, "en", false, true, "Wonderwall"),
+                new AiEval.Case("unlabelled", List.of("PLAIN"), false, no));
+        Map<String, EvalClassifier.Verdict> answers = Map.of(
+                "fr",
+                new EvalClassifier.Verdict("WARM", false, null, "fr", "Thanks, lovely", null, null),
+                "es",
+                new EvalClassifier.Verdict("REQUEST", false, "Request: Despacito", "pt", null, "despacito", null),
+                "en",
+                new EvalClassifier.Verdict(
+                        "REQUEST", false, "Request: Wonderwall", "en", "Play it", "Wonderwall by Oasis", null),
+                "unlabelled",
+                new EvalClassifier.Verdict("PLAIN", false, null, "xx", "y", "z", null));
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        AiEval.Score score = AiEval.run(cases, answers::get, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+        assertThat(score.language()).isEqualTo(new AiEval.Part(2, 3));
+        assertThat(score.translation()).isEqualTo(new AiEval.Part(1, 3));
+        assertThat(score.song()).isEqualTo(new AiEval.Part(2, 3));
+        assertThat(score.allRight()).isEqualTo(4);
+        assertThat(bytes.toString(StandardCharsets.UTF_8))
+                .contains("language expected es  got pt")
+                .contains("translation expected present  got absent")
+                .contains("song expected Wonderwall  got Wonderwall by Oasis")
+                .contains("language     2/3   66.7 %")
+                .doesNotContain("\"unlabelled\"");
+    }
+
+    @Test
+    void newCasesLabelLanguageTranslationAndSongIncludingATranslateInjection() {
+        List<AiEval.Case> cases = AiEval.loadCases();
+
+        assertThat(cases).filteredOn(c -> c.language() != null).hasSizeGreaterThanOrEqualTo(8);
+        assertThat(cases).filteredOn(c -> Boolean.TRUE.equals(c.translation())).hasSizeGreaterThanOrEqualTo(4);
+        assertThat(cases).filteredOn(c -> c.song() != null).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(cases)
+                .filteredOn(c -> c.message().toLowerCase().matches(".*(translate|traduis).*"))
+                .hasSizeGreaterThanOrEqualTo(2)
+                .allMatch(c -> c.kinds().equals(List.of("PLAIN")) && c.note() == AiEval.Note.NO && !c.flagged());
     }
 
     private static AiEval.Case only(String message, String kind, boolean flagged, AiEval.Note note) {

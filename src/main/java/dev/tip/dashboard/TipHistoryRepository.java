@@ -30,7 +30,10 @@ class TipHistoryRepository {
                    CASE WHEN t.flagged THEN NULL ELSE t.message END AS message,
                    t.message_kind, t.reaction, t.flagged,
                    CASE WHEN t.flagged THEN t.flag_reason END AS flag_reason,
-                   CASE WHEN t.flagged THEN NULL ELSE t.owner_note END AS owner_note
+                   CASE WHEN t.flagged THEN NULL ELSE t.owner_note END AS owner_note,
+                   CASE WHEN t.flagged THEN NULL ELSE t.message_language END AS message_language,
+                   CASE WHEN t.flagged THEN NULL ELSE t.message_english END AS message_english,
+                   CASE WHEN t.flagged THEN NULL ELSE t.requested_song END AS requested_song
             """;
 
     private static final String OWNED_VISIBLE_TIPS = """
@@ -90,7 +93,11 @@ class TipHistoryRepository {
                 rs.getString("reaction"),
                 rs.getBoolean("flagged"),
                 rs.getString("flag_reason"),
-                rs.getString("owner_note"));
+                rs.getString("owner_note"),
+                rs.getString("message_language"),
+                Languages.englishName(rs.getString("message_language")),
+                rs.getString("message_english"),
+                rs.getString("requested_song"));
     }
 
     /** The {@code FROM ... WHERE} part shared by the page and the count, with its parameters. */

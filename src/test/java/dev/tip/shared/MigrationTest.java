@@ -145,6 +145,46 @@ class MigrationTest extends IntegrationTest {
         }
     }
 
+    @Test
+    void existingOwnersGetLondonAndExistingRowsKeepWorkingWithoutTheNewColumns() {
+        String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
+        migrate(schema, "5");
+        UUID ownerId = insertOwner(schema);
+        UUID deviceId = UUID.randomUUID();
+        jdbc.sql("INSERT INTO " + schema + ".device (id, slug, display_name, owner_id, secret_hash, created_at)"
+                        + " VALUES (?, 'old-panda', 'Old', ?, decode(repeat('ab', 32), 'hex'), now())")
+                .params(deviceId, ownerId)
+                .update();
+        UUID tipId = insertReactedTip(schema, deviceId, "WARM", "DONE");
+
+        migrate(schema, "6");
+
+        assertThat(jdbc.sql("SELECT time_zone FROM " + schema + ".owner WHERE id = ?")
+                        .param(ownerId)
+                        .query(String.class)
+                        .single())
+                .isEqualTo("Europe/London");
+        assertThat(jdbc.sql("SELECT message_language, message_english, requested_song, requested_song_key FROM "
+                                + schema + ".tip WHERE id = ?")
+                        .param(tipId)
+                        .query()
+                        .singleRow())
+                .containsOnlyKeys("message_language", "message_english", "requested_song", "requested_song_key")
+                .allSatisfy((column, value) -> assertThat(value).isNull());
+        // The previous release inserts owners and tips without the new columns.
+        UUID newerOwner = UUID.randomUUID();
+        jdbc.sql("INSERT INTO " + schema + ".owner (id, email, password_hash, display_name, created_at)"
+                        + " VALUES (?, 'newer@example.com', '{bcrypt}!', 'Newer', now())")
+                .param(newerOwner)
+                .update();
+        insertReactedTip(schema, deviceId, "PLAIN", "SKIPPED");
+        assertThat(jdbc.sql("SELECT last_seen_at FROM " + schema + ".device WHERE id = ?")
+                        .param(deviceId)
+                        .query()
+                        .singleRow())
+                .containsEntry("last_seen_at", null);
+    }
+
     /** A captured tip with the given reaction, plus its delivery row. */
     private UUID insertReactedTip(String schema, UUID deviceId, String reaction, String aiStatus) {
         UUID id = UUID.randomUUID();

@@ -54,6 +54,28 @@ public final class AnthropicStubs {
                 + ",\"ownerNote\":" + jsonString(ownerNote) + "}";
     }
 
+    /** The JSON the model is asked to produce, with the language, translation and song. */
+    public static String classification(
+            String kind,
+            boolean flagged,
+            String flagReason,
+            String ownerNote,
+            String language,
+            String englishText,
+            String song) {
+        return "{\"kind\":\"" + kind + "\",\"flagged\":" + flagged + ",\"flagReason\":" + jsonString(flagReason)
+                + ",\"ownerNote\":" + jsonString(ownerNote) + ",\"language\":" + jsonString(language)
+                + ",\"englishText\":" + jsonString(englishText) + ",\"song\":" + jsonString(song) + "}";
+    }
+
+    /** A digest the model could write: bullets and request groups naming tips by their references. */
+    public static String digest(List<String> bullets, String groupsJson) {
+        return "{\"bullets\":["
+                + String.join(
+                        ",", bullets.stream().map(AnthropicStubs::jsonString).toList()) + "],\"requestGroups\":"
+                + groupsJson + "}";
+    }
+
     public static String classification(String kind, boolean flagged, String flagReason) {
         return classification(kind, flagged, flagReason, null);
     }

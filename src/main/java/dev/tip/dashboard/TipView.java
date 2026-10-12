@@ -4,9 +4,11 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * One tip as its owner sees it. A flagged tip has no {@code message} or {@code ownerNote}, only its
- * {@code flagReason}, so the owner does not have to read the abuse. {@code messageKind} and {@code
- * reaction} are plain strings, because the AI feature's types are internal to it.
+ * One tip as its owner sees it. A flagged tip has no {@code message}, {@code ownerNote}, {@code language},
+ * {@code englishText} or {@code requestedSong}, only its {@code flagReason}, so the owner does not have to
+ * read the abuse. {@code messageKind} and {@code reaction} are plain strings, because the AI feature's types
+ * are internal to it. {@code language} is the ISO 639-1 code the AI read, {@code languageName} its English
+ * name, and {@code englishText} the AI's translation when the message is not in English.
  */
 record TipView(
         UUID id,
@@ -20,4 +22,8 @@ record TipView(
         String reaction,
         boolean flagged,
         String flagReason,
-        String ownerNote) {}
+        String ownerNote,
+        String language,
+        String languageName,
+        String englishText,
+        String requestedSong) {}

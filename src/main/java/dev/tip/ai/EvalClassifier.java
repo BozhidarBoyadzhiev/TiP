@@ -50,18 +50,37 @@ public final class EvalClassifier {
             Classification classification = classifier.classify(message);
             // The stored outcome decides which note the owner sees; the amount only sets repeats, unused here.
             TipReactions.Outcome outcome = TipReactions.Outcome.classified(classification, 0, "GBP");
-            return new Verdict(classification.kind().name(), classification.flagged(), outcome.ownerNote(), null);
+            return new Verdict(
+                    classification.kind().name(),
+                    classification.flagged(),
+                    outcome.ownerNote(),
+                    outcome.language(),
+                    outcome.englishText(),
+                    outcome.song(),
+                    null);
         } catch (ClassificationFailed e) {
-            return new Verdict(null, false, null, e.getMessage());
+            return new Verdict(null, false, null, null, null, null, e.getMessage());
         }
     }
 
     /**
-     * What the app would store. {@code ownerNote} is the note the owner sees, so null for a flagged
-     * message. {@code failure} is set, and the rest empty, when the model's output was invalid or the call
-     * failed.
+     * What the app would store. {@code ownerNote}, {@code language}, {@code englishText} and {@code song}
+     * are what the owner sees, so null for a flagged message. {@code failure} is set, and the rest empty,
+     * when the model's output was invalid or the call failed.
      */
-    public record Verdict(String kind, boolean flagged, String ownerNote, String failure) {
+    public record Verdict(
+            String kind,
+            boolean flagged,
+            String ownerNote,
+            String language,
+            String englishText,
+            String song,
+            String failure) {
+
+        /** A verdict without language, translation or song. */
+        public Verdict(String kind, boolean flagged, String ownerNote, String failure) {
+            this(kind, flagged, ownerNote, null, null, null, failure);
+        }
 
         public boolean valid() {
             return failure == null;
