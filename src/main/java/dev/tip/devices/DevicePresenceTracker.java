@@ -59,7 +59,7 @@ class DevicePresenceTracker implements DevicePresence {
      * it too.
      */
     void disconnected(UUID deviceId) {
-        if (sessions.find(deviceId).isPresent()) {
+        if (sessions.registered(deviceId).isPresent()) {
             return;
         }
         Instant now = clock.instant();
@@ -74,7 +74,9 @@ class DevicePresenceTracker implements DevicePresence {
     void reportOffline() {
         Instant deadline = clock.instant().minus(OFFLINE_AFTER);
         goneSince.forEach((deviceId, since) -> {
-            if (!since.isAfter(deadline) && sessions.find(deviceId).isEmpty() && goneSince.remove(deviceId, since)) {
+            if (!since.isAfter(deadline)
+                    && sessions.registered(deviceId).isEmpty()
+                    && goneSince.remove(deviceId, since)) {
                 reportedOnline.put(deviceId, false);
                 publish(deviceId, false, since);
             }
@@ -85,7 +87,7 @@ class DevicePresenceTracker implements DevicePresence {
     public List<DeviceStatus> ownedBy(UUID ownerId) {
         return devices.findByOwnerIdOrderBySlug(ownerId).stream()
                 .map(device -> {
-                    WebSocketSession session = sessions.find(device.id()).orElse(null);
+                    WebSocketSession session = sessions.registered(device.id()).orElse(null);
                     Instant lastPong = session == null ? null : SessionKeepalive.lastPong(session);
                     boolean online = session != null || goneSince.containsKey(device.id());
                     return new DeviceStatus(

@@ -76,7 +76,7 @@ class DeviceChannelTest extends IntegrationTest {
         try (TestSocket device = TestSocket.connectDevice(port, deviceId, secret)) {
             assertThat(device.nextJson()).containsEntry("type", "hello");
 
-            assertThat(sessions.find(deviceId)).isPresent();
+            assertThat(sessions.registered(deviceId)).isPresent();
             assertThat(jdbc.sql("SELECT last_seen_at FROM device WHERE id = ?")
                             .param(deviceId)
                             .query(Timestamp.class)
@@ -206,10 +206,32 @@ class DeviceChannelTest extends IntegrationTest {
         order.verify(old).sendMessage(new TextMessage("{\"type\":\"closing\",\"reason\":\"replaced\"}"));
         order.verify(old).close(DeviceSessions.REPLACED);
         verify(replacement, never()).close(DeviceSessions.REPLACED);
-        assertThat(registry.find(deviceId)).containsSame(replacement);
+        assertThat(registry.registered(deviceId)).containsSame(replacement);
 
         registry.unregister(deviceId, replacement);
+        assertThat(registry.registered(deviceId)).isEmpty();
+    }
+
+    @Test
+    void aPendingSessionIsHiddenFromLiveSendsUntilReady() {
+        DeviceSessions registry =
+                new DeviceSessions(new ChannelMessages(JsonMapper.builder().build()));
+        UUID deviceId = UUID.randomUUID();
+        WebSocketSession old = mock(WebSocketSession.class);
+        WebSocketSession session = mock(WebSocketSession.class);
+        registry.register(deviceId, session);
+
+        assertThat(registry.registered(deviceId)).containsSame(session);
         assertThat(registry.find(deviceId)).isEmpty();
+        assertThat(registry.connectedDevices()).doesNotContain(deviceId);
+        assertThat(registry.all()).contains(session);
+
+        registry.markReady(deviceId, old);
+        assertThat(registry.find(deviceId)).isEmpty();
+
+        registry.markReady(deviceId, session);
+        assertThat(registry.find(deviceId)).containsSame(session);
+        assertThat(registry.connectedDevices()).contains(deviceId);
     }
 
     @Test
