@@ -199,8 +199,13 @@ class OwnerChannelTest extends IntegrationTest {
             }
 
             assertThat(frames)
-                    .allSatisfy(frame -> assertThat(frame)
-                            .doesNotContain(message, note, english, "Wonderwall", "REQUEST", "200", "GBP"));
+                    .allSatisfy(frame ->
+                            assertThat(frame).doesNotContain(message, note, english, "Wonderwall", "REQUEST", "GBP"));
+            // Only a type and an id: no amount, whatever digits a random tip id happens to contain.
+            assertThat(frames)
+                    .allSatisfy(
+                            frame -> assertThat(JSON.readValue(frame, Map.class).keySet())
+                                    .isSubsetOf("type", "id"));
             assertThat(frames).contains("{\"type\":\"tip\",\"id\":\"" + tipId + "\"}", "{\"type\":\"today\"}");
         }
     }
