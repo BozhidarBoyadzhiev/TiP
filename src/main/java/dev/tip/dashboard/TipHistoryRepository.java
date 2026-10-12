@@ -28,7 +28,7 @@ class TipHistoryRepository {
     private static final String SELECT = """
             SELECT t.id, t.created_at, t.amount_minor, t.currency, t.status, d.slug AS device_slug,
                    CASE WHEN t.flagged THEN NULL ELSE t.message END AS message,
-                   t.message_kind, t.reaction, t.flagged,
+                   t.message_kind, t.reaction, rd.repeats, t.flagged,
                    CASE WHEN t.flagged THEN t.flag_reason END AS flag_reason,
                    CASE WHEN t.flagged THEN NULL ELSE t.owner_note END AS owner_note,
                    CASE WHEN t.flagged THEN NULL ELSE t.message_language END AS message_language,
@@ -39,6 +39,7 @@ class TipHistoryRepository {
     private static final String OWNED_VISIBLE_TIPS = """
             FROM tip t
             JOIN device d ON d.id = t.device_id
+            LEFT JOIN reaction_delivery rd ON rd.tip_id = t.id
             WHERE d.owner_id = :ownerId
               AND t.status IN (:visibleStatuses)
             """;
@@ -91,6 +92,7 @@ class TipHistoryRepository {
                 rs.getString("message"),
                 rs.getString("message_kind"),
                 rs.getString("reaction"),
+                rs.getObject("repeats", Integer.class),
                 rs.getBoolean("flagged"),
                 rs.getString("flag_reason"),
                 rs.getString("owner_note"),

@@ -256,6 +256,31 @@ class DashboardTest extends IntegrationTest {
         assertThat(list).doesNotContain("You are a clown", "Eres un payaso");
     }
 
+    @Test
+    void aTipShowsTheRepeatsStoredWithItsDeliveryOrNullWithoutOne() throws Exception {
+        UUID delivered =
+                captured(deviceId, NOW.minusSeconds(600), 2000, Map.of("reaction", "WARM", "ai_status", "DONE"));
+        UUID flagged = captured(deviceId, NOW.minusSeconds(500), 5000, flagged("Clown", "PLAIN"));
+        UUID notYet = captured(deviceId, NOW.minusSeconds(400), 1000, Map.of());
+        jdbc.sql(
+                        "INSERT INTO reaction_delivery (tip_id, device_id, reaction, repeats, reacted_at) VALUES (?, ?, ?, ?, now())")
+                .params(delivered, deviceId, "WARM", 5)
+                .update();
+        jdbc.sql(
+                        "INSERT INTO reaction_delivery (tip_id, device_id, reaction, repeats, reacted_at) VALUES (?, ?, ?, ?, now())")
+                .params(flagged, deviceId, "PLAIN", 1)
+                .update();
+
+        as(owner, "/api/owner/tips/" + delivered)
+                .andExpect(jsonPath("$.repeats").value(5));
+        as(owner, "/api/owner/tips/" + flagged).andExpect(jsonPath("$.repeats").value(1));
+        as(owner, "/api/owner/tips/" + notYet).andExpect(jsonPath("$.repeats").value(nullValue()));
+        as(owner, "/api/owner/tips")
+                .andExpect(jsonPath("$.totalItems").value(3))
+                .andExpect(jsonPath("$.items[?(@.id == '" + delivered + "')].repeats")
+                        .value(contains(5)));
+    }
+
     private ResultActions as(OwnerPrincipal principal, String path) throws Exception {
         return mvc.perform(get(path).with(user(principal)));
     }
