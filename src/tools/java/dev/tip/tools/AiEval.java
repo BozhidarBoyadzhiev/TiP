@@ -59,7 +59,8 @@ public final class AiEval {
     /**
      * One labelled message: the kinds accepted as correct (more than one for a message that is genuinely
      * ambiguous), the expected flag and whether the owner should see a note. The extras are scored only on
-     * cases that label them: {@code language} exactly, {@code translation} only on whether an English text
+     * cases that label them: {@code languages} exactly, any one of them (a list for a message that genuinely
+     * mixes two), {@code translation} only on whether an English text
      * is there, and {@code song} as a case insensitive match, where an expected null means no song.
      */
     record Case(
@@ -67,7 +68,7 @@ public final class AiEval {
             List<String> kinds,
             boolean flagged,
             Note note,
-            String language,
+            List<String> languages,
             Boolean translation,
             boolean songLabelled,
             String song) {
@@ -177,16 +178,21 @@ public final class AiEval {
             JsonNode song = node.get("song");
             return new Case(
                     node.required("message").asString(),
-                    kind.isArray() ? kind.valueStream().map(JsonNode::asString).toList() : List.of(kind.asString()),
+                    texts(kind),
                     node.required("flagged").asBoolean(),
                     Note.parse(node.required("ownerNote")),
-                    node.has("language") ? node.get("language").asString() : null,
+                    node.has("language") ? texts(node.get("language")) : null,
                     node.has("translation") ? node.get("translation").asBoolean() : null,
                     song != null,
                     song == null || song.isNull() ? null : song.asString());
         } catch (RuntimeException e) {
             throw new IllegalArgumentException(CASES + " line " + lineNumber + ": " + e.getMessage(), e);
         }
+    }
+
+    /** A string, or an array of strings, as a list. */
+    private static List<String> texts(JsonNode node) {
+        return node.isArray() ? node.valueStream().map(JsonNode::asString).toList() : List.of(node.asString());
     }
 
     /** Runs the cases in order and prints one line per disagreement, then the accuracy of each part. */
@@ -206,10 +212,10 @@ public final class AiEval {
             kindRight += kind ? 1 : 0;
             flaggedRight += flagged ? 1 : 0;
             noteRight += note ? 1 : 0;
-            if (c.language() != null) {
-                boolean right = verdict.valid() && c.language().equals(verdict.language());
+            if (c.languages() != null) {
+                boolean right = verdict.valid() && c.languages().contains(verdict.language());
                 language = language.add(right);
-                missExtra(out, right, c, "language", c.language(), verdict.language());
+                missExtra(out, right, c, "language", String.join("|", c.languages()), verdict.language());
             }
             if (c.translation() != null) {
                 boolean right = verdict.valid() && c.translation() == (verdict.englishText() != null);

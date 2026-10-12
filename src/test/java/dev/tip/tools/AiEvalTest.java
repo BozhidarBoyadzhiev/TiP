@@ -190,9 +190,11 @@ class AiEvalTest {
     void languageIsScoredExactlyTranslationOnPresenceAndSongIgnoringCaseOnlyWhereLabelled() {
         AiEval.Note no = AiEval.Note.NO;
         List<AiEval.Case> cases = List.of(
-                new AiEval.Case("fr", List.of("WARM"), false, no, "fr", true, true, null),
-                new AiEval.Case("es", List.of("REQUEST"), false, AiEval.Note.YES, "es", true, true, "Despacito"),
-                new AiEval.Case("en", List.of("REQUEST"), false, AiEval.Note.YES, "en", false, true, "Wonderwall"),
+                new AiEval.Case("fr", List.of("WARM"), false, no, List.of("fr"), true, true, null),
+                new AiEval.Case(
+                        "es", List.of("REQUEST"), false, AiEval.Note.YES, List.of("es"), true, true, "Despacito"),
+                new AiEval.Case(
+                        "en", List.of("REQUEST"), false, AiEval.Note.YES, List.of("en"), false, true, "Wonderwall"),
                 new AiEval.Case("unlabelled", List.of("PLAIN"), false, no));
         Map<String, EvalClassifier.Verdict> answers = Map.of(
                 "fr",
@@ -224,13 +226,38 @@ class AiEvalTest {
     void newCasesLabelLanguageTranslationAndSongIncludingATranslateInjection() {
         List<AiEval.Case> cases = AiEval.loadCases();
 
-        assertThat(cases).filteredOn(c -> c.language() != null).hasSizeGreaterThanOrEqualTo(8);
+        assertThat(cases).filteredOn(c -> c.languages() != null).hasSizeGreaterThanOrEqualTo(8);
         assertThat(cases).filteredOn(c -> Boolean.TRUE.equals(c.translation())).hasSizeGreaterThanOrEqualTo(4);
         assertThat(cases).filteredOn(c -> c.song() != null).hasSizeGreaterThanOrEqualTo(3);
         assertThat(cases)
                 .filteredOn(c -> c.message().toLowerCase().matches(".*(translate|traduis).*"))
                 .hasSizeGreaterThanOrEqualTo(2)
                 .allMatch(c -> c.kinds().equals(List.of("PLAIN")) && c.note() == AiEval.Note.NO && !c.flagged());
+    }
+
+    @Test
+    void aMixedMessageAcceptsEitherLanguageAndATranslationEitherWay() {
+        AiEval.Case gracias = AiEval.loadCases().stream()
+                .filter(c -> c.message().startsWith("Gracias"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(gracias.languages()).containsExactly("es", "en");
+        assertThat(gracias.translation()).isNull();
+        Map<String, EvalClassifier.Verdict> answers = Map.of(
+                "es", new EvalClassifier.Verdict("WARM", false, null, "es", "Thanks, amazing set", null, null),
+                "en", new EvalClassifier.Verdict("WARM", false, null, "en", null, null, null),
+                "pt", new EvalClassifier.Verdict("WARM", false, null, "pt", null, null, null));
+        List<AiEval.Case> cases = List.of(
+                new AiEval.Case("es", gracias.kinds(), false, AiEval.Note.NO, gracias.languages(), null, true, null),
+                new AiEval.Case("en", gracias.kinds(), false, AiEval.Note.NO, gracias.languages(), null, true, null),
+                new AiEval.Case("pt", gracias.kinds(), false, AiEval.Note.NO, gracias.languages(), null, true, null));
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        AiEval.Score score = AiEval.run(cases, answers::get, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+        assertThat(score.language()).isEqualTo(new AiEval.Part(2, 3));
+        assertThat(score.translation()).isEqualTo(AiEval.Part.NONE);
+        assertThat(bytes.toString(StandardCharsets.UTF_8)).contains("language expected es|en  got pt");
     }
 
     private static AiEval.Case only(String message, String kind, boolean flagged, AiEval.Note note) {
