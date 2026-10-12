@@ -2,9 +2,11 @@ package dev.tip.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -41,6 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.web.servlet.MockMvc;
@@ -223,6 +226,49 @@ class OwnerChannelTest extends IntegrationTest {
                             "{\"type\":\"tip\",\"id\":\"" + tipId + "\"}",
                             "{\"type\":\"tip\",\"id\":\"" + tipId + "\"}",
                             "{\"type\":\"today\"}");
+        }
+    }
+
+    @Test
+    void aVerdictIsAnnouncedAsATipIdOnlyAndNeverReachesObservers() throws Exception {
+        String abuse = TestData.uniqueMessage("You are a talentless clown");
+        String note = TestData.uniqueMessage("Request: stop singing");
+        Map<String, Object> columns = new HashMap<>();
+        columns.put("message", abuse);
+        columns.put("message_kind", "REQUEST");
+        columns.put("owner_note", note);
+        columns.put("reaction", "PLAIN");
+        columns.put("flagged", true);
+        columns.put("flag_reason", "insult");
+        columns.put("ai_status", "DONE");
+        columns.put("paypal_capture_id", TestData.uniqueId("CAPTURE"));
+        UUID tipId = data.tip(deviceId, "CAPTURED", clock.instant(), columns);
+        String cookie = signIn(email);
+
+        try (RawWebSocket socket = handshake(Map.of("Cookie", cookie, "Origin", TestSocket.PUBLIC_ORIGIN));
+                TestSocket observer = TestSocket.connectObserver(port, slug, TestData.uniquePublicIp())) {
+            assertThat(socket.status).isEqualTo(101);
+            awaitSockets(ownerId, 1);
+            List<String> frames = new ArrayList<>();
+            for (boolean hidden : List.of(false, true)) {
+                mvc.perform(put("/api/owner/tips/{id}/verdict", tipId)
+                                .with(user(principal()))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"hidden\":" + hidden + "}"))
+                        .andExpect(status().isOk());
+                frames.add(socket.readUntilText());
+                sockets.flushToday();
+                frames.add(socket.readUntilText());
+            }
+
+            String tip = "{\"type\":\"tip\",\"id\":\"" + tipId + "\"}";
+            assertThat(frames).containsExactly(tip, "{\"type\":\"today\"}", tip, "{\"type\":\"today\"}");
+            assertThat(frames).allSatisfy(frame -> assertThat(frame).doesNotContain(abuse, note, "REQUEST"));
+            observer.sync();
+            assertThat(observer.pending())
+                    .as("observers hear nothing of a verdict")
+                    .isZero();
         }
     }
 

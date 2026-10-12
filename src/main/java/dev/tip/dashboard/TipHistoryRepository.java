@@ -25,16 +25,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 class TipHistoryRepository {
 
-    private static final String SELECT = """
-            SELECT t.id, t.created_at, t.amount_minor, t.currency, t.status, d.slug AS device_slug,
-                   CASE WHEN t.flagged THEN NULL ELSE t.message END AS message,
-                   t.message_kind, t.reaction, rd.repeats, t.flagged,
-                   CASE WHEN t.flagged THEN t.flag_reason END AS flag_reason,
-                   CASE WHEN t.flagged THEN NULL ELSE t.owner_note END AS owner_note,
-                   CASE WHEN t.flagged THEN NULL ELSE t.message_language END AS message_language,
-                   CASE WHEN t.flagged THEN NULL ELSE t.message_english END AS message_english,
-                   CASE WHEN t.flagged THEN NULL ELSE t.requested_song END AS requested_song
-            """;
+    /** The texts of a hidden message stay in the database, see {@link HiddenMessages}. */
+    private static final String SELECT = "SELECT t.id, t.created_at, t.amount_minor, t.currency, t.status,"
+            + " d.slug AS device_slug, t.message_kind, t.reaction, rd.repeats,"
+            + " " + HiddenMessages.HIDDEN + " AS hidden,"
+            + " " + HiddenMessages.UNHIDDEN + " AS unhidden,"
+            + " CASE WHEN " + HiddenMessages.AI_FLAGGED + " THEN t.flag_reason END AS flag_reason,"
+            + " " + HiddenMessages.unlessHidden("t.message") + " AS message,"
+            + " " + HiddenMessages.unlessHidden("t.owner_note") + " AS owner_note,"
+            + " " + HiddenMessages.unlessHidden("t.message_language") + " AS message_language,"
+            + " " + HiddenMessages.unlessHidden("t.message_english") + " AS message_english,"
+            + " " + HiddenMessages.unlessHidden("t.requested_song") + " AS requested_song\n";
 
     private static final String OWNED_VISIBLE_TIPS = """
             FROM tip t
@@ -93,7 +94,8 @@ class TipHistoryRepository {
                 rs.getString("message_kind"),
                 rs.getString("reaction"),
                 rs.getObject("repeats", Integer.class),
-                rs.getBoolean("flagged"),
+                rs.getBoolean("hidden"),
+                rs.getBoolean("unhidden"),
                 rs.getString("flag_reason"),
                 rs.getString("owner_note"),
                 rs.getString("message_language"),
@@ -119,8 +121,7 @@ class TipHistoryRepository {
                 params.put("kind", query.kind());
             }
             if (query.flagged() != null) {
-                sql.append(" AND t.flagged = :flagged");
-                params.put("flagged", query.flagged());
+                sql.append(query.flagged() ? " AND " + HiddenMessages.HIDDEN : " AND " + HiddenMessages.SHOWN);
             }
             if (query.from() != null) {
                 sql.append(" AND t.created_at >= :fromInclusive");

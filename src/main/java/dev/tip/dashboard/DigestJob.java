@@ -27,9 +27,9 @@ import org.springframework.stereotype.Component;
 /**
  * Regenerates stale digests. A reaction marks its owner's digest of the day stale; every two minutes this
  * job takes each stale digest of an owner's today, at most once every {@link #MIN_INTERVAL} per owner and
- * only with at least {@link #MIN_MESSAGES} unflagged messages that day. The claim in {@link
- * DigestRepository} keeps a second instance from calling the model for the same digest, and a digest is
- * stored only when it read newer reactions than the stored one. A failure keeps the stored digest and
+ * only with at least {@link #MIN_MESSAGES} shown messages that day ({@link HiddenMessages}). The claim in
+ * {@link DigestRepository} keeps a second instance from calling the model for the same digest, and a digest
+ * is stored only when it read newer changes (reactions, or a message the owner unhid) than the stored one. A failure keeps the stored digest and
  * tries again on the next run. Without AI nothing happens. The model is called outside any transaction.
  */
 @Component
@@ -98,7 +98,7 @@ class DigestJob {
         List<DigestInput> notes =
                 tips.digestNotes(ownerId, day.startOfDayBefore(RequestsReport.DAYS - 1), now, MAX_NOTES);
         Instant watermark = Stream.concat(messages.stream(), notes.stream())
-                .map(DigestInput::reactedAt)
+                .map(DigestInput::changedAt)
                 .filter(Objects::nonNull)
                 .max(Instant::compareTo)
                 .orElse(null);
@@ -128,6 +128,7 @@ class DigestJob {
         boolean storedNow = digests.store(
                 ownerId,
                 day.today(),
+                claimedAt,
                 digest.bullets(),
                 digest.requestGroups().stream()
                         .map(g -> new StoredGroup(g.label(), g.tipIds()))
@@ -140,7 +141,7 @@ class DigestJob {
             log.info("Stored the digest of owner {} from {} messages", ownerId, messages.size());
             sockets.digestChanged(ownerId);
         } else {
-            log.info("Digest of owner {} discarded, a newer one is stored", ownerId);
+            log.info("Digest of owner {} discarded, a newer one is stored or it was dropped", ownerId);
         }
     }
 }

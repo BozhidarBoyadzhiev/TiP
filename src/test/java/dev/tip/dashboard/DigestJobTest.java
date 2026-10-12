@@ -184,12 +184,24 @@ class DigestJobTest extends IntegrationTest {
     @Test
     void storeRejectsAWatermarkThatIsNotNewer() {
         digests.markStale(ownerId, TODAY);
-        assertThat(digests.store(ownerId, TODAY, List.of("Newer."), List.of(), 4, NOW, NOW))
+        Instant claimedAt =
+                digests.claim(ownerId, TODAY, NOW, NOW, NOW).orElseThrow().claimedAt();
+        assertThat(digests.store(ownerId, TODAY, claimedAt, List.of("Newer."), List.of(), 4, NOW, NOW))
                 .isTrue();
 
-        assertThat(digests.store(ownerId, TODAY, List.of("Older."), List.of(), 3, NOW.minusSeconds(1), NOW))
+        assertThat(digests.store(ownerId, TODAY, claimedAt, List.of("Older."), List.of(), 3, NOW.minusSeconds(1), NOW))
                 .isFalse();
-        assertThat(digests.store(ownerId, TODAY, List.of("Same."), List.of(), 3, NOW, NOW))
+        assertThat(digests.store(ownerId, TODAY, claimedAt, List.of("Same."), List.of(), 3, NOW, NOW))
+                .isFalse();
+        assertThat(digests.store(
+                        ownerId,
+                        TODAY,
+                        NOW.minusSeconds(1),
+                        List.of("Other claim."),
+                        List.of(),
+                        9,
+                        NOW.plusSeconds(1),
+                        NOW))
                 .isFalse();
         assertThat(digests.find(ownerId, TODAY).orElseThrow().bullets()).containsExactly("Newer.");
     }

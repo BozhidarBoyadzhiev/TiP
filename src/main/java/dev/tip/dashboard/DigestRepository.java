@@ -16,8 +16,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The {@code owner_digest} table. Every write is conditional, like the AI columns of {@code tip}: a claim
- * lets one job instance at a time generate an owner's digest, and a result is stored only when it read
- * newer reactions than the stored one, so a slow old call never overwrites a newer digest. Instants must
+ * lets one job instance at a time generate an owner's digest, and a result is stored only while its claim
+ * still holds and when it read newer changes than the stored one, so a slow old call never overwrites a
+ * newer digest and a call that was running when the digest was dropped never brings it back. Instants must
  * be truncated to microseconds, because the claim time is compared for equality.
  */
 @Repository
@@ -83,10 +84,14 @@ class DigestRepository {
                 .update();
     }
 
-    /** Stores a digest unless the stored one read reactions at least as new. True when it was stored. */
+    /**
+     * Stores a digest while the claim it was made under still holds, unless the stored one read changes at
+     * least as new. True when it was stored.
+     */
     boolean store(
             UUID ownerId,
             LocalDate day,
+            Instant claimedAt,
             List<String> bullets,
             List<StoredGroup> groups,
             int messageCount,
@@ -97,10 +102,11 @@ class DigestRepository {
                                 SET bullets = CAST(:bullets AS jsonb), request_groups = CAST(:groups AS jsonb),
                                     message_count = :messageCount, source_watermark = :watermark,
                                     generated_at = :generatedAt
-                                WHERE owner_id = :ownerId AND local_day = :day
+                                WHERE owner_id = :ownerId AND local_day = :day AND claimed_at = :claimedAt
                                   AND (source_watermark IS NULL OR source_watermark < :watermark)""")
                         .param("ownerId", ownerId)
                         .param("day", day)
+                        .param("claimedAt", utc(claimedAt))
                         .param("bullets", json.writeValueAsString(bullets))
                         .param("groups", json.writeValueAsString(groups))
                         .param("messageCount", messageCount)
@@ -108,6 +114,21 @@ class DigestRepository {
                         .param("generatedAt", utc(generatedAt))
                         .update()
                 == 1;
+    }
+
+    /**
+     * Forgets the owner's digest of {@code day} at once, notes and request groups alike, and ends any claim
+     * on it, so a call still running cannot store what it read. Marks it stale, so the job writes a new one
+     * under the usual rules: {@code generated_at} stays, so the 10 minute limit still counts from the last
+     * call. True when there was a digest to forget.
+     */
+    boolean drop(UUID ownerId, LocalDate day) {
+        return jdbc.sql("""
+                                UPDATE owner_digest
+                                SET bullets = NULL, request_groups = NULL, message_count = 0, source_watermark = NULL,
+                                    claimed_at = NULL, stale = true
+                                WHERE owner_id = :ownerId AND local_day = :day
+                                  AND (bullets IS NOT NULL OR claimed_at IS NOT NULL)""").param("ownerId", ownerId).param("day", day).update() == 1;
     }
 
     /** The stored digest of the day, empty when none was stored yet. */

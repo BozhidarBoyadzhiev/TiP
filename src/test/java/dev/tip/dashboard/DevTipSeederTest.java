@@ -196,7 +196,7 @@ class DevTipSeederTest extends IntegrationTest {
     }
 
     @Test
-    void languageSamplesCarryTranslationsAndFlaggedOnesNone() {
+    void languageSamplesCarryTranslationsAndTheFlaggedFrenchOneKeepsItsReadForAnOverrule() {
         List<Map<String, Object>> rows = seededRows();
 
         assertThat(rows).extracting(r -> r.get("message_language")).contains("fr", "es", "de", "en");
@@ -207,11 +207,14 @@ class DevTipSeederTest extends IntegrationTest {
         assertThat(rows)
                 .filteredOn(r -> "en".equals(r.get("message_language")))
                 .allSatisfy(r -> assertThat(r.get("message_english")).isNull());
-        assertThat(rows).filteredOn(r -> (Boolean) r.get("flagged")).allSatisfy(r -> {
-            assertThat(r.get("message_language")).isNull();
-            assertThat(r.get("message_english")).isNull();
-            assertThat(r.get("requested_song")).isNull();
-        });
+        assertThat(rows)
+                .filteredOn(r -> (Boolean) r.get("flagged") && r.get("message_language") != null)
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.get("message_language")).isEqualTo("fr");
+                    assertThat(r.get("message_english")).isNotNull();
+                    assertThat(r.get("owner_verdict")).isNull();
+                });
     }
 
     @Test

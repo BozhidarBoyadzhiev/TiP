@@ -136,7 +136,8 @@ class DevTipSeeder {
             Sample.request("CAPTURED", 500, "Play The Wonderwall by Oasis", "Request: Wonderwall by Oasis")
                     .inLanguage("en", null)
                     .withSong("The Wonderwall", "wonderwall"),
-            Sample.flagged("CAPTURED", 100, "T'es nul, arrête de chanter", "PLAIN", "insult aimed at the performer"));
+            Sample.flagged("CAPTURED", 100, "T'es nul, arrête de chanter", "PLAIN", "insult aimed at the performer")
+                    .inLanguage("fr", "You're rubbish, stop singing"));
 
     /** Today's panda's notes, as the digest job would have stored them. */
     static final List<String> DIGEST_BULLETS = List.of(

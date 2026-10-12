@@ -106,6 +106,26 @@ class DigestRaceTest extends IntegrationTest {
         assertThat(stored.messageCount()).isEqualTo(4);
     }
 
+    @Test
+    void aCallRunningWhenTheDigestIsDroppedNeverStoresWhatItRead() throws Exception {
+        CountDownLatch release = digester.holdNextCall();
+        CompletableFuture<Void> running = CompletableFuture.runAsync(job::run);
+        digester.awaitCalls(1);
+
+        // The owner hides a message again while the call that read it is still running.
+        assertThat(digests.drop(ownerId, TODAY)).isTrue();
+        release.countDown();
+        running.get(WAIT_SECONDS, TimeUnit.SECONDS);
+
+        assertThat(digests.find(ownerId, TODAY)).isEmpty();
+        assertThat(jdbc.sql("SELECT stale, claimed_at FROM owner_digest WHERE owner_id = ? AND local_day = ?")
+                        .params(ownerId, TODAY)
+                        .query()
+                        .singleRow())
+                .containsEntry("stale", true)
+                .containsEntry("claimed_at", null);
+    }
+
     private void message(String text, Instant at) {
         Map<String, Object> columns = new LinkedHashMap<>();
         columns.put("message", TestData.uniqueMessage(text));

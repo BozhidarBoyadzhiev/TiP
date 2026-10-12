@@ -185,6 +185,45 @@ class MigrationTest extends IntegrationTest {
                 .containsEntry("last_seen_at", null);
     }
 
+    @Test
+    void existingFlaggedTipsStayHiddenAndTheVerdictTakesOnlyNotAbusive() {
+        String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
+        migrate(schema, "6");
+        UUID ownerId = insertOwner(schema);
+        UUID deviceId = UUID.randomUUID();
+        jdbc.sql("INSERT INTO " + schema + ".device (id, slug, display_name, owner_id, secret_hash, created_at)"
+                        + " VALUES (?, 'old-panda', 'Old', ?, decode(repeat('ab', 32), 'hex'), now())")
+                .params(deviceId, ownerId)
+                .update();
+        UUID tipId = insertReactedTip(schema, deviceId, "PLAIN", "DONE");
+        jdbc.sql("UPDATE " + schema + ".tip SET flagged = true, flag_reason = 'insult' WHERE id = ?")
+                .param(tipId)
+                .update();
+
+        migrate(schema, "7");
+
+        assertThat(jdbc.sql("SELECT flagged, flag_reason, owner_verdict, owner_verdict_at FROM " + schema
+                                + ".tip WHERE id = ?")
+                        .param(tipId)
+                        .query()
+                        .singleRow())
+                .containsEntry("flagged", true)
+                .containsEntry("flag_reason", "insult")
+                .containsEntry("owner_verdict", null)
+                .containsEntry("owner_verdict_at", null);
+        // The previous release inserts tips without the new columns.
+        insertReactedTip(schema, deviceId, "PLAIN", "SKIPPED");
+        jdbc.sql("UPDATE " + schema + ".tip SET owner_verdict = 'NOT_ABUSIVE', owner_verdict_at = now() WHERE id = ?")
+                .param(tipId)
+                .update();
+        for (String invalid : List.of("ABUSIVE", "not_abusive", "")) {
+            assertThatThrownBy(() -> jdbc.sql("UPDATE " + schema + ".tip SET owner_verdict = ? WHERE id = ?")
+                            .params(invalid, tipId)
+                            .update())
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        }
+    }
+
     /** A captured tip with the given reaction, plus its delivery row. */
     private UUID insertReactedTip(String schema, UUID deviceId, String reaction, String aiStatus) {
         UUID id = UUID.randomUUID();
