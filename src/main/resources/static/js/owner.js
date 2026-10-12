@@ -587,11 +587,16 @@
             note.append(make("small", null, "AI note from the message"), document.createTextNode(view.ownerNote));
             detail.append(note);
         }
-        if (view.flagged || view.unhidden) {
-            detail.append(moderationSlot(view));
-        }
         const refund = refundSlot(view);
-        if (refund) {
+        if (view.flagged || view.unhidden) {
+            // Side by side with the refund, as in the hidden panel.
+            const actions = make("div", "actions");
+            actions.append(moderationSlot(view));
+            if (refund) {
+                actions.append(refund);
+            }
+            detail.append(actions);
+        } else if (refund) {
             detail.append(refund);
         }
     }

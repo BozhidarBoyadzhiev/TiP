@@ -692,6 +692,13 @@ button {
     color: var(--faint);
 }
 
+.detail .actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 .flagged .row2 {
     margin-top: 8px;
     display: flex;
