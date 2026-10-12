@@ -1,7 +1,7 @@
 package dev.tip.devices;
 
+import dev.tip.shared.ProblemHandshakeHandler;
 import dev.tip.shared.TipProperties;
-import java.net.URI;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -67,14 +67,8 @@ class WebSocketConfig implements WebSocketConfigurer {
                 .addInterceptors(deviceInterceptor);
         registry.addHandler(observerHandler, OBSERVER_PATH + "*")
                 .setHandshakeHandler(handshakeHandler)
-                .setAllowedOrigins(publicOrigin(tipProperties.publicBaseUrl()))
+                .setAllowedOrigins(tipProperties.publicOrigin())
                 .addInterceptors(observerInterceptor);
-    }
-
-    /** The origin of the public base URL: scheme, host and port, without a path or trailing slash. */
-    static String publicOrigin(String publicBaseUrl) {
-        URI uri = URI.create(publicBaseUrl.strip());
-        return uri.getScheme() + "://" + uri.getRawAuthority();
     }
 
     /**

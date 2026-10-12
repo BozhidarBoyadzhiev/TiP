@@ -1,6 +1,5 @@
-package dev.tip.devices;
+package dev.tip.shared;
 
-import dev.tip.shared.ProblemWriter;
 import java.io.IOException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
@@ -15,11 +14,11 @@ import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
  * a fixed detail instead of the framework's own wording.
  */
 @Component
-class ProblemHandshakeHandler extends DefaultHandshakeHandler {
+public class ProblemHandshakeHandler extends DefaultHandshakeHandler {
 
     private final ProblemWriter problems;
 
-    ProblemHandshakeHandler(ProblemWriter problems) {
+    public ProblemHandshakeHandler(ProblemWriter problems) {
         this.problems = problems;
     }
 

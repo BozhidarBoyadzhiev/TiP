@@ -7,6 +7,7 @@ import dev.tip.paypal.api.CreateOrderCommand;
 import dev.tip.paypal.api.CreateOrderResult;
 import dev.tip.paypal.api.PayPalGateway;
 import dev.tip.shared.TipProperties;
+import dev.tip.tipping.api.MessageSanitizer;
 import java.time.Clock;
 import java.util.UUID;
 import org.slf4j.Logger;

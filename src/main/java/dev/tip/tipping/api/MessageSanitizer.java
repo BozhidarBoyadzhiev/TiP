@@ -1,9 +1,12 @@
-package dev.tip.tipping;
+package dev.tip.tipping.api;
 
 import java.util.regex.Pattern;
 
-/** Cleans a tipper's message before it is stored. */
-final class MessageSanitizer {
+/**
+ * Cleans a tipper's message before it is stored. Public so that the AI feature can clean what the model
+ * returns the same way: anything shown to an owner gets the same treatment as what a tipper typed.
+ */
+public final class MessageSanitizer {
 
     private static final Pattern LINE_BREAKS_AND_TABS = Pattern.compile("[\\t\\n\\r\\u000B\\f\\u0085\\u2028\\u2029]+");
     private static final Pattern CONTROL_AND_FORMAT = Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Cs}&&[^\\u200D]]");
@@ -20,7 +23,7 @@ final class MessageSanitizer {
      * points, so {@code \p{Cs}} matches only an unpaired half and a complete emoji is kept. Nothing here
      * truncates, so no step splits a pair.
      */
-    static String sanitize(String raw) {
+    public static String sanitize(String raw) {
         if (raw == null) {
             return null;
         }

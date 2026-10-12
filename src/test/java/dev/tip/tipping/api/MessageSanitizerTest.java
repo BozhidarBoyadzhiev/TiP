@@ -1,4 +1,4 @@
-package dev.tip.tipping;
+package dev.tip.tipping.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
