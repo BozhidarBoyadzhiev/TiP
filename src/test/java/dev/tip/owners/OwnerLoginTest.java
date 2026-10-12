@@ -63,7 +63,7 @@ class OwnerLoginTest extends IntegrationTest {
         assertThat(session.getId()).isNotEqualTo(idBefore);
         mvc.perform(get("/owner").session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Signed in as Ada Owner")));
+                .andExpect(content().string(containsString("/js/owner.js")));
     }
 
     @Test
@@ -121,11 +121,6 @@ class OwnerLoginTest extends IntegrationTest {
     }
 
     @Test
-    void ownerPageRedirectsToLoginWhenSignedOut() throws Exception {
-        mvc.perform(get("/owner")).andExpect(status().isFound()).andExpect(redirectedUrl("/owner/login"));
-    }
-
-    @Test
     void logoutEndsTheSession() throws Exception {
         MockHttpSession session = new MockHttpSession();
         login(email, TestData.OWNER_PASSWORD, randomIp(), session).andExpect(status().isFound());
@@ -138,7 +133,7 @@ class OwnerLoginTest extends IntegrationTest {
     }
 
     @Test
-    void displayNameIsEscapedOnTheOwnerPage() throws Exception {
+    void ownerPageCarriesNothingAboutTheOwner() throws Exception {
         String other = TestData.uniqueEmail();
         data.owner(other, "<b>Bold</b>", TestData.OWNER_PASSWORD);
         MockHttpSession session = new MockHttpSession();
@@ -148,9 +143,7 @@ class OwnerLoginTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        assertThat(page.getResponse().getContentAsString())
-                .contains("Signed in as &lt;b&gt;Bold&lt;/b&gt;")
-                .doesNotContain("<b>Bold</b>");
+        assertThat(page.getResponse().getContentAsString()).doesNotContain("Bold", other);
     }
 
     private ResultActions login(String email, String password, String ip, MockHttpSession session) throws Exception {

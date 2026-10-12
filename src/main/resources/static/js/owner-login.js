@@ -4,7 +4,7 @@
 // Every message is set with textContent.
 (function () {
     const ERROR_MESSAGES = {
-        LOGIN_FAILED: "Email or password is incorrect.",
+        LOGIN_FAILED: "That email and password don't match. Check them and try again.",
         RATE_LIMITED: "Too many sign in attempts. Please wait a minute and try again.",
         CSRF_TOKEN_INVALID: "This page has expired. Please reload it and try again.",
     };

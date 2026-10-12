@@ -77,7 +77,8 @@ class LinkPreviewTest extends IntegrationTest {
 
     @Test
     void scriptsLeaveTheTitleAlone() throws Exception {
-        for (String script : new String[] {"/js/tip.js", "/js/panda.js", "/js/brand.js"}) {
+        for (String script :
+                new String[] {"/js/tip.js", "/js/panda.js", "/js/brand.js", "/js/owner.js", "/js/owner-login.js"}) {
             assertThat(mvc.perform(get(script)).andReturn().getResponse().getContentAsString())
                     .as(script)
                     .doesNotContain("document.title");

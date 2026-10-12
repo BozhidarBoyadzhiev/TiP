@@ -9,32 +9,67 @@
     <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta name="theme-color" content="#120c09">
-    <link rel="stylesheet" href="/css/tip.css">
+    <link rel="stylesheet" href="/fonts/fonts.css">
+    <link rel="stylesheet" href="/css/brand.css">
     <link rel="stylesheet" href="/css/owner.css">
     <script src="/js/owner-login.js" defer nonce="{{CSP_NONCE}}"></script>
 </head>
 <body>
-<main class="card">
-    <h1>Sign in</h1>
-    <p id="signed-out" class="hint" role="status" hidden>You have signed out.</p>
+<main class="login">
+  <div class="login-wrap">
+    <svg class="peek" viewBox="0 0 132 74" aria-hidden="true">
+      <g stroke="#5a3b22" stroke-width="1.6" stroke-linejoin="round">
+        <circle cx="30" cy="22" r="15" fill="#c99c66"/><circle cx="31" cy="23" r="8.5" fill="#b5884f"/>
+        <circle cx="102" cy="22" r="15" fill="#bf915b"/><circle cx="101" cy="23" r="8.5" fill="#a97c45"/>
+        <polygon points="24,40 38,18 66,12 94,18 108,40 112,74 20,74" fill="#cfa470"/>
+        <polygon points="38,18 66,12 94,18 88,32 66,29 44,32" fill="#e2bc87" stroke-opacity=".7"/>
+        <polygon points="94,18 108,40 112,74 98,74 92,44 88,32" fill="#b98a54" stroke-opacity=".7"/>
+        <polygon points="56,58 66,54 76,58 79,70 53,70" fill="#d8b17b"/>
+      </g>
+      <ellipse cx="34" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <ellipse cx="98" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <path d="M62 62 Q66 60 70 62 Q68 66 66 66.5 Q64 66 62 62 Z" fill="#2a170c"/>
+      <g class="eyes">
+        <ellipse cx="49" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <ellipse cx="83" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <ellipse cx="49" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="52" cy="47" r="2.8" fill="#fff"/>
+        <ellipse cx="83" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="86" cy="47" r="2.8" fill="#fff"/>
+      </g>
+    </svg>
+    <svg class="paws" viewBox="0 0 132 22" aria-hidden="true">
+      <g stroke="#5a3b22" stroke-width="1.4">
+        <ellipse cx="22" cy="12" rx="14" ry="9" fill="#c99c64"/>
+        <path d="M16 6 v5 M22 5 v5 M28 6 v5" stroke-width="1.2" fill="none"/>
+        <ellipse cx="110" cy="12" rx="14" ry="9" fill="#b48650"/>
+        <path d="M104 6 v5 M110 5 v5 M116 6 v5" stroke-width="1.2" fill="none"/>
+      </g>
+    </svg>
+    <div class="login-card">
+      <p class="brand-sm" aria-label="TiP"><span class="g" aria-hidden="true">T</span><span class="p" aria-hidden="true">i</span><span class="c" aria-hidden="true">P</span></p>
+      <h1>Owner sign in</h1>
+      <p class="sub">See your tips and what your audience asked for.</p>
+      <p id="signed-out" class="inline-note" role="status" hidden>You've signed out. See you next set.</p>
 
-    <form id="login-form" method="post" action="/owner/login" novalidate>
+      <form id="login-form" method="post" action="/owner/login" novalidate>
         <input type="hidden" name="{{CSRF_PARAMETER}}" value="{{CSRF_TOKEN}}">
 
         <div class="field">
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" autocomplete="username" required>
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" required>
         </div>
 
         <div class="field">
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
         </div>
 
-        <p id="login-error" class="error" role="alert" hidden></p>
+        <p id="login-error" class="inline-note err" role="alert" hidden></p>
 
-        <button type="submit" class="primary">Sign in</button>
-    </form>
+        <button type="submit" class="gold-btn">Sign in</button>
+      </form>
+    </div>
+    <p class="login-foot">Only the panda's owner can sign in here.</p>
+  </div>
 </main>
 </body>
 </html>

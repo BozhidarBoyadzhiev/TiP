@@ -4,19 +4,154 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="referrer" content="strict-origin-when-cross-origin">
-    <title>TiP owner</title>
-    <link rel="stylesheet" href="/css/tip.css">
+    <title>TiP | Dashboard</title>
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#120c09">
+    <meta name="csrf-header" content="{{CSRF_HEADER}}">
+    <meta name="csrf-token" content="{{CSRF_TOKEN}}">
+    <link rel="stylesheet" href="/fonts/fonts.css">
+    <link rel="stylesheet" href="/css/brand.css">
     <link rel="stylesheet" href="/css/owner.css">
+    <script src="/js/owner.js" defer nonce="{{CSP_NONCE}}"></script>
 </head>
 <body>
-<main class="card">
-    <h1>Signed in as {{DISPLAY_NAME}}</h1>
-    <p class="hint">Your dashboard is on its way.</p>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="head">
+      <g stroke="#5a3b22" stroke-width="1.6" stroke-linejoin="round">
+        <circle cx="30" cy="22" r="15" fill="#c99c66"/><circle cx="31" cy="23" r="8.5" fill="#b5884f"/>
+        <circle cx="102" cy="22" r="15" fill="#bf915b"/><circle cx="101" cy="23" r="8.5" fill="#a97c45"/>
+        <polygon points="24,40 38,18 66,12 94,18 108,40 112,74 20,74" fill="#cfa470"/>
+        <polygon points="38,18 66,12 94,18 88,32 66,29 44,32" fill="#e2bc87" stroke-opacity=".7"/>
+        <polygon points="94,18 108,40 112,74 98,74 92,44 88,32" fill="#b98a54" stroke-opacity=".7"/>
+        <polygon points="56,58 66,54 76,58 79,70 53,70" fill="#d8b17b"/>
+      </g>
+      <ellipse cx="34" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <ellipse cx="98" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <path d="M62 62 Q66 60 70 62 Q68 66 66 66.5 Q64 66 62 62 Z" fill="#2a170c"/>
+    </g>
+    <g id="eyes-open">
+      <ellipse cx="49" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+      <ellipse cx="83" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+      <ellipse cx="49" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="52" cy="47" r="2.8" fill="#fff"/>
+      <ellipse cx="83" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="86" cy="47" r="2.8" fill="#fff"/>
+    </g>
+    <g id="paws">
+      <g stroke="#5a3b22" stroke-width="1.4">
+        <ellipse cx="22" cy="12" rx="14" ry="9" fill="#c99c64"/>
+        <path d="M16 6 v5 M22 5 v5 M28 6 v5" stroke-width="1.2" fill="none"/>
+        <ellipse cx="110" cy="12" rx="14" ry="9" fill="#b48650"/>
+        <path d="M104 6 v5 M110 5 v5 M116 6 v5" stroke-width="1.2" fill="none"/>
+      </g>
+    </g>
+    <g id="i-WARM"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/></g>
+    <g id="i-PLAYFUL"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/><circle cx="18.5" cy="18" r="1.8" fill="currentColor"/><circle cx="5.5" cy="18.5" r="1.3" fill="currentColor"/></g>
+    <g id="i-REQUEST"><path d="M9 17.5V6l10-2v11.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2.6" fill="currentColor"/><circle cx="16.5" cy="15.5" r="2.6" fill="currentColor"/></g>
+    <g id="i-PLAIN"><circle cx="12" cy="12" r="4.5" fill="currentColor"/></g>
+    <g id="i-FLAG"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M4 20L20 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+  </defs>
+</svg>
 
+<div class="dash">
+  <header class="topbar">
+    <p class="brand-sm" aria-label="TiP"><span class="g" aria-hidden="true">T</span><span class="p" aria-hidden="true">i</span><span class="c" aria-hidden="true">P</span></p>
+    <div class="who" id="who" hidden>Signed in as<strong id="who-name"></strong></div>
     <form method="post" action="/owner/logout">
-        <input type="hidden" name="{{CSRF_PARAMETER}}" value="{{CSRF_TOKEN}}">
-        <button type="submit" class="secondary">Sign out</button>
+      <input type="hidden" name="{{CSRF_PARAMETER}}" value="{{CSRF_TOKEN}}">
+      <button type="submit" class="ghost">Sign out</button>
     </form>
-</main>
+  </header>
+
+  <main>
+    <p class="device" id="device-line" aria-live="polite"><span id="device-items"></span><span class="live-tag" id="live-tag" hidden>· live</span></p>
+    <p class="page-note" id="replaced-note" role="status" hidden>The dashboard is open in another tab. Come back to this tab to use it here.</p>
+    <p class="loading-line" id="loading" role="status">Loading your dashboard…</p>
+    <div class="page-note err" id="load-error" role="alert" hidden>
+      <span>Some of your dashboard didn't load.</span>
+      <button type="button" class="retry" id="load-retry">Try again</button>
+    </div>
+
+    <section class="today" aria-label="Today">
+      <div class="stat money"><div class="k">Today</div><div class="v" id="s-total">–</div></div>
+      <div class="stat"><div class="k">Tips</div><div class="v" id="s-count">–</div></div>
+      <div class="stat"><div class="k">Requests</div><div class="v" id="s-req">–</div></div>
+      <div class="stat busy-card" id="busy" role="img" hidden>
+        <div class="busy-text"><div class="k">Busiest hour</div><div class="v" id="busy-hour"></div><div class="sub" id="busy-sub"></div></div>
+        <div class="bars-wrap" aria-hidden="true"><div class="bars" id="bars"></div><div class="ax"><span id="ax-first"></span><span id="ax-last"></span></div></div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <div class="side">
+        <section class="note-wrap notes-wrap" aria-labelledby="notes-title" id="notes">
+          <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+          <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+          <div class="note kraft">
+            <h2 id="notes-title">The panda's notes for today</h2>
+            <ul id="notes-list" hidden></ul>
+            <p class="waiting" id="notes-waiting">The panda will write notes once a few people leave messages today.</p>
+            <p class="sig" id="notes-sig" hidden><span class="ai-chip">Written by AI</span><span id="notes-meta"></span></p>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="req-title" id="req-panel" hidden>
+          <div class="panel-head"><h2 id="req-title">What people asked for</h2><span class="count">last 7 days</span></div>
+          <p class="derived">Short notes the AI took from tippers' messages.</p>
+          <p class="top-song" id="top-song" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-REQUEST"/></svg><span><span class="t">Most asked song</span><strong id="top-song-title"></strong> <span id="top-song-count"></span></span></p>
+          <ul class="req" id="req-list"></ul>
+        </section>
+
+        <section class="panel" aria-labelledby="flag-title" id="flag-panel" hidden>
+          <div class="flag-head">
+            <svg viewBox="0 0 132 74" aria-hidden="true">
+              <use href="#head"/>
+              <g stroke="#5a3b22" stroke-width="1.4">
+                <ellipse cx="47" cy="50" rx="16" ry="12" fill="#c99c64" transform="rotate(-12 47 50)"/>
+                <path d="M38 44 l3 6 M45 41 l2 7 M52 41 l1 7" stroke-width="1.2" fill="none"/>
+                <ellipse cx="85" cy="50" rx="16" ry="12" fill="#b48650" transform="rotate(12 85 50)"/>
+                <path d="M94 44 l-3 6 M87 41 l-2 7 M80 41 l-1 7" stroke-width="1.2" fill="none"/>
+              </g>
+            </svg>
+            <div>
+              <div class="panel-head"><h2 id="flag-title">Hidden messages</h2><span class="count" id="flag-count"></span></div>
+              <p>The panda covered its eyes so you don't have to read these. The tips still count.</p>
+            </div>
+          </div>
+          <ul class="flagged" id="flag-list"></ul>
+        </section>
+      </div>
+
+      <section class="panel" aria-labelledby="tips-title" id="tips-panel">
+        <div class="panel-head"><h2 id="tips-title">Tips</h2><span class="count" id="tips-count"></span></div>
+        <div class="chips" role="group" aria-label="Show" id="chips">
+          <button type="button" class="chip" aria-pressed="true" data-filter="ALL">All</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="WARM">Warm</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="PLAYFUL">Playful</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="REQUEST">Requests</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="PLAIN">Plain</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="HIDDEN">Hidden</button>
+        </div>
+        <p class="loading-line" id="tips-loading" hidden>Loading tips…</p>
+        <ul class="tips" id="tips"></ul>
+        <div class="empty" id="tips-empty" hidden>
+          <svg viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+          <strong id="tips-empty-title"></strong>
+          <p id="tips-empty-text"></p>
+        </div>
+        <div class="page-note err" id="tips-error" role="alert" hidden>
+          <span>The tips didn't load.</span>
+          <button type="button" class="retry" id="tips-retry">Try again</button>
+        </div>
+        <button type="button" class="ghost more" id="more" hidden>Show older tips</button>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div aria-live="polite" id="toast-region">
+  <div class="toast" id="toast" hidden><span class="coin" aria-hidden="true"></span><span class="toast-text" id="toast-text"></span></div>
+</div>
 </body>
 </html>
