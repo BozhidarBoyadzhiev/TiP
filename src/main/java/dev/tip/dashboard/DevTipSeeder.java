@@ -1,5 +1,6 @@
 package dev.tip.dashboard;
 
+import dev.tip.ai.api.ReactionRepeats;
 import dev.tip.devices.api.DeviceDirectory;
 import dev.tip.devices.api.DeviceSummary;
 import dev.tip.owners.api.OwnerDirectory;
@@ -15,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +46,18 @@ class DevTipSeeder {
     static final String ORDER_PREFIX = "DEV-SEED-";
 
     private static final Logger log = LoggerFactory.getLogger(DevTipSeeder.class);
+
+    /**
+     * Reacted samples with no stored delivery, as if the server restarted before the dispatcher ran, so the
+     * dashboard shows {@code repeats} null too. Indexes into {@link #SAMPLES}.
+     */
+    static final Set<Integer> WITHOUT_DELIVERY = Set.of(2, 13, 29);
+
+    /**
+     * The send count of a seeded delivery: the resend job only takes deliveries sent fewer times than this,
+     * see {@code ReactionSender.MAX_SENDS}.
+     */
+    static final int SEEDED_SEND_COUNT = 4;
 
     /** Newest first, eight hours apart, so the 40 samples cover the last 14 days. */
     static final List<Sample> SAMPLES = List.of(
@@ -174,18 +188,24 @@ class DevTipSeeder {
         }
         Instant newest = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         int added = 0;
+        int deliveries = 0;
         for (int i = 0; i < SAMPLES.size(); i++) {
             Instant createdAt = newest.minus(Duration.ofHours(8L * i + 1)).minus(Duration.ofMinutes(i * 7L % 60));
             added += insert(device.get().id(), orderId(i), SAMPLES.get(i), createdAt);
+            if (!WITHOUT_DELIVERY.contains(i)) {
+                deliveries += insertDelivery(orderId(i), SAMPLES.get(i));
+            }
         }
         for (int k = 0; k < LANGUAGE_SAMPLES.size(); k++) {
             Instant createdAt = newest.minus(Duration.ofHours(5L * k + 2)).minus(Duration.ofMinutes(13));
             added += insert(device.get().id(), orderId(SAMPLES.size() + k), LANGUAGE_SAMPLES.get(k), createdAt);
+            deliveries += insertDelivery(orderId(SAMPLES.size() + k), LANGUAGE_SAMPLES.get(k));
         }
         boolean digest = seedDigest(device.get().id(), newest);
         log.info(
-                "Added {} sample tips to demo device {} ({} were already there){}",
+                "Added {} sample tips and {} acked deliveries to demo device {} ({} tips were already there){}",
                 added,
+                deliveries,
                 demoSlug,
                 SAMPLES.size() + LANGUAGE_SAMPLES.size() - added,
                 digest ? " and today's panda's notes" : "");
@@ -230,6 +250,31 @@ class DevTipSeeder {
                         .param("now", now.atOffset(ZoneOffset.UTC))
                         .update()
                 == 1;
+    }
+
+    /**
+     * Stores the reaction the panda would have been sent for a reacted sample, with repeats from the amount
+     * table ({@link ReactionRepeats}, 1 when flagged). The row is already acked, at the resend job's send
+     * limit and as old as the tip, hours past the 60 second replay window, so nothing is ever resent or
+     * replayed to the device. {@code ON CONFLICT (tip_id) DO NOTHING} keeps it idempotent. A pending sample has
+     * no reaction and gets no row.
+     */
+    private int insertDelivery(String orderId, Sample sample) {
+        if (sample.status().equals("PENDING")) {
+            return 0;
+        }
+        return jdbc.sql("""
+                        INSERT INTO reaction_delivery (tip_id, device_id, reaction, repeats, reacted_at, sent_count,
+                                                       last_sent_at, acked_at)
+                        SELECT id, device_id, reaction, :repeats, reaction_at, :sentCount, reaction_at,
+                               reaction_at + interval '1 second'
+                        FROM tip
+                        WHERE paypal_order_id = :orderId AND reaction IS NOT NULL
+                        ON CONFLICT (tip_id) DO NOTHING""")
+                .param("repeats", ReactionRepeats.of(sample.amountMinor(), tipProperties.currency(), sample.flagged()))
+                .param("sentCount", SEEDED_SEND_COUNT)
+                .param("orderId", orderId)
+                .update();
     }
 
     static String orderId(int index) {

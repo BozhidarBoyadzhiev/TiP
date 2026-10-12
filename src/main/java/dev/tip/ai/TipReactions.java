@@ -1,6 +1,7 @@
 package dev.tip.ai;
 
 import dev.tip.ai.api.Reaction;
+import dev.tip.ai.api.ReactionRepeats;
 import dev.tip.ai.api.TipReacted;
 import java.time.Instant;
 import java.util.UUID;

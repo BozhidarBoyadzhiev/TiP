@@ -2,6 +2,8 @@ package dev.tip.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -10,6 +12,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import dev.tip.IntegrationTest;
 import dev.tip.TestData;
+import dev.tip.ai.api.ReactionRepeats;
+import dev.tip.devices.ResendJobRunner;
+import dev.tip.devices.TestSocket;
 import dev.tip.owners.api.OwnerPrincipal;
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -19,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -38,6 +44,12 @@ class DevTipSeederTest extends IntegrationTest {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    ResendJobRunner resendJob;
+
+    @LocalServerPort
+    int port;
 
     @Test
     void startupAddedEverySampleToTheDemoDeviceOnce() {
@@ -108,9 +120,67 @@ class DevTipSeederTest extends IntegrationTest {
         List<Map<String, Object>> before = seededRows();
         clock.pin(clock.instant().plus(Duration.ofDays(3)));
 
+        List<Map<String, Object>> deliveriesBefore = seededDeliveries();
         seeder.seed();
 
         assertThat(seededRows()).usingRecursiveComparison().isEqualTo(before);
+        assertThat(seededDeliveries()).usingRecursiveComparison().isEqualTo(deliveriesBefore);
+    }
+
+    @Test
+    void reactedSamplesHaveAnAckedOldDeliveryAtTheSendLimitWithRepeatsFromTheAmountTable() {
+        List<Map<String, Object>> tips = seededRows();
+        List<Map<String, Object>> deliveries = seededDeliveries();
+        List<String> withoutDelivery = DevTipSeeder.WITHOUT_DELIVERY.stream()
+                .map(DevTipSeeder::orderId)
+                .toList();
+
+        long reacted = tips.stream().filter(r -> r.get("reaction") != null).count();
+        assertThat(deliveries).hasSize((int) reacted - withoutDelivery.size());
+        assertThat(deliveries).extracting(d -> d.get("paypal_order_id")).doesNotContainAnyElementsOf(withoutDelivery);
+        assertThat(tips)
+                .filteredOn(r -> withoutDelivery.contains(r.get("paypal_order_id")))
+                .hasSize(3)
+                .allSatisfy(r -> assertThat(r.get("reaction")).isNotNull());
+        Instant replayWindow = clock.instant().minus(Duration.ofSeconds(60));
+        assertThat(deliveries).allSatisfy(d -> {
+            assertThat(d.get("acked_at")).isNotNull();
+            assertThat((Integer) d.get("sent_count")).isGreaterThanOrEqualTo(DevTipSeeder.SEEDED_SEND_COUNT);
+            assertThat(((Timestamp) d.get("reacted_at")).toInstant()).isBefore(replayWindow);
+            assertThat(d.get("reaction")).isEqualTo(d.get("tip_reaction"));
+            assertThat(((Number) d.get("repeats")).intValue())
+                    .isEqualTo(ReactionRepeats.of((Long) d.get("amount_minor"), "GBP", (Boolean) d.get("flagged")));
+        });
+        assertThat(deliveries)
+                .filteredOn(d -> (Boolean) d.get("flagged"))
+                .isNotEmpty()
+                .allSatisfy(
+                        d -> assertThat(((Number) d.get("repeats")).intValue()).isOne());
+        assertThat(deliveries)
+                .extracting(d -> ((Number) d.get("repeats")).intValue())
+                .contains(1, 2, 3, 4, 5);
+    }
+
+    @Test
+    void theDemoDeviceConnectingAndTheResendJobSendNothingForSeededDeliveries() throws Exception {
+        UUID demoDevice = (UUID) data.deviceRow("demo-panda").get("id");
+
+        try (TestSocket device = TestSocket.connectDevice(port, demoDevice, DEMO_DEVICE_SECRET)) {
+            assertThat(device.nextJson()).containsEntry("type", "hello");
+            resendJob.resend();
+            device.sync();
+
+            assertThat(device.pending()).isZero();
+        }
+    }
+
+    @Test
+    void theDashboardShowsSeededRepeatsAndNullWhereNoDeliveryWasStored() throws Exception {
+        mvc.perform(get("/api/owner/tips?size=50").with(user(demoOwner())))
+                .andExpect(jsonPath("$.items[?(@.flagged == true && @.status != 'PENDING')].repeats")
+                        .value(everyItem(is(1))))
+                .andExpect(jsonPath("$.items[?(@.status == 'PENDING')].repeats").value(everyItem(nullValue())))
+                .andExpect(jsonPath("$.items[?(@.repeats == null && @.status != 'PENDING')]", hasSize(3)));
     }
 
     @Test
@@ -192,6 +262,14 @@ class DevTipSeederTest extends IntegrationTest {
                 .param(demoOwner().id())
                 .query(Long.class)
                 .single();
+    }
+
+    /** The seeded tips' deliveries with the tip's order id, amount, flag and reaction. */
+    private List<Map<String, Object>> seededDeliveries() {
+        return jdbc.sql("""
+                        SELECT rd.*, t.paypal_order_id, t.amount_minor, t.flagged, t.reaction AS tip_reaction
+                        FROM reaction_delivery rd JOIN tip t ON t.id = rd.tip_id
+                        WHERE t.paypal_order_id LIKE ? ORDER BY t.paypal_order_id""").param(DevTipSeeder.ORDER_PREFIX + "%").query().listOfRows();
     }
 
     private List<Map<String, Object>> seededRows() {

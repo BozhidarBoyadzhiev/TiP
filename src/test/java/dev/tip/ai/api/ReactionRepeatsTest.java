@@ -1,4 +1,4 @@
-package dev.tip.ai;
+package dev.tip.ai.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

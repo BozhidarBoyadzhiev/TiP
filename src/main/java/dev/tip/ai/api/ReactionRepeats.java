@@ -1,6 +1,5 @@
-package dev.tip.ai;
+package dev.tip.ai.api;
 
-import dev.tip.ai.api.TipReacted;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Currency;
@@ -9,13 +8,14 @@ import java.util.Currency;
  * How many times the panda repeats a reaction's unit beyond its base pattern, from the amount charged.
  * The amount in the currency's major unit is rounded half up to a whole number: 1 or less plays once,
  * 2 twice, 3 to 4 three times, 5 to 9 four times, 10 and up five times. A flagged tip always plays once,
- * so an abusive message cannot buy a bigger reaction.
+ * so an abusive message cannot buy a bigger reaction. Public so the dev seeder stores the repeats the app
+ * would have sent.
  */
-final class ReactionRepeats {
+public final class ReactionRepeats {
 
     private ReactionRepeats() {}
 
-    static int of(long amountMinor, String currency, boolean flagged) {
+    public static int of(long amountMinor, String currency, boolean flagged) {
         if (flagged) {
             return TipReacted.MIN_REPEATS;
         }
