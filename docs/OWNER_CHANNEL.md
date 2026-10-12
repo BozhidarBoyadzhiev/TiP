@@ -32,7 +32,7 @@ Today's numbers may have changed; `GET /api/owner/today` has them. At most one p
 { "type": "digest" }
 ```
 
-Today's panda's notes were regenerated, or dropped because the owner hid a message again; `GET /api/owner/digest` has them, or `null`.
+Today's panda's notes were regenerated, or the owner changed a verdict, which drops the notes when a message is hidden again; `GET /api/owner/digest` has the notes, `{"status": "rewriting"}` while dropped notes wait to be written again, or `null` when there are none yet.
 
 ```json
 { "type": "device", "slug": "busker-panda", "online": false, "lastSeenAt": "2026-10-13T14:02:11Z" }

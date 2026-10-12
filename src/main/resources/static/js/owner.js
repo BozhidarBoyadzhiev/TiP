@@ -40,6 +40,8 @@
         PLAIN: "&kind=PLAIN&flagged=false",
         HIDDEN: "&flagged=true",
     };
+    const NOTES_WAITING = "The panda will write notes once a few people leave messages today.";
+    const NOTES_REWRITING = "The panda is rewriting its notes.";
     const EMPTY = {
         ALL: ["No tips yet, the panda is waiting", "When someone taps the coin, their tip shows up here straight away."],
         HIDDEN: ["No hidden messages", "The panda hasn't had to cover its eyes."],
@@ -328,12 +330,16 @@
 
     // ---------- the panda's notes ----------
 
+    // null: no notes yet. {status: "rewriting"}: the notes were dropped when the owner hid a message again
+    // and the panda writes them again from the messages still shown, so the card stays, without bullets.
     function renderDigest(digest) {
         const list = el("notes-list");
         const has = digest !== null && Array.isArray(digest.bullets) && digest.bullets.length > 0;
+        const rewriting = !has && digest !== null && digest.status === "rewriting";
         list.hidden = !has;
-        el("notes").classList.toggle("no-notes", !has);
+        el("notes").classList.toggle("no-notes", !has && !rewriting);
         el("notes-waiting").hidden = has;
+        el("notes-waiting").textContent = rewriting ? NOTES_REWRITING : NOTES_WAITING;
         el("notes-sig").hidden = !has;
         if (!has) {
             list.replaceChildren();

@@ -14,7 +14,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * owner's notes in the same transaction: unhiding marks today's digest stale, so the message is read on the
  * next run under the usual limits; hiding again drops today's digest and its request groups at once, so
  * the message cannot linger in the notes until the next run. The owner's pages are told after commit,
- * with the usual ids only messages. Nothing reaches a device or an observer, and no model is called.
+ * with the usual ids only messages, {@code digest} included, since the notes may now be rewritten.
+ * Nothing reaches a device or an observer, and no model is called.
  */
 @Component
 class TipModeration {
@@ -56,35 +57,28 @@ class TipModeration {
      */
     boolean setHidden(UUID ownerId, UUID tipId, boolean hidden) {
         OwnerDay day = OwnerDay.of(clock, owners.timeZone(ownerId));
-        Optional<Effect> effect = transactions.execute(status -> moderation
+        Optional<Boolean> changed = transactions.execute(status -> moderation
                 .setHidden(ownerId, tipId, hidden, day.instant())
                 .map(change -> {
-                    if (!change.changed()) {
-                        return Effect.NONE;
+                    if (change.changed()) {
+                        if (hidden) {
+                            digests.drop(ownerId, day.today());
+                        } else {
+                            digests.markStale(ownerId, day.today());
+                        }
                     }
-                    if (hidden) {
-                        return digests.drop(ownerId, day.today()) ? Effect.DIGEST_DROPPED : Effect.CHANGED;
-                    }
-                    digests.markStale(ownerId, day.today());
-                    return Effect.CHANGED;
+                    return change.changed();
                 }));
-        if (effect == null || effect.isEmpty()) {
+        if (changed == null || changed.isEmpty()) {
             return false;
         }
-        if (effect.get() != Effect.NONE) {
+        if (changed.get()) {
             log.info("Owner {} {} tip {}", ownerId, hidden ? "hid again" : "unhid", tipId);
             sockets.todayChanged(ownerId);
             sockets.tipChanged(ownerId, tipId);
-        }
-        if (effect.get() == Effect.DIGEST_DROPPED) {
+            // Either way the notes may now be rewritten, see DashboardController#digest.
             sockets.digestChanged(ownerId);
         }
         return true;
-    }
-
-    private enum Effect {
-        NONE,
-        CHANGED,
-        DIGEST_DROPPED
     }
 }

@@ -126,8 +126,9 @@ class ModerationDigestTest extends IntegrationTest {
         clock.advance(Duration.ofMinutes(1));
         verdict(flagged, true);
 
-        // No job run in between: the notes and the groups are gone the moment the message is hidden again.
-        asOwner("/api/owner/digest").andExpect(content().string("null"));
+        // No job run in between: the notes and the groups are gone the moment the message is hidden again, and
+        // with three messages still shown the panda is rewriting them, not waiting for messages.
+        asOwner("/api/owner/digest").andExpect(content().json("{\"status\":\"rewriting\"}", true));
         asOwner("/api/owner/requests")
                 .andExpect(jsonPath("$.grouped").value("exact"))
                 .andExpect(jsonPath("$.groups.length()").value(0));
@@ -157,12 +158,27 @@ class ModerationDigestTest extends IntegrationTest {
         asOwner("/api/owner/digest").andExpect(jsonPath("$.messageCount").value(3));
 
         verdict(flagged, true);
+        asOwner("/api/owner/digest").andExpect(content().string("null"));
         clock.advance(Duration.ofMinutes(11));
         job.run();
 
         assertThat(digestRequests()).hasSize(1);
         asOwner("/api/owner/digest").andExpect(content().string("null"));
         assertThat(row()).containsEntry("stale", false).containsEntry("claimed_at", null);
+    }
+
+    @Test
+    void notesNeverWrittenTodayAreNotBeingRewrittenWhateverTheMessages() throws Exception {
+        message("Lovely music", NOW.minusSeconds(3000));
+        message("Thanks for the tunes", NOW.minusSeconds(2000));
+        message("You made my day", NOW.minusSeconds(1000));
+        UUID flagged = flagged(TestData.uniqueMessage("Wonderwall now, you clown"), NOW.minusSeconds(500));
+
+        verdict(flagged, false);
+        verdict(flagged, true);
+
+        assertThat(row()).containsEntry("generated_at", null).containsEntry("bullets", null);
+        asOwner("/api/owner/digest").andExpect(content().string("null"));
     }
 
     private void verdict(UUID tip, boolean hidden) throws Exception {

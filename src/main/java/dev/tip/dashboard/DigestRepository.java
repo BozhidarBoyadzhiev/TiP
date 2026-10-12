@@ -131,6 +131,21 @@ class DigestRepository {
                                   AND (bullets IS NOT NULL OR claimed_at IS NOT NULL)""").param("ownerId", ownerId).param("day", day).update() == 1;
     }
 
+    /**
+     * True when the owner's digest of {@code day} was dropped and not written again yet: no notes, but a
+     * generation time, which {@link #drop} keeps and which a day that never had notes does not have.
+     */
+    boolean dropped(UUID ownerId, LocalDate day) {
+        return jdbc.sql("""
+                        SELECT EXISTS (SELECT 1 FROM owner_digest
+                                       WHERE owner_id = :ownerId AND local_day = :day
+                                         AND bullets IS NULL AND generated_at IS NOT NULL)""")
+                .param("ownerId", ownerId)
+                .param("day", day)
+                .query(Boolean.class)
+                .single();
+    }
+
     /** The stored digest of the day, empty when none was stored yet. */
     Optional<StoredDigest> find(UUID ownerId, LocalDate day) {
         return jdbc.sql("""

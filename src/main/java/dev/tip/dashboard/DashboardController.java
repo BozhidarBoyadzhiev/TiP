@@ -1,5 +1,6 @@
 package dev.tip.dashboard;
 
+import dev.tip.ai.api.TipDigester;
 import dev.tip.devices.api.DevicePresence;
 import dev.tip.owners.api.OwnerDirectory;
 import dev.tip.owners.api.OwnerPrincipal;
@@ -7,6 +8,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,6 +31,7 @@ class DashboardController {
     private final DigestRepository digests;
     private final OwnerDirectory owners;
     private final DevicePresence devices;
+    private final Optional<TipDigester> digester;
     private final Clock clock;
 
     DashboardController(
@@ -35,11 +39,13 @@ class DashboardController {
             DigestRepository digests,
             OwnerDirectory owners,
             DevicePresence devices,
+            Optional<TipDigester> digester,
             Clock clock) {
         this.tips = tips;
         this.digests = digests;
         this.owners = owners;
         this.devices = devices;
+        this.digester = digester;
         this.clock = clock;
     }
 
@@ -60,13 +66,26 @@ class DashboardController {
                         .orElse(null));
     }
 
-    /** Today's notes, or a JSON {@code null} when there are none yet. */
+    /**
+     * Today's notes; {@code {"status": "rewriting"}} when the owner hid a message again, the notes were dropped
+     * and the job will write them again, because enough shown messages are left and AI is on; otherwise a
+     * JSON {@code null}: no notes yet.
+     */
     @GetMapping("/digest")
     ResponseEntity<Object> digest(@AuthenticationPrincipal OwnerPrincipal owner) {
-        Object body = digests.find(owner.id(), day(owner).today())
+        OwnerDay day = day(owner);
+        Object body = digests.find(owner.id(), day.today())
                 .<Object>map(d -> new DigestView(d.bullets(), d.messageCount(), d.generatedAt()))
-                .orElse(NullNode.getInstance());
+                .orElseGet(() -> rewriting(owner.id(), day) ? new Rewriting(REWRITING) : NullNode.getInstance());
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(body);
+    }
+
+    private boolean rewriting(UUID ownerId, OwnerDay day) {
+        return digester.isPresent()
+                && digests.dropped(ownerId, day.today())
+                && tips.digestMessages(ownerId, day.startOfToday(), day.instant(), DigestJob.MIN_MESSAGES)
+                                .size()
+                        >= DigestJob.MIN_MESSAGES;
     }
 
     @GetMapping("/devices")
@@ -84,7 +103,11 @@ class DashboardController {
         return OwnerDay.of(clock, owners.timeZone(owner.id()));
     }
 
+    static final String REWRITING = "rewriting";
+
     record DigestView(List<String> bullets, int messageCount, Instant generatedAt) {}
+
+    record Rewriting(String status) {}
 
     record DeviceView(String slug, String name, boolean online, Instant lastSeenAt) {}
 }

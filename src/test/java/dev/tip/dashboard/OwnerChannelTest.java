@@ -258,12 +258,15 @@ class OwnerChannelTest extends IntegrationTest {
                                 .content("{\"hidden\":" + hidden + "}"))
                         .andExpect(status().isOk());
                 frames.add(socket.readUntilText());
+                frames.add(socket.readUntilText());
                 sockets.flushToday();
                 frames.add(socket.readUntilText());
             }
 
             String tip = "{\"type\":\"tip\",\"id\":\"" + tipId + "\"}";
-            assertThat(frames).containsExactly(tip, "{\"type\":\"today\"}", tip, "{\"type\":\"today\"}");
+            String digest = "{\"type\":\"digest\"}";
+            String today = "{\"type\":\"today\"}";
+            assertThat(frames).containsExactly(tip, digest, today, tip, digest, today);
             assertThat(frames).allSatisfy(frame -> assertThat(frame).doesNotContain(abuse, note, "REQUEST"));
             observer.sync();
             assertThat(observer.pending())
