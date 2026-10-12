@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /** The owner sign in page and the dashboard shell: their heads, security policy and what their scripts may do. */
 class OwnerPageTest extends IntegrationTest {
@@ -128,6 +129,49 @@ class OwnerPageTest extends IntegrationTest {
     }
 
     @Test
+    void ownerScriptFormatsEveryTimeInTheOwnersZone() throws Exception {
+        String script = body("/js/owner.js");
+
+        // One helper builds every date format, with the owner's zone; the second constructor only checks /me's zone.
+        assertThat(script)
+                .contains(
+                        "return new Intl.DateTimeFormat(locale, Object.assign({}, options, { timeZone: state.zone }));")
+                .contains(
+                        "new Intl.DateTimeFormat(undefined, { timeZone: me.timeZone });", "state.zone = me.timeZone;");
+        assertThat(Pattern.compile("Intl\\.DateTimeFormat\\(")
+                        .matcher(script)
+                        .results()
+                        .count())
+                .isEqualTo(2);
+        assertThat(Pattern.compile("timeZone: ").matcher(script).results().count())
+                .isEqualTo(2);
+        // Nothing reads a time in the browser's own zone.
+        assertThat(script)
+                .doesNotContain("toLocaleString", "toLocaleTimeString", "toLocaleDateString", "getHours(", "getDate(");
+        // The busiest hour uses the hour the server counted in the owner's zone.
+        assertThat(script).contains("hourRange(busiest.hour)", "hourLabel(today.hours[0].hour)");
+        // The zone is known before anything with a time is shown.
+        assertThat(script).containsPattern("await loadMe\\(\\);\\s+await refreshDevices\\(\\);");
+    }
+
+    @Test
+    void phonesShowTipsRightAfterTodaysNumbers() throws Exception {
+        String html = body("/owner", user(owner()));
+        String styles = body("/css/owner.css");
+        String script = body("/js/owner.js");
+
+        assertThat(html.indexOf("id=\"tips-panel\""))
+                .isGreaterThan(html.indexOf("aria-label=\"Today\""))
+                .isLessThan(html.indexOf("id=\"notes\""));
+        assertThat(html.indexOf("id=\"notes\""))
+                .isLessThan(html.indexOf("id=\"req-panel\""))
+                .isLessThan(html.indexOf("id=\"flag-panel\""));
+        assertThat(styles)
+                .contains(".grid > .side {\n        grid-column: 1;", ".grid > .tips-panel {\n        grid-column: 2;");
+        assertThat(script).contains("\"No tips yet today\"");
+    }
+
+    @Test
     void ownerStylesTurnOffMotionWhenAsked() throws Exception {
         String styles = body("/css/owner.css");
 
@@ -171,7 +215,11 @@ class OwnerPageTest extends IntegrationTest {
     }
 
     private String body(String path) throws Exception {
-        return mvc.perform(get(path))
+        return body(path, request -> request);
+    }
+
+    private String body(String path, RequestPostProcessor with) throws Exception {
+        return mvc.perform(get(path).with(with))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()

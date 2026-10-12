@@ -152,13 +152,14 @@
         return format.format(amountMinor / Math.pow(10, digits));
     }
 
+    // Every time the page shows is formatted here: the browser's locale, the owner's time zone from /me, so
+    // rows, notes, requests and the status line agree with the busiest hour, which the server counts in it.
+    function ownerTime(options, locale) {
+        return new Intl.DateTimeFormat(locale, Object.assign({}, options, { timeZone: state.zone }));
+    }
+
     function dateKey(ms) {
-        return new Intl.DateTimeFormat("en-CA", {
-            timeZone: state.zone,
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-        }).format(ms);
+        return ownerTime({ year: "numeric", month: "2-digit", day: "2-digit" }, "en-CA").format(ms);
     }
 
     function dayBefore(key) {
@@ -185,30 +186,21 @@
         if (day === dayBefore(today)) {
             return "Yesterday";
         }
-        const options = { timeZone: state.zone, day: "numeric", month: "short" };
+        const options = { day: "numeric", month: "short" };
         if (day.slice(0, 4) !== today.slice(0, 4)) {
             options.year = "numeric";
         }
-        return new Intl.DateTimeFormat(undefined, options).format(then);
+        return ownerTime(options).format(then);
     }
 
     function fullTime(iso) {
-        return new Intl.DateTimeFormat(undefined, {
-            timeZone: state.zone,
-            weekday: "short",
-            day: "numeric",
-            month: "short",
-            hour: "numeric",
-            minute: "2-digit",
-        }).format(Date.parse(iso));
+        return ownerTime({ weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }).format(
+            Date.parse(iso),
+        );
     }
 
     function clockTime(iso) {
-        return new Intl.DateTimeFormat(undefined, {
-            timeZone: state.zone,
-            hour: "numeric",
-            minute: "2-digit",
-        }).format(Date.parse(iso));
+        return ownerTime({ hour: "numeric", minute: "2-digit" }).format(Date.parse(iso));
     }
 
     // Local hours 0 to 23 as "6 pm"; a range in one half of the day says it once: "6 to 7 pm".
@@ -275,11 +267,14 @@
     // ---------- today ----------
 
     function renderToday(today) {
-        el("s-total").textContent = today.totals.length
+        const total = el("s-total");
+        const unknown = today.totals.length === 0 && !state.currency;
+        total.classList.toggle("quiet", unknown);
+        total.textContent = today.totals.length
             ? today.totals.map((t) => money(t.amountMinor, t.currency)).join(" + ")
-            : state.currency
-              ? money(0, state.currency)
-              : "0";
+            : unknown
+              ? "No tips yet today"
+              : money(0, state.currency);
         el("s-count").textContent = String(today.tipCount);
         el("s-req").textContent = String(today.requestCount);
 
@@ -1118,8 +1113,9 @@
 
     async function start() {
         try {
-            // The zone formats every time and the devices name today's currency, so they come first.
-            await Promise.all([loadMe(), refreshDevices()]);
+            // The zone formats every time, so nothing is shown before it; the devices name today's currency.
+            await loadMe();
+            await refreshDevices();
         } catch (e) {
             if (e instanceof SignedOut) {
                 return;

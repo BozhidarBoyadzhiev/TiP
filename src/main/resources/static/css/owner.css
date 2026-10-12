@@ -342,6 +342,12 @@ button {
     color: var(--gold);
 }
 
+.stat .v.quiet {
+    font: 500 15px var(--font);
+    color: var(--muted);
+    padding-top: 6px;
+}
+
 .stat.busy-card {
     grid-column: 1 / -1;
     display: flex;
@@ -413,9 +419,21 @@ button {
 }
 
 @media (min-width: 900px) {
+    /* Tips come first in the page, so a phone shows them right after today's numbers; on a laptop they
+       sit on the right of the notes, requests and hidden messages. */
     .grid {
         grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
         align-items: start;
+    }
+
+    .grid > .side {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .grid > .tips-panel {
+        grid-column: 2;
+        grid-row: 1;
     }
 
     .today {
@@ -851,15 +869,17 @@ button {
     display: grid;
     grid-template-columns: 36px minmax(0, 1fr);
     gap: 0 12px;
-    padding: 0 2px 4px;
+    padding: 0 2px 12px;
 }
 
+/* 12 px of padding above and below a 20 px line make a 44 px target; the same negative margins keep the
+   row as tall as the line, the top of the target reaching into the row's own bottom padding. */
 .translate {
     grid-column: 2 / 3;
     justify-self: start;
-    min-height: 44px;
-    margin-top: -10px;
-    padding: 0;
+    margin: -12px 0;
+    padding: 12px 0;
+    line-height: 20px;
     background: none;
     border: 0;
     cursor: pointer;
@@ -872,6 +892,7 @@ button {
 
 .english {
     grid-column: 2 / 3;
+    margin-top: 16px;
     font-size: 15px;
     color: var(--cream);
     overflow-wrap: anywhere;

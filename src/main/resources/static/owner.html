@@ -84,6 +84,29 @@
     </section>
 
     <div class="grid">
+      <section class="panel tips-panel" aria-labelledby="tips-title" id="tips-panel">
+        <div class="panel-head"><h2 id="tips-title">Tips</h2><span class="count" id="tips-count"></span></div>
+        <div class="chips" role="group" aria-label="Show" id="chips">
+          <button type="button" class="chip" aria-pressed="true" data-filter="ALL">All</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="WARM">Warm</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="PLAYFUL">Playful</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="REQUEST">Requests</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="PLAIN">Plain</button>
+          <button type="button" class="chip" aria-pressed="false" data-filter="HIDDEN">Hidden</button>
+        </div>
+        <p class="loading-line" id="tips-loading" hidden>Loading tips…</p>
+        <ul class="tips" id="tips"></ul>
+        <div class="empty" id="tips-empty" hidden>
+          <svg viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+          <strong id="tips-empty-title"></strong>
+          <p id="tips-empty-text"></p>
+        </div>
+        <div class="page-note err" id="tips-error" role="alert" hidden>
+          <span>The tips didn't load.</span>
+          <button type="button" class="retry" id="tips-retry">Try again</button>
+        </div>
+        <button type="button" class="ghost more" id="more" hidden>Show older tips</button>
+      </section>
       <div class="side">
         <section class="note-wrap notes-wrap" aria-labelledby="notes-title" id="notes">
           <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
@@ -123,29 +146,6 @@
         </section>
       </div>
 
-      <section class="panel" aria-labelledby="tips-title" id="tips-panel">
-        <div class="panel-head"><h2 id="tips-title">Tips</h2><span class="count" id="tips-count"></span></div>
-        <div class="chips" role="group" aria-label="Show" id="chips">
-          <button type="button" class="chip" aria-pressed="true" data-filter="ALL">All</button>
-          <button type="button" class="chip" aria-pressed="false" data-filter="WARM">Warm</button>
-          <button type="button" class="chip" aria-pressed="false" data-filter="PLAYFUL">Playful</button>
-          <button type="button" class="chip" aria-pressed="false" data-filter="REQUEST">Requests</button>
-          <button type="button" class="chip" aria-pressed="false" data-filter="PLAIN">Plain</button>
-          <button type="button" class="chip" aria-pressed="false" data-filter="HIDDEN">Hidden</button>
-        </div>
-        <p class="loading-line" id="tips-loading" hidden>Loading tips…</p>
-        <ul class="tips" id="tips"></ul>
-        <div class="empty" id="tips-empty" hidden>
-          <svg viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
-          <strong id="tips-empty-title"></strong>
-          <p id="tips-empty-text"></p>
-        </div>
-        <div class="page-note err" id="tips-error" role="alert" hidden>
-          <span>The tips didn't load.</span>
-          <button type="button" class="retry" id="tips-retry">Try again</button>
-        </div>
-        <button type="button" class="ghost more" id="more" hidden>Show older tips</button>
-      </section>
     </div>
   </main>
 </div>
