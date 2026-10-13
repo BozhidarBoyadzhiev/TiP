@@ -1,6 +1,6 @@
 # PN532 spike (brief 05c)
 
-Standalone PlatformIO project that answers one question: should a phone tap on the coin open the tip page through a PN532 emulating a tag, or through a passive NTAG215 sticker? It is not part of the main firmware build and has no secrets.
+Standalone PlatformIO project that answers one question: should a phone tap on the coin open the tip page through a PN532 emulating a tag, or through a passive NTAG215 sticker? It is not part of the main firmware build and has no secrets. Brief 05d moved the tag emulation into the main firmware (`firmware/README.md`, NFC tag), without the Seeed library; this folder stays as the evidence for that choice.
 
 ## Hardware
 

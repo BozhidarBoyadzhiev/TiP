@@ -326,8 +326,22 @@ void networkLoop(void *) {
   socket.setReconnectInterval(kLibraryNeverReconnects);
   socket.onEvent(onEvent);
 
+  // Evidence that the lower priority NFC task never holds this one up: the longest time between
+  // the end of one step and the start of the next, kLoopDelayMs when nothing does.
+  uint32_t stepEndedAt = millis();
+  uint32_t gapLoggedAt = stepEndedAt;
+  uint32_t longestGap = 0;
   for (;;) {
+    uint32_t now = millis();
+    longestGap = max(longestGap, now - stepEndedAt);
+    if (now - gapLoggedAt >= kStepGapLogMs) {
+      logLine("Net: longest pause between steps %lu ms in the last %lu s", static_cast<unsigned long>(longestGap),
+              static_cast<unsigned long>((now - gapLoggedAt) / 1000));
+      gapLoggedAt = now;
+      longestGap = 0;
+    }
     step();
+    stepEndedAt = millis();
     vTaskDelay(pdMS_TO_TICKS(kLoopDelayMs));
   }
 }

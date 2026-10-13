@@ -10,7 +10,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 - A PayPal developer account with a sandbox REST app: <https://developer.paypal.com/dashboard/applications/sandbox>.
 - ngrok (or any HTTPS tunnel), only to receive PayPal webhooks locally.
 - An Anthropic API key from <https://console.anthropic.com>, unless you run with `TIP_AI_ENABLED=false`.
-- For the physical panda only: PlatformIO Core, an ESP32 DevKit and, for the firmware's native tests, a host C++ compiler (`winget install BrechtSanders.WinLibs.POSIX.UCRT` on Windows). `firmware/README.md` has the setup, secrets, build, flash and test steps.
+- For the physical panda only: PlatformIO Core, an ESP32 DevKit, a PN532 board for the NFC tag (optional: the panda works without it) and, for the firmware's native tests, a host C++ compiler (`winget install BrechtSanders.WinLibs.POSIX.UCRT` on Windows). `firmware/README.md` has the setup, secrets, build, flash and test steps.
 
 ## Local setup
 

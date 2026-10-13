@@ -1,5 +1,6 @@
 // TiP panda firmware: connects to the server's device channel over verified wss, acks each
-// reaction on receipt and plays its light pattern on the onboard LED. See firmware/README.md.
+// reaction on receipt and plays its light pattern on the onboard LED, and has a PN532 emulate an
+// NFC tag holding the panda's tip page. See firmware/README.md.
 #include <Arduino.h>
 
 #include "log.h"
@@ -29,7 +30,8 @@ void setup() {
   QueueHandle_t reactions = xQueueCreate(tip::kWaitingReactions, sizeof(tip::Reaction));
   tip::startPlaybackTask(reactions);
   tip::startNetworkTask(reactions);
+  tip::startNfcTask();
 }
 
-// Everything runs in the network and playback tasks.
+// Everything runs in the network, playback and NFC tasks.
 void loop() { vTaskDelete(nullptr); }

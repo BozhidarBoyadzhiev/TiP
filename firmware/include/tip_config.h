@@ -1,4 +1,4 @@
-// Committed configuration of the panda firmware: server, device slug and timings.
+// Committed configuration of the panda firmware: server, device slug, NFC tag and timings.
 // The device id and secret are per deployment and live in secrets.h.
 #pragma once
 
@@ -12,6 +12,12 @@
 // The server's public base URL (port 443, so none in it). The NFC tag holds its tip page,
 // TIP_PUBLIC_BASE_URL "/t/" TIP_DEVICE_SLUG.
 #define TIP_PUBLIC_BASE_URL "https://" TIP_SERVER_HOST
+
+// PN532 UART2 speed: 115200 (its power-on speed, the one the 05c phone taps used) or 921600.
+// Override with PLATFORMIO_BUILD_FLAGS="-DTIP_NFC_BAUD=921600".
+#ifndef TIP_NFC_BAUD
+#define TIP_NFC_BAUD 115200
+#endif
 
 namespace tip {
 
@@ -59,5 +65,25 @@ constexpr uint32_t kRecentIds = 16;
 
 // The playback task updates the LED this often.
 constexpr uint32_t kLedTickMs = 10;
+
+// The network task logs the longest pause between two of its steps this often.
+constexpr uint32_t kStepGapLogMs = 60000;
+
+// NFC: looking for a PN532 that is missing or stopped answering starts at this wait and doubles to
+// the cap. A failure while it answers first gets a quick resync (wake-up and SAMConfig) with
+// kNfcResyncAttempts tries, from kNfcResyncFirstMs doubling.
+constexpr uint32_t kNfcRetryFirstMs = 1000;
+constexpr uint32_t kNfcRetryCapMs = 30000;
+constexpr uint32_t kNfcResyncFirstMs = 20;
+constexpr uint32_t kNfcResyncAttempts = 6;
+// While armed and untouched, the tag is stopped this often to check the PN532 still answers, so
+// one that was unplugged or lost power is found again. The tag is off for about 20 ms each time.
+constexpr uint32_t kNfcAliveCheckMs = 10000;
+// After a read the tag stays off this long: an iPhone left on the coin reads it again about 500 ms
+// later and shows a second prompt. Real taps are 20 s or more apart.
+constexpr uint32_t kNfcRearmHoldOffMs = 3000;
+// Then it waits until there has been no field for kNfcFieldQuietMs, at most kNfcFieldWaitCapMs.
+constexpr uint32_t kNfcFieldQuietMs = 100;
+constexpr uint32_t kNfcFieldWaitCapMs = 3000;
 
 }  // namespace tip
