@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -128,7 +129,7 @@ class ModerationDigestTest extends IntegrationTest {
 
         // No job run in between: the notes and the groups are gone the moment the message is hidden again, and
         // with three messages still shown the panda is rewriting them, not waiting for messages.
-        asOwner("/api/owner/digest").andExpect(content().json("{\"status\":\"rewriting\"}", true));
+        asOwner("/api/owner/digest").andExpect(content().json("{\"status\":\"rewriting\"}", JsonCompareMode.STRICT));
         asOwner("/api/owner/requests")
                 .andExpect(jsonPath("$.grouped").value("exact"))
                 .andExpect(jsonPath("$.groups.length()").value(0));
