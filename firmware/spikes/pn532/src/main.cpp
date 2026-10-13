@@ -94,6 +94,10 @@ constexpr uint16_t kApduWaitMs = 2000;
 constexpr uint16_t kReplyMs = 1000;
 constexpr uint32_t kFieldPollMs = 20;
 constexpr uint32_t kFieldQuietMs = 100;
+// An iPhone left on the coil switches its field off for longer than kFieldQuietMs between polls
+// and read the tag again about 500 ms after the first read, so it showed a second prompt. Real
+// taps are 20 s or more apart, so the tag stays off this long after every session.
+constexpr uint32_t kRearmHoldOffMs = 3000;
 constexpr uint32_t kFieldWaitCapMs = 3000;
 constexpr uint32_t kFirstBackoffMs = 20;
 constexpr uint32_t kMaxBackoffMs = 640;
@@ -278,6 +282,7 @@ void runNfc() {
       target.abort();
       resync(ending, code);
     }
+    vTaskDelay(pdMS_TO_TICKS(kRearmHoldOffMs));
     waitForFieldToLeave();
   }
 }
