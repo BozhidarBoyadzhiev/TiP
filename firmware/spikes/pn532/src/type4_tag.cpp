@@ -37,7 +37,7 @@ size_t status(uint8_t *reply, size_t offset, uint8_t sw1, uint8_t sw2) {
 size_t ok(uint8_t *reply, size_t dataLength = 0) { return status(reply, dataLength, 0x90, 0x00); }
 size_t notFound(uint8_t *reply) { return status(reply, 0, 0x6A, 0x82); }
 size_t notSupported(uint8_t *reply) { return status(reply, 0, 0x6A, 0x81); }
-size_t endOfFile(uint8_t *reply) { return status(reply, 0, 0x62, 0x82); }
+size_t wrongOffset(uint8_t *reply) { return status(reply, 0, 0x6B, 0x00); }
 size_t wrongLength(uint8_t *reply) { return status(reply, 0, 0x67, 0x00); }
 
 }  // namespace
@@ -82,16 +82,19 @@ size_t Type4Tag::respond(const uint8_t *command, size_t length, uint8_t *reply) 
       }
       return notFound(reply);
     case kReadBinary: {
-      // Same check as the library: only the offset is bounded (brief 05c step 5 fixes it).
       if (current_ == File::kNone) {
         return notFound(reply);
       }
-      if (offset > kNdefFileSize) {
-        return endOfFile(reply);
+      bool capability = current_ == File::kCapability;
+      const uint8_t *file = capability ? kCapabilityContainer : ndefFile_;
+      size_t fileSize = capability ? sizeof(kCapabilityContainer) : kNdefFileSize;
+      // Le 0 means 256 bytes (ISO 7816-4), more than either file holds.
+      size_t wanted = lc == 0 ? 256 : lc;
+      if (offset >= fileSize || wanted > fileSize - offset) {
+        return wrongOffset(reply);
       }
-      const uint8_t *file = current_ == File::kCapability ? kCapabilityContainer : ndefFile_;
-      memcpy(reply, file + offset, lc);
-      return ok(reply, lc);
+      memcpy(reply, file + offset, wanted);
+      return ok(reply, wanted);
     }
     default:
       return notSupported(reply);
