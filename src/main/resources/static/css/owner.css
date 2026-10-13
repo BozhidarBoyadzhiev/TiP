@@ -496,20 +496,20 @@ button {
     display: none;
 }
 
-/* Ruled paper: every line of text is one --rule tall and the ruling repeats every --rule from where the
-   text starts, with the ink --rule-ink down each line, just under the text's baseline. */
+/* Ruled paper: every line of text is one --rule tall, with no margins between them, and the ruling repeats
+   every --rule from where the text starts. The ink is the last pixel of each line, below any font's
+   descenders, so where the font puts its baseline (other metrics on Windows, others again before the web
+   font loads) never moves text onto it, and the rounding of page zoom has room to spare. */
 .kraft {
     --rule: 30px;
     --rule-top: 22px;
-    --rule-ink: 24px;
     padding: var(--rule-top) 18px 8px;
     background-image:
         linear-gradient(var(--paper), var(--paper)),
         repeating-linear-gradient(
             180deg,
-            transparent 0 calc(var(--rule-ink) - 1px),
-            rgba(90, 60, 30, 0.14) calc(var(--rule-ink) - 1px) var(--rule-ink),
-            transparent var(--rule-ink) var(--rule)
+            transparent 0 calc(var(--rule) - 1px),
+            rgba(90, 60, 30, 0.14) calc(var(--rule) - 1px) var(--rule)
         );
     background-size: 100% var(--rule-top), auto;
     background-position: 0 0, 0 var(--rule-top);
@@ -535,6 +535,7 @@ button {
     line-height: var(--rule);
 }
 
+/* Centred, so the chip never makes a line taller than --rule, whatever the font's baseline. */
 .kraft .sig {
     margin: 0;
     min-height: var(--rule);
@@ -543,14 +544,17 @@ button {
     color: #7a5a3e;
     display: flex;
     gap: 0 8px;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
 }
 
+/* 18 px of line and 4 px of padding, and margins making up the rest of --rule, so a chip the signature
+   wraps onto a line of its own still makes that line one --rule tall. */
 .ai-chip {
     font-size: 12px;
     line-height: 18px;
     padding: 2px 8px;
+    margin: calc((var(--rule) - 22px) / 2) 0;
     border-radius: 999px;
     background: rgba(90, 60, 30, 0.14);
     color: #5a3b22;
