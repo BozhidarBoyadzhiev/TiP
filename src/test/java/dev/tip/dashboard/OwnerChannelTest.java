@@ -233,10 +233,13 @@ class OwnerChannelTest extends IntegrationTest {
     void aVerdictIsAnnouncedAsATipIdOnlyAndNeverReachesObservers() throws Exception {
         String abuse = TestData.uniqueMessage("You are a talentless clown");
         String note = TestData.uniqueMessage("Request: stop singing");
+        String english = TestData.uniqueMessage("Stop singing, you clown");
         Map<String, Object> columns = new HashMap<>();
         columns.put("message", abuse);
         columns.put("message_kind", "REQUEST");
         columns.put("owner_note", note);
+        columns.put("message_language", "fr");
+        columns.put("message_english", english);
         columns.put("reaction", "PLAIN");
         columns.put("flagged", true);
         columns.put("flag_reason", "insult");
@@ -267,7 +270,8 @@ class OwnerChannelTest extends IntegrationTest {
             String digest = "{\"type\":\"digest\"}";
             String today = "{\"type\":\"today\"}";
             assertThat(frames).containsExactly(tip, digest, today, tip, digest, today);
-            assertThat(frames).allSatisfy(frame -> assertThat(frame).doesNotContain(abuse, note, "REQUEST"));
+            assertThat(frames)
+                    .allSatisfy(frame -> assertThat(frame).doesNotContain(abuse, note, english, "French", "REQUEST"));
             observer.sync();
             assertThat(observer.pending())
                     .as("observers hear nothing of a verdict")

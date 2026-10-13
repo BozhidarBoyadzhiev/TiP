@@ -90,7 +90,11 @@ class ModerationTest extends IntegrationTest {
     @Test
     void anotherOwnersTipAnUnflaggedTipAndAnUnknownIdGetTheSame404FromBoth() throws Exception {
         UUID unflagged = captured(deviceId, NOW.minusSeconds(300), Map.of("message", "Lovely", "ai_status", "DONE"));
-        UUID othersFlagged = captured(otherDeviceId, NOW.minusSeconds(200), flagged("Clown", "PLAIN"));
+        String othersEnglish = TestData.uniqueMessage("Play Wonderwall or watch out");
+        UUID othersFlagged = captured(
+                otherDeviceId,
+                NOW.minusSeconds(200),
+                flaggedRead(TestData.uniqueMessage("Joue Wonderwall"), "Request: Wonderwall", othersEnglish));
         UUID pendingFlagged = data.tip(deviceId, "FAILED", NOW.minusSeconds(100), flagged("Clown", "PLAIN"));
 
         List<String> bodies = new ArrayList<>();
@@ -115,7 +119,8 @@ class ModerationTest extends IntegrationTest {
                 .hasSize(12)
                 .allSatisfy(b -> assertThat(b).contains("\"instance\":\"/api/owner/tips/"))
                 .extracting(b -> b.replaceAll("\"instance\":\"[^\"]*\"", ""))
-                .containsOnly(bodies.getFirst().replaceAll("\"instance\":\"[^\"]*\"", ""));
+                .containsOnly(bodies.getFirst().replaceAll("\"instance\":\"[^\"]*\"", ""))
+                .allSatisfy(b -> assertThat(b).doesNotContain(othersEnglish, "French"));
         assertThat(verdictOf(othersFlagged)).isNull();
         assertThat(verdictOf(unflagged)).isNull();
         as(otherOwner, get("/api/owner/tips/{id}/message", othersFlagged)).andExpect(status().isOk());
@@ -149,9 +154,11 @@ class ModerationTest extends IntegrationTest {
     }
 
     @Test
-    void revealGivesOnlyTheTextAndIsNeverStored() throws Exception {
+    void revealGivesTheTextWithoutATranslationForEnglishAndIsNeverStored() throws Exception {
         String abuse = TestData.uniqueMessage("You are a talentless clown");
-        UUID tip = captured(deviceId, NOW.minusSeconds(60), flagged(abuse, "PLAIN"));
+        Map<String, Object> columns = flagged(abuse, "PLAIN");
+        columns.put("message_language", "en");
+        UUID tip = captured(deviceId, NOW.minusSeconds(60), columns);
 
         String body = as(owner, get("/api/owner/tips/{id}/message", tip))
                 .andExpect(status().isOk())
@@ -160,7 +167,9 @@ class ModerationTest extends IntegrationTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        assertThat(body).isEqualTo("{\"text\":\"" + abuse + "\"}");
+        assertThat(body)
+                .isEqualTo("{\"text\":\"" + abuse
+                        + "\",\"language\":\"en\",\"languageName\":\"English\",\"englishText\":null}");
 
         verdict(owner, tip, false).andExpect(status().isOk());
         as(owner, get("/api/owner/tips/{id}/message", tip))
@@ -170,15 +179,34 @@ class ModerationTest extends IntegrationTest {
     }
 
     @Test
+    void revealOfANonEnglishTipCarriesItsLanguageAndTranslation() throws Exception {
+        String abuse = TestData.uniqueMessage("Joue Wonderwall ou gare a toi");
+        String english = TestData.uniqueMessage("Play Wonderwall or watch out");
+        UUID tip = captured(deviceId, NOW.minusSeconds(60), flaggedRead(abuse, "Request: Wonderwall", english));
+
+        as(owner, get("/api/owner/tips/{id}/message", tip))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
+                .andExpect(jsonPath("$.text").value(abuse))
+                .andExpect(jsonPath("$.language").value("fr"))
+                .andExpect(jsonPath("$.languageName").value("French"))
+                .andExpect(jsonPath("$.englishText").value(english));
+        as(owner, get("/api/owner/tips/{id}", tip))
+                .andExpect(jsonPath("$.language").value(nullValue()))
+                .andExpect(jsonPath("$.englishText").value(nullValue()));
+    }
+
+    @Test
     void whileHiddenTheTextAndTheReadAreInNoOwnerPayload() throws Exception {
         String abuse = TestData.uniqueMessage("Joue Wonderwall ou gare a toi");
         String note = TestData.uniqueMessage("Request: Wonderwall");
         String english = TestData.uniqueMessage("Play Wonderwall or watch out");
-        captured(deviceId, NOW.minusSeconds(60), flaggedRead(abuse, note, english));
+        UUID tip = captured(deviceId, NOW.minusSeconds(60), flaggedRead(abuse, note, english));
         storeDigest();
 
         List<String> payloads = new ArrayList<>();
         for (String path : List.of(
+                "/api/owner/tips/" + tip,
                 "/api/owner/tips",
                 "/api/owner/tips?flagged=true",
                 "/api/owner/tips?kind=REQUEST",
@@ -192,7 +220,13 @@ class ModerationTest extends IntegrationTest {
                     .getContentAsString());
         }
 
-        assertThat(payloads).allSatisfy(p -> assertThat(p).doesNotContain(abuse, note, english, "Wondérwall"));
+        assertThat(payloads)
+                .allSatisfy(p -> assertThat(p).doesNotContain(abuse, note, english, "Wondérwall", "French"));
+        as(owner, get("/api/owner/tips?flagged=true"))
+                .andExpect(jsonPath("$.items[0].id").value(tip.toString()))
+                .andExpect(jsonPath("$.items[0].language").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].languageName").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].englishText").value(nullValue()));
     }
 
     @Test

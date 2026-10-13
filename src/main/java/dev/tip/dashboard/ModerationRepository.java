@@ -32,13 +32,14 @@ class ModerationRepository {
         this.jdbc = jdbc;
     }
 
-    /** The message of one of the owner's AI flagged tips, hidden or not. */
+    /** The message of one of the owner's AI flagged tips, hidden or not, with the language the AI read. */
     Optional<Message> message(UUID ownerId, UUID tipId) {
-        return jdbc.sql("SELECT t.message " + OWNED_FLAGGED_TIP)
+        return jdbc.sql("SELECT t.message, t.message_language, t.message_english " + OWNED_FLAGGED_TIP)
                 .param("tipId", tipId)
                 .param("ownerId", ownerId)
                 .param("visibleStatuses", TipHistoryQuery.VISIBLE_STATUSES)
-                .query((rs, row) -> new Message(rs.getString("message")))
+                .query((rs, row) -> new Message(
+                        rs.getString("message"), rs.getString("message_language"), rs.getString("message_english")))
                 .optional();
     }
 
@@ -72,8 +73,11 @@ class ModerationRepository {
                 .optional();
     }
 
-    /** The tipper's message as stored. */
-    record Message(String text) {}
+    /**
+     * The tipper's message as stored, the ISO 639-1 code the AI read and its translation, stored only for a
+     * language other than English.
+     */
+    record Message(String text, String language, String englishText) {}
 
     /** {@code changed} is false when the tip already had the verdict asked for. */
     record Change(boolean changed) {}

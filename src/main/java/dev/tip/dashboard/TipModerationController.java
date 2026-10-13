@@ -31,13 +31,22 @@ class TipModerationController {
         this.tips = tips;
     }
 
-    /** The flagged message, read on demand. Never stored by the browser. */
+    /**
+     * The flagged message, read on demand, with its language and translation under the same names and rules
+     * as in {@link TipView}. Never stored by the browser.
+     */
     @GetMapping("/message")
     ResponseEntity<MessageView> message(@AuthenticationPrincipal OwnerPrincipal owner, @PathVariable String id) {
-        String text = moderation
+        ModerationRepository.Message message = moderation
                 .message(owner.id(), TipHistoryQuery.tipId(id))
                 .orElseThrow(DashboardExceptions.TipNotFound::new);
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new MessageView(text));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(new MessageView(
+                        message.text(),
+                        message.language(),
+                        Languages.englishName(message.language()),
+                        message.englishText()));
     }
 
     /** {@code hidden} false overrules the AI's flag, true hides the message again. Returns the tip as listed. */
@@ -55,5 +64,5 @@ class TipModerationController {
 
     record VerdictRequest(@NotNull Boolean hidden) {}
 
-    record MessageView(String text) {}
+    record MessageView(String text, String language, String languageName, String englishText) {}
 }

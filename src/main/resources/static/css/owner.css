@@ -969,6 +969,22 @@ button {
     color: var(--faint);
 }
 
+/* In a revealed message the translation sits under the text, without the tip row's icon column. */
+.revealed .trans {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px 0 4px;
+}
+
+.revealed .translate,
+.revealed .english {
+    grid-column: 1;
+}
+
+.revealed .english {
+    margin-top: 12px;
+    font-size: 14px;
+}
+
 .detail {
     padding: 0 2px 14px 50px;
     display: grid;

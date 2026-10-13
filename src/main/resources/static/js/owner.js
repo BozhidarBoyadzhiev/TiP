@@ -427,7 +427,7 @@
 
     function uiOf(id) {
         if (!state.ui.has(id)) {
-            state.ui.set(id, { open: false, english: false });
+            state.ui.set(id, { open: false, english: false, panelEnglish: false });
         }
         return state.ui.get(id);
     }
@@ -441,7 +441,7 @@
 
     function revealOf(id) {
         if (!state.reveals.has(id)) {
-            state.reveals.set(id, { step: "idle", text: "" });
+            state.reveals.set(id, { step: "idle", text: "", language: null, languageName: null, englishText: null });
         }
         return state.reveals.get(id);
     }
@@ -456,6 +456,23 @@
     function revealedText(view) {
         const reveal = state.reveals.get(view.id);
         return view.flagged && reveal && reveal.step === "shown" ? reveal.text : null;
+    }
+
+    // The language and translation of a message the owner can read: the tip's own, or a revealed one's.
+    function readOf(view) {
+        if (!view.flagged) {
+            return view;
+        }
+        const reveal = state.reveals.get(view.id);
+        if (!reveal || reveal.step !== "shown") {
+            return null;
+        }
+        return {
+            id: view.id,
+            language: reveal.language,
+            languageName: reveal.languageName,
+            englishText: reveal.englishText,
+        };
     }
 
     function kindOf(view) {
@@ -498,9 +515,10 @@
         kind.appendChild(icon(glyph));
         const line = make("span", "line1");
         line.append(make("span", "kname", kindName(view)));
+        const read = readOf(view);
         // Only a language other than English is worth a tag.
-        if (view.languageName && view.language !== "en" && !view.flagged) {
-            line.append(make("span", "lang", view.languageName));
+        if (read && read.languageName && read.language !== "en") {
+            line.append(make("span", "lang", read.languageName));
         }
         if (view.unhidden) {
             line.append(make("span", "unhid", "Unhidden by you"));
@@ -518,8 +536,8 @@
         );
         row.append(head);
 
-        if (view.englishText && !view.flagged) {
-            row.append(translation(view, ui));
+        if (read && read.englishText) {
+            row.append(translation(read, ui, "english"));
         }
 
         const detail = make("div", "detail");
@@ -532,17 +550,18 @@
         return row;
     }
 
-    function translation(view, ui) {
+    // flag is "english" for the tip list and "panelEnglish" for the hidden panel, so each has its own toggle.
+    function translation(view, ui, flag) {
         const box = make("div", "trans");
-        const englishId = "english-" + view.id;
-        const toggle = button("translate", ui.english ? "Hide translation" : "Show in English", "translate", () => {
-            ui.english = !ui.english;
+        const englishId = (flag === "english" ? "english-" : "flag-english-") + view.id;
+        const toggle = button("translate", ui[flag] ? "Hide translation" : "Show in English", "translate", () => {
+            ui[flag] = !ui[flag];
             rerender(view.id);
         });
-        toggle.setAttribute("aria-expanded", String(ui.english));
+        toggle.setAttribute("aria-expanded", String(ui[flag]));
         toggle.setAttribute("aria-controls", englishId);
         box.append(toggle);
-        if (ui.english) {
+        if (ui[flag]) {
             const english = make("span", "english");
             english.id = englishId;
             english.append(
@@ -618,6 +637,10 @@
         } else if (revealed !== null) {
             const text = make("div", "revealed");
             text.append(make("small", null, "What they wrote"), document.createTextNode(revealed));
+            const read = readOf(view);
+            if (read.englishText) {
+                text.append(translation(read, uiOf(view.id), "panelEnglish"));
+            }
             second.append(text);
         } else {
             second.append(make("span", "hidden-msg", "Message hidden"));
@@ -702,6 +725,9 @@
                 const body = await response.json();
                 if (body && typeof body.text === "string") {
                     reveal.text = body.text;
+                    reveal.language = typeof body.language === "string" ? body.language : null;
+                    reveal.languageName = typeof body.languageName === "string" ? body.languageName : null;
+                    reveal.englishText = typeof body.englishText === "string" ? body.englishText : null;
                     next = "shown";
                 }
             } else if (response.status === 404) {
@@ -762,6 +788,9 @@
         if (view.flagged) {
             state.reveals.delete(id);
             state.kept.delete(id);
+            const ui = uiOf(id);
+            ui.english = false;
+            ui.panelEnglish = false;
         } else if (inPanel >= 0) {
             state.kept.add(id);
         }

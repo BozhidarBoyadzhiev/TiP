@@ -44,11 +44,11 @@ class TipModeration {
         this.clock = clock;
     }
 
-    /** The message of one of the owner's AI flagged tips. Empty for anything else. */
-    Optional<String> message(UUID ownerId, UUID tipId) {
+    /** The message of one of the owner's AI flagged tips, with its language. Empty for anything else. */
+    Optional<ModerationRepository.Message> message(UUID ownerId, UUID tipId) {
         Optional<ModerationRepository.Message> message = moderation.message(ownerId, tipId);
         message.ifPresent(m -> log.info("Owner {} read the flagged message of tip {}", ownerId, tipId));
-        return message.map(ModerationRepository.Message::text);
+        return message;
     }
 
     /**
