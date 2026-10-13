@@ -34,9 +34,10 @@ constexpr uint32_t kStatsEveryMs = 10000;
 constexpr uint32_t kLinkRetryMs = 2000;
 constexpr uint32_t kAbortSettleMs = 10;
 constexpr uint32_t kPowerOnBaud = 115200;
+constexpr uint32_t kFastBaud = 921600;
 constexpr uint32_t kRunBaud = SPIKE_BAUD;
-static_assert(kRunBaud == 115200 || kRunBaud == 921600, "SPIKE_BAUD is 115200 or 921600");
-constexpr uint8_t kRunBaudCode = kRunBaud == 921600 ? 0x07 : 0x04;
+static_assert(kRunBaud == kPowerOnBaud || kRunBaud == kFastBaud, "SPIKE_BAUD is 115200 or 921600");
+constexpr uint8_t kRunBaudCode = kRunBaud == kFastBaud ? 0x07 : 0x04;
 constexpr size_t kMessageCapacity = 120;
 
 SemaphoreHandle_t logMutex;
@@ -72,8 +73,8 @@ void logHex(const char *label, const uint8_t *bytes, size_t length) {
 // PN532::SAMConfig() reports false on success (its reply has no data bytes and it checks
 // readResponse() > 0), so the target helper sends it.
 // The PN532 keeps running when only the ESP32 resets, possibly still inside TgInitAsTarget and
-// still at kRunBaud, so each attempt starts with an abort and attempts alternate between its
-// power-on speed and kRunBaud. Once linked, it moves the PN532 to kRunBaud.
+// still at the speed an earlier firmware set, so each attempt starts with an abort and attempts
+// alternate between 115200 and 921600. Once linked, it moves the PN532 to kRunBaud.
 void linkTest(PN532 &nfc) {
   nfc.begin();
   uint32_t baud = kPowerOnBaud;
@@ -99,7 +100,7 @@ void linkTest(PN532 &nfc) {
     }
     logLine("Link: no answer from the PN532 on GPIO16/17 at %lu baud (%d); check power, DIP 0 0, or swap the data wires",
             static_cast<unsigned long>(baud), result);
-    baud = baud == kPowerOnBaud ? kRunBaud : kPowerOnBaud;
+    baud = baud == kPowerOnBaud ? kFastBaud : kPowerOnBaud;
     Serial2.updateBaudRate(baud);
     vTaskDelay(pdMS_TO_TICKS(kLinkRetryMs));
   }
