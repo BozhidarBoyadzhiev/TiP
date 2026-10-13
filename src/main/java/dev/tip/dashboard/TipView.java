@@ -13,7 +13,9 @@ import java.util.UUID;
  * are internal to it. {@code language} is the ISO 639-1 code the AI read, {@code languageName} its English
  * name, and {@code englishText} the AI's translation when the message is not in English. {@code repeats}
  * is what the panda was sent, read from the stored reaction delivery; null when none was stored, such as for
- * a tip that has not reacted yet.
+ * a tip that has not reacted yet. {@code aiStatus} is the AI's progress as stored ({@code PENDING}, {@code
+ * PROCESSING}, {@code DONE}, {@code SKIPPED}, {@code FAILED}, or {@code UNAVAILABLE} when the model could not be
+ * reached and the panda played PLAIN once). {@code demo} is true for a sample tip, which was never paid.
  */
 record TipView(
         UUID id,
@@ -33,4 +35,6 @@ record TipView(
         String language,
         String languageName,
         String englishText,
-        String requestedSong) {}
+        String requestedSong,
+        String aiStatus,
+        boolean demo) {}

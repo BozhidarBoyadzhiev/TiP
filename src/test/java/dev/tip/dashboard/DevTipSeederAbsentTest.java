@@ -21,8 +21,8 @@ class DevTipSeederAbsentTest extends IntegrationTest {
     void seederDoesNotExistWithoutTheDevProfile() {
         assertThat(context.getEnvironment().getActiveProfiles()).doesNotContain("dev");
         assertThat(context.getBeanProvider(DevTipSeeder.class).getIfAvailable()).isNull();
-        assertThat(jdbc.sql("SELECT count(*) FROM tip WHERE paypal_order_id LIKE ?")
-                        .param(DevTipSeeder.ORDER_PREFIX + "%")
+        assertThat(jdbc.sql("SELECT count(*) FROM tip t JOIN device d ON d.id = t.device_id"
+                                + " WHERE d.slug = 'demo-panda' AND t.demo")
                         .query(Long.class)
                         .single())
                 .isZero();

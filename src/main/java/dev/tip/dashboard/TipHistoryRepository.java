@@ -27,7 +27,7 @@ class TipHistoryRepository {
 
     /** The texts of a hidden message stay in the database, see {@link HiddenMessages}. */
     private static final String SELECT = "SELECT t.id, t.created_at, t.amount_minor, t.currency, t.status,"
-            + " d.slug AS device_slug, t.message_kind, t.reaction, rd.repeats,"
+            + " d.slug AS device_slug, t.message_kind, t.reaction, rd.repeats, t.ai_status, t.demo,"
             + " " + HiddenMessages.HIDDEN + " AS hidden,"
             + " " + HiddenMessages.UNHIDDEN + " AS unhidden,"
             + " CASE WHEN " + HiddenMessages.AI_FLAGGED + " THEN t.flag_reason END AS flag_reason,"
@@ -101,7 +101,9 @@ class TipHistoryRepository {
                 rs.getString("message_language"),
                 Languages.englishName(rs.getString("message_language")),
                 rs.getString("message_english"),
-                rs.getString("requested_song"));
+                rs.getString("requested_song"),
+                rs.getString("ai_status"),
+                rs.getBoolean("demo"));
     }
 
     /** The {@code FROM ... WHERE} part shared by the page and the count, with its parameters. */

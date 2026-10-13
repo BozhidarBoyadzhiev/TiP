@@ -52,6 +52,10 @@ class Tip {
     @Column(name = "captured_at")
     private Instant capturedAt;
 
+    /** A sample tip, inserted by the dashboard's sample set, never by JPA. */
+    @Column(insertable = false, updatable = false)
+    private boolean demo;
+
     protected Tip() {}
 
     Tip(UUID id, UUID deviceId, long amountMinor, String currency, String message, Instant createdAt) {
@@ -82,5 +86,9 @@ class Tip {
 
     String paypalOrderId() {
         return paypalOrderId;
+    }
+
+    boolean demo() {
+        return demo;
     }
 }

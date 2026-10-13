@@ -38,6 +38,13 @@ final class TipExceptions {
         }
     }
 
+    /** A sample tip was never paid through PayPal, so there is nothing to refund. */
+    static final class DemoTip extends DomainException {
+        DemoTip() {
+            super(HttpStatus.CONFLICT, "DEMO_TIP", "This is a sample tip. There is no payment to refund.");
+        }
+    }
+
     static final class InstrumentDeclined extends DomainException {
         InstrumentDeclined() {
             super(

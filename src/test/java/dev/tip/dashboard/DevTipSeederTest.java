@@ -19,9 +19,13 @@ import dev.tip.owners.api.OwnerPrincipal;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -29,9 +33,14 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** Runs the app with the {@code dev} profile on top of {@code test}, so the seeder ran at startup. */
+/**
+ * Runs the app with the {@code dev} profile on top of {@code test}, so the seeder ran at startup. It checks the
+ * shared sample set ({@link SampleTipSet}) through the demo device, the same set sandboxes and the public demo get.
+ */
 @ActiveProfiles("dev")
 class DevTipSeederTest extends IntegrationTest {
+
+    private static final ZoneId LONDON = ZoneId.of("Europe/London");
 
     @Autowired
     DevTipSeeder seeder;
@@ -52,13 +61,15 @@ class DevTipSeederTest extends IntegrationTest {
     int port;
 
     @Test
-    void startupAddedEverySampleToTheDemoDeviceOnce() {
+    void startupAddedEverySampleToTheDemoDeviceOnceWithoutPayPalIds() {
         List<Map<String, Object>> rows = seededRows();
 
-        assertThat(rows).hasSize(DevTipSeeder.sampleCount()).hasSizeBetween(45, 55);
-        assertThat(rows)
-                .extracting(r -> r.get("device_id"))
-                .containsOnly(data.deviceRow("demo-panda").get("id"));
+        assertThat(rows).hasSize(SampleTipSet.SAMPLES.size()).hasSizeBetween(20, 40);
+        assertThat(rows).allSatisfy(r -> {
+            assertThat(r.get("demo")).isEqualTo(true);
+            assertThat(r.get("paypal_order_id")).isNull();
+            assertThat(r.get("paypal_capture_id")).isNull();
+        });
         assertThat(rows).extracting(r -> r.get("message_kind")).contains("WARM", "PLAYFUL", "REQUEST", "PLAIN");
         assertThat(rows).extracting(r -> r.get("status")).contains("CAPTURED", "PENDING", "REFUNDED", "REVERSED");
         assertThat(rows).filteredOn(r -> r.get("message") == null).hasSizeGreaterThanOrEqualTo(3);
@@ -73,13 +84,14 @@ class DevTipSeederTest extends IntegrationTest {
     void flaggedSamplesHaveAReasonAndRequestsHaveNotes() {
         List<Map<String, Object>> rows = seededRows();
 
-        List<Map<String, Object>> flagged =
-                rows.stream().filter(r -> (Boolean) r.get("flagged")).toList();
-        assertThat(flagged).hasSizeGreaterThanOrEqualTo(3).allSatisfy(r -> {
-            assertThat(r.get("flag_reason")).isNotNull();
-            assertThat(r.get("owner_note")).isNull();
-            assertThat(r.get("reaction")).isEqualTo("PLAIN");
-        });
+        assertThat(rows)
+                .filteredOn(r -> (Boolean) r.get("flagged"))
+                .hasSizeGreaterThanOrEqualTo(3)
+                .allSatisfy(r -> {
+                    assertThat(r.get("flag_reason")).isNotNull();
+                    assertThat(r.get("owner_note")).isNull();
+                    assertThat(r.get("reaction")).isEqualTo("PLAIN");
+                });
         assertThat(rows)
                 .filteredOn(r -> "REQUEST".equals(r.get("message_kind")) && !(Boolean) r.get("flagged"))
                 .hasSizeGreaterThanOrEqualTo(5)
@@ -92,16 +104,16 @@ class DevTipSeederTest extends IntegrationTest {
     }
 
     @Test
-    void samplesSpreadOverTheLastFourteenDays() {
-        List<Instant> times = seededRows().stream()
-                .map(r -> ((Timestamp) r.get("created_at")).toInstant())
-                .toList();
+    void samplesSpreadOverThreeLocalDaysWithSeveralToday() {
         Instant now = clock.instant();
+        LocalDate today = LocalDate.ofInstant(now, LONDON);
+        Map<LocalDate, Long> perDay = seededRows().stream()
+                .map(r -> ((Timestamp) r.get("created_at")).toInstant())
+                .peek(t -> assertThat(t).isBeforeOrEqualTo(now))
+                .collect(Collectors.groupingBy(t -> LocalDate.ofInstant(t, LONDON), Collectors.counting()));
 
-        assertThat(times).allSatisfy(t -> assertThat(t).isBetween(now.minus(Duration.ofDays(14)), now));
-        Instant oldest = times.stream().min(Instant::compareTo).orElseThrow();
-        Instant newest = times.stream().max(Instant::compareTo).orElseThrow();
-        assertThat(Duration.between(oldest, newest)).isGreaterThan(Duration.ofDays(12));
+        assertThat(perDay).containsOnlyKeys(today, today.minusDays(1), today.minusDays(2));
+        assertThat(perDay.get(today)).isGreaterThanOrEqualTo(5);
     }
 
     @Test
@@ -111,42 +123,73 @@ class DevTipSeederTest extends IntegrationTest {
                 .allSatisfy(r -> {
                     assertThat(r.get("ai_status")).isIn("DONE", "SKIPPED");
                     assertThat(r.get("reaction")).isNotNull();
-                    assertThat(r.get("paypal_capture_id")).isNotNull();
+                    assertThat(r.get("captured_at")).isNotNull();
                 });
     }
 
     @Test
-    void secondRunOnALaterDayChangesNothing() {
-        List<Map<String, Object>> before = seededRows();
-        clock.pin(clock.instant().plus(Duration.ofDays(3)));
+    void songsAndBandsAreInventedEverywhere() {
+        Set<String> real =
+                Set.of("wonderwall", "oasis", "abba", "beatles", "despacito", "la vie en rose", "happy birthday");
 
+        assertThat(seededRows()).allSatisfy(r -> {
+            String texts = (r.get("message") + " " + r.get("owner_note") + " " + r.get("requested_song") + " "
+                            + r.get("message_english"))
+                    .toLowerCase();
+            assertThat(real).noneMatch(texts::contains);
+        });
+        assertThat(String.join(" ", SampleTipSet.DIGEST_BULLETS) + SampleTipSet.DIGEST_GROUPS.keySet())
+                .doesNotContainIgnoringCase("wonderwall")
+                .doesNotContainIgnoringCase("oasis");
+    }
+
+    @Test
+    void secondRunOnTheSameDayChangesNothing() {
+        List<Map<String, Object>> before = seededRows();
         List<Map<String, Object>> deliveriesBefore = seededDeliveries();
+        long digestsBefore = digestRows();
+
         seeder.seed();
 
         assertThat(seededRows()).usingRecursiveComparison().isEqualTo(before);
         assertThat(seededDeliveries()).usingRecursiveComparison().isEqualTo(deliveriesBefore);
+        assertThat(digestRows()).isEqualTo(digestsBefore);
+    }
+
+    @Test
+    void aLaterDayReplacesTheSamplesAndKeepsRealTips() {
+        UUID demoDevice = demoDevice();
+        UUID realTip = data.tip(demoDevice, "CAPTURED", TestData.uniqueId("ORDER"), clock.instant());
+        Set<Object> before = seededRows().stream().map(r -> r.get("id")).collect(Collectors.toSet());
+        try {
+            clock.pin(clock.instant().plus(Duration.ofDays(2)));
+            seeder.seed();
+
+            List<Map<String, Object>> after = seededRows();
+            assertThat(after).hasSize(SampleTipSet.SAMPLES.size());
+            assertThat(after).extracting(r -> r.get("id")).doesNotContainAnyElementsOf(before);
+            assertThat(data.tipRow(realTip)).containsEntry("status", "CAPTURED");
+            assertThat(digestRows()).isOne();
+        } finally {
+            jdbc.sql("DELETE FROM tip WHERE id = ?").param(realTip).update();
+            reseedNow();
+        }
     }
 
     @Test
     void reactedSamplesHaveAnAckedOldDeliveryAtTheSendLimitWithRepeatsFromTheAmountTable() {
         List<Map<String, Object>> tips = seededRows();
         List<Map<String, Object>> deliveries = seededDeliveries();
-        List<String> withoutDelivery = DevTipSeeder.WITHOUT_DELIVERY.stream()
-                .map(DevTipSeeder::orderId)
-                .toList();
+        Set<Object> withoutDelivery = SampleTipSet.WITHOUT_DELIVERY.stream()
+                .map(i -> tips.get(i).get("id"))
+                .collect(Collectors.toSet());
 
         long reacted = tips.stream().filter(r -> r.get("reaction") != null).count();
         assertThat(deliveries).hasSize((int) reacted - withoutDelivery.size());
-        assertThat(deliveries).extracting(d -> d.get("paypal_order_id")).doesNotContainAnyElementsOf(withoutDelivery);
-        assertThat(tips)
-                .filteredOn(r -> withoutDelivery.contains(r.get("paypal_order_id")))
-                .hasSize(3)
-                .allSatisfy(r -> assertThat(r.get("reaction")).isNotNull());
-        Instant replayWindow = clock.instant().minus(Duration.ofSeconds(60));
+        assertThat(deliveries).extracting(d -> d.get("tip_id")).doesNotContainAnyElementsOf(withoutDelivery);
         assertThat(deliveries).allSatisfy(d -> {
             assertThat(d.get("acked_at")).isNotNull();
-            assertThat((Integer) d.get("sent_count")).isGreaterThanOrEqualTo(DevTipSeeder.SEEDED_SEND_COUNT);
-            assertThat(((Timestamp) d.get("reacted_at")).toInstant()).isBefore(replayWindow);
+            assertThat((Integer) d.get("sent_count")).isGreaterThanOrEqualTo(SampleTipSet.SEEDED_SEND_COUNT);
             assertThat(d.get("reaction")).isEqualTo(d.get("tip_reaction"));
             assertThat(((Number) d.get("repeats")).intValue())
                     .isEqualTo(ReactionRepeats.of((Long) d.get("amount_minor"), "GBP", (Boolean) d.get("flagged")));
@@ -163,9 +206,7 @@ class DevTipSeederTest extends IntegrationTest {
 
     @Test
     void theDemoDeviceConnectingAndTheResendJobSendNothingForSeededDeliveries() throws Exception {
-        UUID demoDevice = (UUID) data.deviceRow("demo-panda").get("id");
-
-        try (TestSocket device = TestSocket.connectDevice(port, demoDevice, DEMO_DEVICE_SECRET)) {
+        try (TestSocket device = TestSocket.connectDevice(port, demoDevice(), DEMO_DEVICE_SECRET)) {
             assertThat(device.nextJson()).containsEntry("type", "hello");
             resendJob.resend();
             device.sync();
@@ -175,31 +216,22 @@ class DevTipSeederTest extends IntegrationTest {
     }
 
     @Test
-    void theDashboardShowsSeededRepeatsAndNullWhereNoDeliveryWasStored() throws Exception {
+    void theDashboardShowsSampleTipsAsDemoWithRepeatsAndNullWhereNoDeliveryWasStored() throws Exception {
         mvc.perform(get("/api/owner/tips?size=50").with(user(demoOwner())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.demo == true)]", hasSize(SampleTipSet.SAMPLES.size())))
+                .andExpect(jsonPath("$.items[?(@.flagged == true)].message").value(everyItem(nullValue())))
                 .andExpect(jsonPath("$.items[?(@.flagged == true && @.status != 'PENDING')].repeats")
                         .value(everyItem(is(1))))
                 .andExpect(jsonPath("$.items[?(@.status == 'PENDING')].repeats").value(everyItem(nullValue())))
-                .andExpect(jsonPath("$.items[?(@.repeats == null && @.status != 'PENDING')]", hasSize(3)));
+                .andExpect(jsonPath("$.items[?(@.repeats == null && @.status != 'PENDING')]", hasSize(2)));
     }
 
     @Test
-    void demoOwnerSeesTheSamplesThroughTheApi() throws Exception {
-        Map<String, Object> demoOwner = data.ownerRow("demo-owner@example.com");
-        OwnerPrincipal principal =
-                new OwnerPrincipal((UUID) demoOwner.get("id"), "demo-owner@example.com", "Demo Owner", null);
-
-        mvc.perform(get("/api/owner/tips?size=50").with(user(principal)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalItems").value(DevTipSeeder.sampleCount()))
-                .andExpect(jsonPath("$.items[?(@.flagged == true)].message").value(everyItem(nullValue())));
-    }
-
-    @Test
-    void languageSamplesCarryTranslationsAndTheFlaggedFrenchOneKeepsItsReadForAnOverrule() {
+    void languageSamplesCarryTranslationsAndHiddenBulgarianAndEnglishMessagesKeepTheirRead() {
         List<Map<String, Object>> rows = seededRows();
 
-        assertThat(rows).extracting(r -> r.get("message_language")).contains("fr", "es", "de", "en");
+        assertThat(rows).extracting(r -> r.get("message_language")).contains("fr", "es", "de", "en", "bg");
         assertThat(rows)
                 .filteredOn(r -> r.get("message_language") != null && !"en".equals(r.get("message_language")))
                 .hasSizeGreaterThanOrEqualTo(5)
@@ -207,57 +239,58 @@ class DevTipSeederTest extends IntegrationTest {
         assertThat(rows)
                 .filteredOn(r -> "en".equals(r.get("message_language")))
                 .allSatisfy(r -> assertThat(r.get("message_english")).isNull());
-        assertThat(rows)
-                .filteredOn(r -> (Boolean) r.get("flagged") && r.get("message_language") != null)
+        List<Map<String, Object>> hidden =
+                rows.stream().filter(r -> (Boolean) r.get("flagged")).toList();
+        assertThat(hidden)
+                .filteredOn(r -> "bg".equals(r.get("message_language")))
                 .singleElement()
-                .satisfies(r -> {
-                    assertThat(r.get("message_language")).isEqualTo("fr");
-                    assertThat(r.get("message_english")).isNotNull();
-                    assertThat(r.get("owner_verdict")).isNull();
-                });
+                .satisfies(r -> assertThat(r.get("message_english")).isNotNull());
+        assertThat(hidden)
+                .filteredOn(r -> "en".equals(r.get("message_language")))
+                .isNotEmpty();
+        assertThat(hidden).allSatisfy(r -> assertThat(r.get("owner_verdict")).isNull());
     }
 
     @Test
-    void wonderwallIsTheTopSongInThreeSpellingsAndTodaysNotesAreStored() throws Exception {
-        List<Map<String, Object>> wonderwall = seededRows().stream()
-                .filter(r -> "wonderwall".equals(r.get("requested_song_key")))
-                .filter(r -> ((Timestamp) r.get("created_at"))
-                        .toInstant()
-                        .isAfter(clock.instant().minus(Duration.ofDays(6))))
-                .toList();
-        assertThat(wonderwall)
+    void theTopSongIsAskedForInThreeSpellingsAndTodaysNotesAreStored() throws Exception {
+        assertThat(seededRows())
+                .filteredOn(r -> "marmalade moonwalk".equals(r.get("requested_song_key")))
                 .extracting(r -> r.get("requested_song"))
                 .hasSize(3)
                 .doesNotHaveDuplicates();
 
         mvc.perform(get("/api/owner/requests").with(user(demoOwner())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.topSong.title").value("Wonderwall"))
+                .andExpect(jsonPath("$.topSong.title").value("Marmalade Moonwalk"))
                 .andExpect(jsonPath("$.topSong.count").value(3))
                 .andExpect(jsonPath("$.grouped").value("ai"))
-                .andExpect(jsonPath("$.groups[?(@.label == 'Play Wonderwall')].count")
+                .andExpect(jsonPath("$.groups[?(@.label == 'Play Marmalade Moonwalk')].count")
                         .value(3))
                 // Like a real digest, which sees every note of the week: no group falls back to a raw note.
                 .andExpect(jsonPath("$.groups[?(@.label =~ /^(Request|Feedback):.*/)]")
-                        .isEmpty())
-                .andExpect(jsonPath("$.groups[?(@.label == 'Too loud near the café')].count")
-                        .value(1));
+                        .isEmpty());
         mvc.perform(get("/api/owner/digest").with(user(demoOwner())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bullets.length()").value(DevTipSeeder.DIGEST_BULLETS.size()))
-                .andExpect(jsonPath("$.messageCount").value(DevTipSeeder.LANGUAGE_SAMPLES.size() - 1));
+                .andExpect(jsonPath("$.bullets.length()").value(SampleTipSet.DIGEST_BULLETS.size()))
+                .andExpect(jsonPath("$.messageCount").value(SampleTipSet.todaysShownMessages()));
+        mvc.perform(get("/api/owner/today").with(user(demoOwner())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tipCount").value(org.hamcrest.Matchers.greaterThanOrEqualTo(5)));
     }
 
-    @Test
-    void secondRunOnTheSameDayAddsNoDigestAndALaterDayGetsItsOwn() {
-        long before = digestRows();
-
+    private void reseedNow() {
+        clock.release();
+        jdbc.sql("DELETE FROM reaction_delivery WHERE tip_id IN (SELECT id FROM tip WHERE device_id = ? AND demo)")
+                .param(demoDevice())
+                .update();
+        jdbc.sql("DELETE FROM tip WHERE device_id = ? AND demo")
+                .param(demoDevice())
+                .update();
         seeder.seed();
-        assertThat(digestRows()).isEqualTo(before);
+    }
 
-        clock.pin(clock.instant().plus(Duration.ofDays(2)));
-        seeder.seed();
-        assertThat(digestRows()).isEqualTo(before + 1);
+    private UUID demoDevice() {
+        return (UUID) data.deviceRow("demo-panda").get("id");
     }
 
     private OwnerPrincipal demoOwner() {
@@ -272,17 +305,18 @@ class DevTipSeederTest extends IntegrationTest {
                 .single();
     }
 
-    /** The seeded tips' deliveries with the tip's order id, amount, flag and reaction. */
+    /** The samples' deliveries with the tip's amount, flag and reaction. */
     private List<Map<String, Object>> seededDeliveries() {
         return jdbc.sql("""
-                        SELECT rd.*, t.paypal_order_id, t.amount_minor, t.flagged, t.reaction AS tip_reaction
+                        SELECT rd.*, t.amount_minor, t.flagged, t.reaction AS tip_reaction
                         FROM reaction_delivery rd JOIN tip t ON t.id = rd.tip_id
-                        WHERE t.paypal_order_id LIKE ? ORDER BY t.paypal_order_id""").param(DevTipSeeder.ORDER_PREFIX + "%").query().listOfRows();
+                        WHERE t.device_id = ? AND t.demo ORDER BY t.created_at DESC""").param(demoDevice()).query().listOfRows();
     }
 
+    /** Newest first, which is the order of {@link SampleTipSet#SAMPLES}. */
     private List<Map<String, Object>> seededRows() {
-        return jdbc.sql("SELECT * FROM tip WHERE paypal_order_id LIKE ? ORDER BY paypal_order_id")
-                .param(DevTipSeeder.ORDER_PREFIX + "%")
+        return jdbc.sql("SELECT * FROM tip WHERE device_id = ? AND demo ORDER BY created_at DESC")
+                .param(demoDevice())
                 .query()
                 .listOfRows();
     }

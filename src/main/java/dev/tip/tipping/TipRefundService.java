@@ -35,6 +35,9 @@ class TipRefundService {
         Tip tip = tips.findById(tipId)
                 .filter(t -> devices.isOwnedBy(t.deviceId(), ownerId))
                 .orElseThrow(TipExceptions.TipNotFound::new);
+        if (tip.demo()) {
+            throw new TipExceptions.DemoTip();
+        }
         if (tip.status() != TipStatus.CAPTURED || tip.paypalCaptureId() == null) {
             throw new TipExceptions.TipNotRefundable();
         }
@@ -60,7 +63,7 @@ class TipRefundService {
     }
 
     private TipStatus currentStatus(UUID tipId) {
-        return tips.findStatus(tipId).orElseThrow();
+        return tips.findStatus(tipId).orElseThrow(TipExceptions.TipNotFound::new);
     }
 
     /** {@code completed} is false while PayPal still processes the refund. */
