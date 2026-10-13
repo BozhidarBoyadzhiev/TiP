@@ -50,7 +50,7 @@ Briefs come from the lead, a Claude chat acting as tech lead. The humans relay t
 ## Git
 
 - Lead's agent works on `develop`.
-- Commit locally in small logical commits. Never push, never force push, never rewrite history, never touch `main`.
+- Commit locally in small logical commits. Every commit must compile and pass `./gradlew build` on its own, so order and group them to keep each one green. Never push, never force push, never rewrite history, never touch `main`.
 - Unpushed local commits may be reworded only with explicit lead approval; pushed history is never rewritten.
 - Commit message: short subject line, blank line, body grouped by area with `-` bullets. Include the root cause for bug fixes.
 - On Windows PowerShell, write multi line messages to `msg.txt` from a here-string without a BOM (`[IO.File]::WriteAllText($p, $msg, [Text.UTF8Encoding]::new($false))`; `Set-Content -Encoding utf8` adds one), commit with `git commit -F msg.txt`, then delete `msg.txt`. Never use `git commit -m` for multi line messages.
