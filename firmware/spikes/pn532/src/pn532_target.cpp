@@ -7,6 +7,8 @@ namespace spike {
 namespace {
 
 constexpr uint16_t kReplyMs = 1000;
+// The PN532 switches within 200 us of the host ACK (user manual, SetSerialBaudRate).
+constexpr uint32_t kBaudSwitchMs = 1;
 
 // Mode 0x05: PICC only, passive only. SENS_RES 0x0004, NFCID1 left to the PN532 (it fixes the
 // first byte at 0x08 and draws the rest at random), SEL_RES 0x20 (ISO 14443-4). No FeliCa,
@@ -114,6 +116,20 @@ int16_t Pn532Target::readRegister(uint16_t address) {
     return length < 0 ? length : PN532_INVALID_FRAME;
   }
   return reply[0];
+}
+
+int16_t Pn532Target::setSerialBaudRate(uint8_t code, uint32_t baud) {
+  const uint8_t command[] = {PN532_COMMAND_SETSERIALBAUDRATE, code};
+  uint8_t reply[4];
+  int16_t length = call(command, sizeof(command), reply, sizeof(reply), kReplyMs);
+  if (length < 0) {
+    return length;
+  }
+  abort();
+  serial_.flush();
+  delay(kBaudSwitchMs);
+  serial_.updateBaudRate(baud);
+  return 0;
 }
 
 void Pn532Target::abort() { serial_.write(kAckFrame, sizeof(kAckFrame)); }

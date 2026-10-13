@@ -16,6 +16,11 @@
 #ifndef SPIKE_NFC_PRIORITY
 #define SPIKE_NFC_PRIORITY 1
 #endif
+// UART2 speed to run the PN532 at: 115200 (its power-on speed, the one phones were tested with)
+// or 921600 (links and arms; not tap tested). pio run -e emulate with -DSPIKE_BAUD=921600.
+#ifndef SPIKE_BAUD
+#define SPIKE_BAUD 115200
+#endif
 
 namespace {
 
@@ -28,6 +33,10 @@ constexpr uint32_t kGapAlarmMs = 200;
 constexpr uint32_t kStatsEveryMs = 10000;
 constexpr uint32_t kLinkRetryMs = 2000;
 constexpr uint32_t kAbortSettleMs = 10;
+constexpr uint32_t kPowerOnBaud = 115200;
+constexpr uint32_t kRunBaud = SPIKE_BAUD;
+static_assert(kRunBaud == 115200 || kRunBaud == 921600, "SPIKE_BAUD is 115200 or 921600");
+constexpr uint8_t kRunBaudCode = kRunBaud == 921600 ? 0x07 : 0x04;
 constexpr size_t kMessageCapacity = 120;
 
 SemaphoreHandle_t logMutex;
@@ -62,27 +71,36 @@ void logHex(const char *label, const uint8_t *bytes, size_t length) {
 // Step 1. Expect IC 0x32, version 1.6. Retries until the PN532 answers, then runs SAMConfig.
 // PN532::SAMConfig() reports false on success (its reply has no data bytes and it checks
 // readResponse() > 0), so the target helper sends it.
-// The PN532 keeps running when only the ESP32 resets, possibly still inside TgInitAsTarget, so
-// the first frame is an abort.
+// The PN532 keeps running when only the ESP32 resets, possibly still inside TgInitAsTarget and
+// still at kRunBaud, so each attempt starts with an abort and attempts alternate between its
+// power-on speed and kRunBaud. Once linked, it moves the PN532 to kRunBaud.
 void linkTest(PN532 &nfc) {
   nfc.begin();
-  target.abort();
-  vTaskDelay(pdMS_TO_TICKS(kAbortSettleMs));
+  uint32_t baud = kPowerOnBaud;
   for (;;) {
+    target.abort();
+    vTaskDelay(pdMS_TO_TICKS(kAbortSettleMs));
     uint8_t version[4];
     int16_t result = target.firmwareVersion(version);
     if (result == 0) {
       logHex("Link: GetFirmwareVersion raw response data", version, sizeof(version));
-      logLine("Link: IC 0x%02X, firmware %u.%u, support 0x%02X", version[0], version[1], version[2],
-              version[3]);
+      logLine("Link: IC 0x%02X, firmware %u.%u, support 0x%02X at %lu baud", version[0], version[1],
+              version[2], version[3], static_cast<unsigned long>(baud));
+      if (baud != kRunBaud) {
+        result = target.setSerialBaudRate(kRunBaudCode, kRunBaud);
+        logLine("Link: SetSerialBaudRate %lu %s (%d)", static_cast<unsigned long>(kRunBaud),
+                result == 0 ? "ok" : "failed", result);
+      }
       result = target.samConfig();
       if (result != 0) {
         logLine("Link: SAMConfig failed (%d)", result);
       }
       return;
     }
-    logLine("Link: no answer from the PN532 on GPIO16/17 (%d); check power, DIP 0 0, or swap the data wires",
-            result);
+    logLine("Link: no answer from the PN532 on GPIO16/17 at %lu baud (%d); check power, DIP 0 0, or swap the data wires",
+            static_cast<unsigned long>(baud), result);
+    baud = baud == kPowerOnBaud ? kRunBaud : kPowerOnBaud;
+    Serial2.updateBaudRate(baud);
     vTaskDelay(pdMS_TO_TICKS(kLinkRetryMs));
   }
 }

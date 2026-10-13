@@ -43,6 +43,10 @@ class Pn532Target {
   // ReadRegister: the register's value (0 to 255), or a transport error.
   int16_t readRegister(uint16_t address);
 
+  // SetSerialBaudRate (code 0x04 is 115200, 0x07 is 921600). After the reply the host sends an
+  // ACK, then both sides switch; the UART is reopened at baud. 0 or a transport error.
+  int16_t setSerialBaudRate(uint8_t code, uint32_t baud);
+
   // An ACK frame from the host aborts the command the PN532 is running.
   void abort();
 
