@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /** Reads and inserts rows directly, for tests that need data in a given state. Every call uses fresh ids. */
 @Component
@@ -51,6 +52,15 @@ public class TestData {
     public static String uniquePublicIp() {
         int n = PUBLIC_IPS.incrementAndGet();
         return "198." + (18 + n / 65_536 % 2) + "." + (n / 256 % 256) + "." + (n % 256);
+    }
+
+    /** A MockMvc request from {@link #uniquePublicIp()}, so per IP limits never carry over between requests. */
+    public static RequestPostProcessor newClient() {
+        String ip = uniquePublicIp();
+        return request -> {
+            request.setRemoteAddr(ip);
+            return request;
+        };
     }
 
     public static String uniqueEmail() {

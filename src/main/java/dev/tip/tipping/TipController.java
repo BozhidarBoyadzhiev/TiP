@@ -34,13 +34,14 @@ class TipController {
             @PathVariable @Pattern(regexp = DeviceSlug.PATTERN) String slug,
             @Valid @RequestBody CreateTipRequest request,
             HttpServletRequest http) {
-        rateLimiter.check(http.getRemoteAddr());
+        rateLimiter.checkOrder(http.getRemoteAddr());
         TipService.TipCreated created = tips.create(slug, request.amountMinor(), request.currency(), request.message());
         return new CreateTipResponse(created.tipId(), created.paypalOrderId());
     }
 
     @PostMapping("/api/public/tips/{tipId}/capture")
-    CaptureTipResponse capture(@PathVariable UUID tipId) {
+    CaptureTipResponse capture(@PathVariable UUID tipId, HttpServletRequest http) {
+        rateLimiter.checkCapture(http.getRemoteAddr());
         return new CaptureTipResponse(tips.capture(tipId));
     }
 

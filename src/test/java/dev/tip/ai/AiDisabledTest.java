@@ -49,7 +49,8 @@ class AiDisabledTest extends IntegrationTest {
         UUID tipId = data.tipWithMessage(data.device(), orderId, TestData.uniqueMessage("Brilliant"));
         PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
 
-        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
+        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId).with(TestData.newClient()))
+                .andExpect(status().isOk());
 
         await().atMost(Duration.ofSeconds(15)).until(() -> "SKIPPED".equals(data.aiStatus(tipId)));
         assertThat(data.tipRow(tipId))

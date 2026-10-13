@@ -116,6 +116,19 @@ class TipPageTest extends IntegrationTest {
                 .contains("amountMinor: amountMinor,");
     }
 
+    /** PayPal's buttons offer the card guest checkout unless a funding source is turned off or one is forced. */
+    @Test
+    void payPalButtonsLeaveCardGuestCheckoutOn() throws Exception {
+        String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .contains("components: \"buttons\"")
+                .doesNotContain("disable-funding")
+                .doesNotContain("enable-funding")
+                .doesNotContain("fundingSource")
+                .doesNotContain("FUNDING");
+    }
+
     @Test
     void cancellingAfterADeclineKeepsTheDeclineNoteUntilTheNextClick() throws Exception {
         String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();

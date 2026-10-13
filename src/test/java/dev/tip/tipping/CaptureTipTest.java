@@ -183,10 +183,11 @@ class CaptureTipTest extends IntegrationTest {
 
     @Test
     void malformedTipIdIs400() throws Exception {
-        mvc.perform(post("/api/public/tips/not-a-uuid/capture")).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/public/tips/not-a-uuid/capture").with(TestData.newClient()))
+                .andExpect(status().isBadRequest());
     }
 
     private ResultActions capture(UUID id) throws Exception {
-        return mvc.perform(post("/api/public/tips/{tipId}/capture", id));
+        return mvc.perform(post("/api/public/tips/{tipId}/capture", id).with(TestData.newClient()));
     }
 }

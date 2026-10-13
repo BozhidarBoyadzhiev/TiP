@@ -207,7 +207,8 @@ class OwnerChannelTest extends IntegrationTest {
         try (RawWebSocket socket = handshake(Map.of("Cookie", cookie, "Origin", TestSocket.PUBLIC_ORIGIN))) {
             assertThat(socket.status).isEqualTo(101);
             awaitSockets(ownerId, 1);
-            mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
+            mvc.perform(post("/api/public/tips/{tipId}/capture", tipId).with(TestData.newClient()))
+                    .andExpect(status().isOk());
 
             // Captured, then classified: a tip message each. Then the today job runs.
             List<String> frames = new ArrayList<>(List.of(socket.readUntilText(), socket.readUntilText()));

@@ -87,7 +87,8 @@ class ObserverChannelTest extends IntegrationTest {
 
         try (TestSocket observer = TestSocket.connectObserver(port, slug, DeviceChannelTest.uniqueIp())) {
             await().atMost(Duration.ofSeconds(5)).until(() -> observers.isWatched(slug));
-            mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
+            mvc.perform(post("/api/public/tips/{tipId}/capture", tipId).with(TestData.newClient()))
+                    .andExpect(status().isOk());
 
             Map<String, Object> received = observer.nextJson();
             assertThat(received).containsOnlyKeys("type", "reaction", "repeats", "at");

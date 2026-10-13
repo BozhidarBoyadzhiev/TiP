@@ -1,39 +1,34 @@
 package dev.tip.tipping;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
+import dev.tip.shared.ClientRateLimiter;
+import dev.tip.shared.RateLimitProperties;
 import java.time.Duration;
 import org.springframework.stereotype.Component;
 
 /**
- * In memory token bucket per client IP for tip creation: 10 per minute. Idle buckets expire so the map
- * stays small. Single instance only, like the rest of the backend.
+ * Per client IP limits on the public tip endpoints, from {@link RateLimitProperties}: order creation (10 a minute by
+ * default; each costs a PayPal call) and capture (30 a minute; a tipper may retry a capture safely).
  */
 @Component
 class TipRateLimiter {
 
-    static final int TIPS_PER_MINUTE = 10;
+    private final ClientRateLimiter orders;
+    private final ClientRateLimiter captures;
 
-    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
-            .expireAfterAccess(Duration.ofMinutes(5))
-            .maximumSize(100_000)
-            .build();
+    TipRateLimiter(RateLimitProperties limits) {
+        orders = new ClientRateLimiter("tip_order", limits.tipOrdersPerMinute(), Duration.ofMinutes(1));
+        captures = new ClientRateLimiter("tip_capture", limits.capturesPerMinute(), Duration.ofMinutes(1));
+    }
 
-    void check(String clientIp) {
-        Bucket bucket = buckets.get(clientIp, ip -> newBucket());
-        if (!bucket.tryConsume(1)) {
+    void checkOrder(String clientIp) {
+        if (!orders.tryAcquire(clientIp)) {
             throw new TipExceptions.RateLimited();
         }
     }
 
-    private static Bucket newBucket() {
-        return Bucket.builder()
-                .addLimit(Bandwidth.builder()
-                        .capacity(TIPS_PER_MINUTE)
-                        .refillGreedy(TIPS_PER_MINUTE, Duration.ofMinutes(1))
-                        .build())
-                .build();
+    void checkCapture(String clientIp) {
+        if (!captures.tryAcquire(clientIp)) {
+            throw new TipExceptions.RateLimited();
+        }
     }
 }

@@ -83,6 +83,7 @@ class CaptureWebhookRaceTest extends IntegrationTest {
 
     private HttpRequest captureRequest(UUID tipId) {
         return HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/public/tips/" + tipId + "/capture"))
+                .header("X-Forwarded-For", TestData.uniquePublicIp())
                 .POST(HttpRequest.BodyPublishers.noBody())
                 .build();
     }

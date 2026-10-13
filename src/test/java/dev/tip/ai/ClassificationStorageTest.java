@@ -107,7 +107,8 @@ class ClassificationStorageTest extends IntegrationTest {
         AnthropicStubs.replyFor(ANTHROPIC, message, modelText);
         PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
 
-        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
+        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId).with(TestData.newClient()))
+                .andExpect(status().isOk());
 
         await().atMost(Duration.ofSeconds(30)).until(() -> "DONE".equals(data.aiStatus(tipId)));
         await().atMost(Duration.ofSeconds(30))
