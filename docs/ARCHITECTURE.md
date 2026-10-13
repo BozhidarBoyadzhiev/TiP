@@ -77,9 +77,10 @@ WHERE id = :id AND status = 'CAPTURED'
 ```
 
 ```
-PENDING ──claim──▶ PROCESSING ──▶ DONE      (classified)
-   ▲                   │      ──▶ SKIPPED   (no message, or AI disabled: PLAIN, no kind, no API call)
-   └── attempt failed ─┘      ──▶ FAILED    (third failure: PLAIN, no kind, not flagged)
+PENDING ──claim──▶ PROCESSING ──▶ DONE        (classified)
+   ▲                   │      ──▶ SKIPPED     (no message, or AI disabled: PLAIN, no kind, no API call)
+   │                   │      ──▶ UNAVAILABLE (the call failed or the model rests: PLAIN once, never retried)
+   └─ invalid answer ──┘      ──▶ FAILED      (third invalid answer: PLAIN, no kind, not flagged)
        (attempts < 3)
 ```
 
@@ -87,7 +88,9 @@ Zero rows means another worker has the tip or it is finished. The final write is
 
 **Crash between capture and AI.** If the process dies after the capture commits, the tip stays `CAPTURED` with `ai_status = PENDING`. If it dies during a call, the tip stays `PROCESSING` until its claim expires after two minutes. A recovery job runs every 30 seconds and runs the same flow for both. A tip whose worker died on the third attempt is failed as `PLAIN` by the same job once that claim expires.
 
-**AI slow or down.** Claude calls have a 10 second timeout and SDK retries are off; the attempt counter is the retry. A timeout, an API error or a response outside the schema puts the tip back to `PENDING` for the recovery job, up to three attempts. After the third failure the tip gets `PLAIN` with `ai_status = FAILED`. The payment already happened, so the device must still confirm it.
+**AI slow or down.** Claude calls have a 10 second timeout and SDK retries are off. A call that fails, whatever the reason (a timeout, a lost connection, 429, 5xx, a spend limit or any other 4xx), is never made again: the tip is stored at once with `ai_status = UNAVAILABLE` and plays `PLAIN` once, whatever the amount, because the payment already happened and the device must still confirm it, while repeating calls during an outage would only multiply them. Only an answer outside the schema puts the tip back to `PENDING` for the recovery job, up to three attempts, after which it gets `PLAIN` with `ai_status = FAILED`.
+
+**AI spend limit.** The only hard cost limit is the spend limit in the Anthropic console. A 402, a 401 or 403, or a 400 that names the credit balance or the usage limit opens a breaker: for 10 minutes no call is made, and tips react `PLAIN` once as `UNAVAILABLE`; then one trial call goes through, and its success closes the breaker while another such error rests it for 10 more minutes. The digest job goes through the same breaker and keeps the stored notes. `GET /api/owner/me` says `aiResting: true` meanwhile. Every call and failure is counted by the hour in `ai_usage` for the daily summary log line.
 
 **Refund response and webhook race.** An owner's refund calls PayPal with `PayPal-Request-Id: refund-<tipId>`. A `COMPLETED` answer and the `PAYMENT.CAPTURE.REFUNDED` webhook both try the conditional `CAPTURED` to `REFUNDED` update, so exactly one makes the transition. A `PENDING` answer leaves the tip `CAPTURED` and the webhook finishes it.
 
@@ -121,13 +124,15 @@ WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
 | Table | Key columns |
 |---|---|
 | `device` | `id` uuid, `slug` unique, `display_name`, `owner_id`, `secret_hash`, `created_at`, `last_seen_at` null |
-| `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `message_kind` null (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reaction` null (same values, `PLAIN` when flagged), `flagged` bool, `flag_reason` null, `owner_note` varchar(100) null (requests only), `message_language` varchar(2) null, `message_english` varchar(280) null, `requested_song` varchar(80) null, `requested_song_key` varchar(80) null (partial index), `owner_verdict` null or `NOT_ABUSIVE`, `owner_verdict_at` null, `ai_status`, `created_at`, `captured_at` |
+| `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `message_kind` null (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reaction` null (same values, `PLAIN` when flagged), `flagged` bool, `flag_reason` null, `owner_note` varchar(100) null (requests only), `message_language` varchar(2) null, `message_english` varchar(280) null, `requested_song` varchar(80) null, `requested_song_key` varchar(80) null (partial index), `owner_verdict` null or `NOT_ABUSIVE`, `owner_verdict_at` null, `ai_status`, `demo` (a sample tip), `created_at`, `captured_at` |
 | `paypal_webhook_event` | `event_id` unique, `event_type`, `resource_id`, `received_at` |
-| `owner` | `id`, `email` unique and lowercase, `password_hash`, `display_name`, `created_at`, `time_zone` (default `Europe/London`) |
+| `owner` | `id`, `email` unique and lowercase (null for a sandbox and the public demo), `password_hash` (likewise null), `display_name`, `created_at`, `time_zone` (default `Europe/London`), `kind` (`REAL`, `SANDBOX`, `PUBLIC_DEMO`), `code_label` and `expires_at` (sandboxes) |
+| `resume_token` | `token_hash` (SHA-256 of a 128 bit token) primary key, `owner_id` (cascade), `created_at`, `expires_at`, `used_at` null |
+| `ai_usage` | `hour` primary key, `calls`, `failures` |
 | `owner_digest` | (`owner_id`, `local_day`) primary key, `bullets` jsonb null, `request_groups` jsonb null, `message_count`, `source_watermark` null, `generated_at` null, `stale`, `claimed_at` null |
 | `reaction_delivery` | `tip_id` primary key, `device_id`, `reaction` (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `repeats` (1 to 5), `reacted_at`, `sent_count`, `last_sent_at` null, `acked_at` null; partial index on (`device_id`, `reacted_at`) where `acked_at` is null |
 
-`reaction_delivery` belongs to `devices`, so delivery state is a table of its own instead of more columns on `tip`. It has no foreign key to `tip`, because `devices` does not own that table.
+`reaction_delivery` belongs to `devices`, so delivery state is a table of its own instead of more columns on `tip`. It has no foreign key to `tip`, because `devices` does not own that table. Deleting an owner cascades to their devices, and a device to its tips and deliveries, as well as to the owner's digests and resume tokens; only the sandbox cleanup job deletes owners.
 
 ## Device channels
 
@@ -175,7 +180,7 @@ The claim keeps two instances from calling the model for the same digest; the wa
 
 ## Owners
 
-An owner is a person with a login who owns devices. Every device has exactly one owner and every tip belongs to a device, so a tip's owner is the owner of its device. There is no public registration: owners are created by the demo seeder or, later, by a CLI command.
+An owner owns devices. Every device has exactly one owner and every tip belongs to a device, so a tip's owner is the owner of its device. There is no public registration. A `REAL` owner is a person with a login, created by the demo seeder or, later, by a CLI command. A `SANDBOX` owner is made by an access code for a judge, has no email or password and expires; the one `PUBLIC_DEMO` owner is the shared read only demo (decision 19). Sandbox and demo devices are virtual only: the device channel turns them away like an unknown device.
 
 Owners sign in with email and password through a session based form login. Passwords are hashed with bcrypt through Spring's `DelegatingPasswordEncoder`. Sign in attempts are limited to 5 per minute per IP and per email, and an unknown email gets the same answer as a wrong password. Every owner request needs the session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`) and a CSRF token. An owner who asks for another owner's tip gets 404, never 403, so tip ids cannot be probed.
 
@@ -188,7 +193,10 @@ Owners sign in with email and password through a session based form login. Passw
 | Forged webhook | Every webhook is verified with PayPal's signature verification API against our webhook id. Unverified requests get 400 and change nothing. |
 | Replayed webhook | Unique event id. A replay is a no op. |
 | Spamming tip creation | Rate limit per client IP. Creating a tip costs us one PayPal API call and no AI call. |
-| Running up the AI bill | AI only runs after a captured payment. Every AI call is paid for by a real tip. |
+| Running up the AI bill | AI only runs after a PayPal confirmed capture (the capture response or a verified webhook), never for a created, pending or declined tip; a test proves it. Every classification is paid for by a real tip, and a failed call is never retried. The spend limit in the Anthropic console is the hard cap; reaching it rests the model (a breaker) instead of failing tips. Digests run at most every 10 minutes per owner. |
+| Guessing an access code | 100 random bits, only their SHA-256 configured, compared against every entry in constant time; 10 attempts an hour per IP; a wrong and an expired code get the same answer as a wrong password. A leaked code makes sandboxes of at most 72 hours, never past the code's own expiry, each isolated like any owner, and is revoked by removing its entry. |
+| Using the public demo to publish | The demo is read only: one central check answers 403 `DEMO_READ_ONLY` to every change under `/api/owner`, a test sweeps every mapping, and the demo panda takes no tips. Its data is invented and renewed every night. |
+| A resume link leaks | 128 random bits, stored hashed, single use through one conditional update, 10 minutes, bound to its sandbox, `no-store` and `no-referrer`, and the 303 takes it out of the address bar. |
 | Prompt injection in the message | The message is wrapped as untrusted data, the model must return a fixed schema checked again in Java, and anything outside it is a failed attempt that ends as `PLAIN`. The worst a successful injection can do is pick the wrong light pattern or write a misleading owner note, which the owner reads as a note, never as an instruction. Summaries are only shown to the owner and the model has no tools. See decision 11. |
 | Abusive messages | AI flags them. A flagged message plays a single plain blink whatever the amount, the same as a small tip without a message, so abuse gets no reward and nothing to film, and a big tip cannot buy a big reaction for an insult. Observers cannot tell it apart from any other `PLAIN`. Flagged messages are hidden from public views and, by default, from the owner, who can read one on demand, overrule the AI or refund the tip. Overruling changes only what the owner sees, never what the panda or an observer got. |
 | Stored XSS through messages | Output is always rendered with `textContent`. A strict Content Security Policy that allows only our origin and the PayPal SDK domains. |
@@ -220,3 +228,5 @@ Owners sign in with email and password through a session based form login. Passw
 16. **Device offline is reported after 10 seconds.** A replacement registers the new session before the old one closes, and a device on flaky WiFi often reconnects within seconds; reporting each of those would make the dashboard flicker. The time of each connect and disconnect is stored in `device.last_seen_at` so "last seen" survives a deploy.
 17. **Owner times are computed in the owner's zone, stored in UTC.** `owner.time_zone` defaults to `Europe/London` and is read with `ZoneId`. Nothing sets it yet; whatever does later must check it with `ZoneId.of` first.
 18. **Flagged messages are hidden by default; the owner can reveal and overrule.** This replaces "flagged messages are hidden from the owner". The model flags honest but blunt messages now and then, and an owner who could never read them lost real feedback and requests. So classification keeps the whole read of a flagged message, the owner can read it when they choose and mark it not abusive, and "Hide again" undoes that. The owner's verdict lives in its own columns and never changes the AI's flag or reason, so what the AI decided stays on record. Hidden is defined in one place for every owner query. Public pages, observers and devices are unaffected: a flagged tip played `PLAIN` once and that is never replayed or changed. Legacy flagged tips stored before this have no note, translation or song, so an overrule shows them with their stored kind, or as Plain without one.
+19. **Three access levels until the end of 2026.** TiP must stay usable without anyone looking after it until 31 Dec 2026; access closes 2027-01-01 00:00 Europe/London. Anyone can tip the real demo panda, watch it and look around a shared demo dashboard that is read only and renewed every night. Holders of an access code (judges, the owner, the teammate) get a private sandbox: a full owner with a virtual panda and the shared sample tips, for 72 hours, deleted afterwards. The real owner and the physical panda are unchanged and out of reach of both: other owners see the same 404 for everything that is not theirs, and virtual devices cannot connect as hardware. Codes live only as hashes in an environment variable, so there is no admin interface to secure. Every limit is sized so an honest person never meets it; the one hard limit is the Anthropic spend limit, and the app keeps taking tips when it is reached.
+20. **A failed model call is never retried.** Retrying during an outage or after the spend limit multiplies calls exactly when they cost most and help least. A tip whose call failed reacts `PLAIN` once as `UNAVAILABLE`, which replaces the earlier rule of three attempts on any failure; only an invalid answer is tried again. A spend limit or authentication error rests the model for 10 minutes before one trial call.

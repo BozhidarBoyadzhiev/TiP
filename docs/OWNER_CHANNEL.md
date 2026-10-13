@@ -10,7 +10,8 @@ wss://<host>/ws/owner
 
 ## Handshake
 
-- The owner's session cookie (`JSESSIONID`), the same session the dashboard's API calls use. No session, or a session without a signed in owner: 401 problem details, like every owner API call.
+- The owner's session cookie (`JSESSIONID`), the same session the dashboard's API calls use. No session, or a session without a signed in owner: 401 problem details, like every owner API call. A session of a sandbox past its expiry: 401 problem details with code `SANDBOX_EXPIRED`, and the session ends.
+- A read only session (the public demo dashboard) is upgraded, then at once sent `closing` `read_only` and closed. It is never counted among the owner's sockets and hears nothing.
 - `Origin` must be exactly the origin of `TIP_PUBLIC_BASE_URL` (scheme, host and port). A different or missing `Origin` gets an empty 403. This blocks cross site WebSocket hijacking: a page on another site cannot open the channel with the owner's cookie.
 - No other parameters. The owner comes from the session, never from the URL or a message.
 
@@ -51,6 +52,8 @@ Sent just before the server closes a socket for a reason the page should act on.
 | `replaced` | 4000 | the owner opened a sixth socket; the oldest goes | do not reconnect, the owner has a newer tab |
 | `signed_out` | 4001 | the owner signed out, in any tab | show the sign in page |
 | `session_expired` | 4002 | the HTTP session no longer holds a signed in owner, found at a keepalive | show the sign in page |
+| `sandbox_expired` | 4003 | the session's sandbox reached its expiry, found at a keepalive | show that the sandbox has ended; do not reconnect |
+| `read_only` | 4004 | the session is the read only public demo, right after the upgrade | do not reconnect; the page works without live updates |
 
 Other closes come without `closing`: 1008 from the servlet container the moment the HTTP session expires or is invalidated, 1001 after 45 seconds without a pong or when the server shuts down, 1009 for an oversized message. After those the page reconnects with the client policy of `docs/DEVICE_PROTOCOL.md` (1 s doubling to 60 s, up to 20 % taken off); a handshake that answers 401 means the session is gone.
 
@@ -62,7 +65,7 @@ Nothing. Whatever the page sends is ignored, and a message over 1 KB closes the 
 
 ## Limits
 
-- At most 5 sockets per owner. A new one closes the oldest with `closing` `replaced`.
+- At most 5 sockets per owner. A new one closes the oldest with `closing` `replaced`. The public demo's read only sessions never take a place.
 - Keepalive like the other channels: a ping every 20 seconds, closed with 1001 after 45 seconds without a pong.
 - Signing out closes every socket of the owner, in every tab and session, with `closing` `signed_out`.
 - Sockets live in memory, like the device channels, so the backend runs as one instance.

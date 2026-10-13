@@ -70,6 +70,34 @@ Flyway creates and migrates the schema on startup, also on an empty database, so
 | `TIP_DEMO_DEVICE_NAME` | no | Name the tip page and the panda show. |
 | `TIP_DEMO_DEVICE_SECRET` | yes | **Differs from local.** A fresh 32 byte base64url secret (see README). The firmware of the panda that talks to Render needs the same value. |
 
+### Judge access codes
+
+| Variable | Secret | What it is |
+|---|---|---|
+| `TIP_ACCESS_CODES` | no (holds only hashes) | Entries `label:sha256hex:expiresAt` separated by `;`, for example `judges:3f2a…:2026-12-31T23:59:59Z`. The label is `[a-z0-9-]{1,32}` and shows up in the logs; `expiresAt` is ISO 8601 with an offset. Empty or unset means no codes. A malformed entry stops the app at startup, naming the entry by its position. An expired code is refused exactly like a wrong one. |
+
+Make each code on your machine:
+
+```bash
+./gradlew newAccessCode -Plabel=judges -Pexpires=2026-12-31T23:59:59Z
+```
+
+It prints the code (`TIP-XXXXX-XXXXX-XXXXX-XXXXX`, 100 random bits) once, and the entry to add to `TIP_ACCESS_CODES`. It writes neither to a file. The code goes only into Devpost's private **Additional info** field for the judges; never into the repository, an issue, a pull request, a chat or a screenshot. Only the entry, which holds the SHA-256 of the code, goes on Render. To revoke a code, remove its entry and redeploy; sandboxes it already made run to their own expiry (72 hours at most). Typing is forgiving: case, spaces, dashes, the `TIP` prefix and the letters O, I and L for 0, 1 and 1 do not matter.
+
+### Rate limits
+
+Per client IP (the address from `TIP_CLIENT_IP_HEADER`), in memory. The defaults sit well above what an honest person does; change one only if real use hits it. A refusal is 429 `RATE_LIMITED` and one WARN line `rate_limited endpoint=<name> ip=<hash>`.
+
+| Variable | Default | Limits |
+|---|---|---|
+| `TIP_RATE_TIP_ORDERS_PER_MINUTE` | 10 | tip order creation, `POST /api/public/devices/{slug}/tips` (each costs a PayPal call) |
+| `TIP_RATE_CAPTURES_PER_MINUTE` | 30 | captures, `POST /api/public/tips/{id}/capture` |
+| `TIP_RATE_JUDGE_SESSIONS_PER_HOUR` | 10 | access code attempts, right or wrong, `POST /judges/session` (each success makes a sandbox) |
+| `TIP_RATE_DEMO_SESSIONS_PER_MINUTE` | 30 | public demo sign ins, `POST /demo/session` |
+| `TIP_RATE_RESUMES_PER_MINUTE` | 20 | resume links opened, `GET /judges/resume` |
+
+Owner sign in keeps its own fixed limit of 5 a minute per IP and per email. The one hard cost limit is the spend limit set in the Anthropic console ($10): when it is reached the app keeps taking tips, every tip reacts `PLAIN` once with `aiStatus` `UNAVAILABLE`, the notes stay as they were, and the model is tried again once every 10 minutes (`ai_breaker_opened` and `ai_breaker_closed` in the log).
+
 ### Client address
 
 | Variable | Secret | What it is |
@@ -90,6 +118,21 @@ Set the service's **Health Check Path** to:
 ```
 
 It answers `200 {"status":"UP"}` and nothing else: no component names or details. It checks the database connection and local disk space only. It never calls PayPal or Anthropic, so an outage there cannot make Render restart a healthy app. If the database is unreachable it answers 503.
+
+## Access log lines
+
+One line each, without personal data: IPs only as an HMAC under a key made fresh at every start, never codes, tokens, emails or message text.
+
+| Line | Level | When |
+|---|---|---|
+| `sandbox_created label=<code label> owner=<id>` | INFO | an access code made a sandbox |
+| `sandbox_expired owner=<id> label=<code label>` | INFO | the hourly job deleted an expired sandbox |
+| `resume_link_used owner=<id>` | INFO | a resume link signed a browser in |
+| `demo_session ip=<hash>` | INFO | someone opened the public demo |
+| `ai_breaker_opened status=<status> until=<time>`, `ai_breaker_closed` | INFO | a spend limit or authentication error rested the model, and it came back |
+| `code_rejected ip=<hash>` | WARN | a wrong or expired access code |
+| `rate_limited endpoint=<name> ip=<hash>` | WARN | a per IP limit refused a request |
+| `daily_summary sandboxes=<label:n,…> tipsPaid=<kind:n,…> aiCalls=<n> aiFailures=<n>` | INFO | 00:10 London time, from the database, for the last 24 hours |
 
 ## Behind Render's proxy
 
@@ -155,7 +198,8 @@ Render's own **Auto-Deploy** must be **Off** on the service, so the deploy hook 
       1..11 | % { curl.exe -s -o NUL -w "%{http_code}`n" -H "CF-Connecting-IP: 203.0.113.$_" -H "Content-Type: application/json" --data-binary "@body.json" https://<service>.onrender.com/api/public/devices/no-such-panda/tips }
       Remove-Item body.json
       ```
-9. Redeploy through CI. The fake device logs a 1001 close and reconnects, and the panda page goes back to **Live**.
+9. Access levels: `POST /demo/session` from the demo page (07b) shows the sample dashboard and refuses every change; an access code on the judge page makes a sandbox whose panda page `/p/judge-…` loads. The log shows `demo_session` and `sandbox_created label=<label>`, never a code or an IP.
+10. Redeploy through CI. The fake device logs a 1001 close and reconnects, and the panda page goes back to **Live**.
 
 ## Choosing the client IP header on a new host
 

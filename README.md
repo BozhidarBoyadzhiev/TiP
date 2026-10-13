@@ -59,7 +59,7 @@ The backend takes the payment through PayPal Orders v2, confirms it through veri
 5. Open `http://localhost:8080/t/<your demo slug>` and tip with a sandbox personal account.
 6. Sign in as the demo owner at `http://localhost:8080/owner/login`; it opens the dashboard at `/owner`, which updates live while the page is open. The session cookie is marked `Secure`; browsers accept that on `localhost` over plain HTTP, but on any other host use HTTPS.
 
-   To see sample data without making payments, run with the `dev` profile: add `SPRING_PROFILES_ACTIVE=dev` to `.env`, or run `./gradlew bootRun --args='--spring.profiles.active=dev'`. On startup it adds 49 invented tips to the demo device once (later starts add nothing), some in French, Spanish and German with translations and some asking for songs, plus today's panda's notes. Sign in and the dashboard at `http://localhost:8080/owner` shows them; the raw JSON is at `/api/owner/tips`, `/api/owner/today`, `/api/owner/requests` and `/api/owner/digest`. Never set this profile on Render. Only under `dev` does the demo seeder move an existing demo device to the owner `TIP_DEMO_OWNER_EMAIL` names; without it the device stays with its owner and the log shows a warning.
+   To see sample data without making payments, run with the `dev` profile: add `SPRING_PROFILES_ACTIVE=dev` to `.env`, or run `./gradlew bootRun --args='--spring.profiles.active=dev'`. On startup it gives the demo device the same invented sample tips every judge sandbox and the public demo get: about thirty tips over the last three days in the owner's time zone with several today, some in French, Spanish and German with translations, songs (all invented) asked for in several spellings, two hidden messages (one in Bulgarian), plus today's panda's notes. A start on the same day changes nothing; a start on a later day replaces the samples so today has content again. Real tips are never touched. Sign in and the dashboard at `http://localhost:8080/owner` shows them; the raw JSON is at `/api/owner/tips`, `/api/owner/today`, `/api/owner/requests` and `/api/owner/digest`. Never set this profile on Render. Only under `dev` does the demo seeder move an existing demo device to the owner `TIP_DEMO_OWNER_EMAIL` names; without it the device stays with its owner and the log shows a warning.
 7. Watch the virtual panda at `<TIP_PUBLIC_BASE_URL>/p/<your demo slug>` (the page must be opened from that origin). It plays the same light patterns as the physical one. With your operating system's reduce motion setting (`prefers-reduced-motion`) the panda holds a steady light in the reaction's colour instead of fading and flicking.
 
 The app refuses to start when a required setting is missing or invalid, such as `PAYPAL_CLIENT_ID`, `ANTHROPIC_API_KEY` while AI is enabled, a demo owner password under 12 characters, or a device secret that is not 32 bytes or is clearly not random (all bytes the same, or fewer than 16 distinct byte values).
@@ -87,6 +87,20 @@ The virtual panda and the fake device play the same reactions as the physical pa
 6. Watch both react: the virtual panda glows with a caption ("Warm message", "Playful message", "Request noted" or "Tip received") and the fake device prints the pattern.
 
 Use your own port in both URLs if you set `SERVER_PORT`.
+
+## Public demo and judge sandboxes
+
+TiP stays usable without anyone watching it until 31 Dec 2026 (access closes 2027-01-01 00:00 Europe/London), at three levels:
+
+- **Anyone:** tip the real demo panda and watch it, and look around the shared demo dashboard. `POST /demo/session` (a form post with the CSRF token, no code) signs the browser in to a read only demo owner whose sample tips are renewed every night at 00:05 London time. Every change there answers 403 `DEMO_READ_ONLY`.
+- **Code holders** (judges, the owner, the teammate): `POST /judges/session` with an access code and the browser's time zone makes a private sandbox, a fully working owner with its own virtual panda at `/p/judge-<8 characters>` and the same sample tips, valid 72 hours (never past the code's expiry). A sample tip cannot be refunded (409 `DEMO_TIP`); a real sandbox tip can. `POST /api/owner/resume-link` gives a one time link, valid 10 minutes, to continue on another device. Expired sandboxes are deleted every hour with everything in them.
+- **The real owner and the physical panda:** unchanged, and out of reach of the other two.
+
+The pages for these come with brief 07b; until then the endpoints answer as described in `CODEBASE.md`. Make an access code with `./gradlew newAccessCode -Plabel=judges -Pexpires=2026-12-31T23:59:59Z` and see `docs/DEPLOYMENT.md` for where the code and its entry go.
+
+### Paying with a test card
+
+The tip page leaves PayPal's **Debit or Credit Card** button on, so a tipper can pay as a guest without a PayPal account. In the sandbox, get a test card number from PayPal's card generator: in the PayPal developer dashboard open **Testing Tools > Card Testing** (https://developer.paypal.com/tools/sandbox/card-testing/), generate a Visa or Mastercard, and enter it with any future expiry date and any 3 digit CVV. A sandbox personal account works too.
 
 ## Testing webhooks locally
 
@@ -145,14 +159,14 @@ The app runs on Render as a Docker web service with Render PostgreSQL. `docs/DEP
 ```
 src/main/java/dev/tip/
   ai/         Claude classification of tip messages, exactly once per tip, recovery job
-  dashboard/  owner dashboard API and live channel, dev sample tips
+  dashboard/  owner dashboard API and live channel, the shared sample tips
   devices/    devices, device secrets, demo seeder, device and observer WebSocket channels, reaction delivery, virtual panda page
-  owners/     owner accounts, login, owner pages
+  owners/     owner accounts and kinds, login, access codes, judge sandboxes, public demo, owner pages
   paypal/     PayPal gateway: Orders v2 and refunds through the PayPal Server SDK, webhook verification
   tipping/    tips, capture, refunds, state machine, webhooks, rate limit, scheduled job, tip page
   shared/     configuration, clock, security, problem details
 src/tools/java/dev/tip/tools/
-              fake device and AI eval command line tools (not in the app jar)
+              fake device, AI eval and access code command line tools (not in the app jar)
 src/main/resources/
   db/migration/   Flyway migrations
   static/         tip page, virtual panda and owner pages (plain HTML, CSS, JS)
