@@ -20,4 +20,5 @@ msg.txt
 
 # Firmware
 firmware/.pio/
+firmware/spikes/*/.pio/
 firmware/include/secrets.h
