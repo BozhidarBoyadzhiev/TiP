@@ -33,3 +33,16 @@ Two things in the library matter for the main firmware:
 
 - `PN532_HSU::receive` busy waits on `Serial2.read()` without yielding, for the whole of `TgInitAsTarget` (forever with `emulate(0)`). The task never blocks, so it must run below every task it shares a core with.
 - `PN532::SAMConfig()` returns false on success over HSU (it checks `readResponse() > 0`, and the reply has no data bytes). The spike sends SAMConfig itself.
+
+## Results (2026-10-13)
+
+Link test: `32 01 06 07` first time with the wiring above.
+
+| Phone | Method | Worked of 10 | Banner shown | URL correct | Notes |
+|---|---|---|---|---|---|
+| iPhone | emulation | 2 (taps 8 and 9) | yes | yes | phone almost touching the PN532 |
+| Android | emulation | 2 (taps 4 and 5) | yes | yes | phone almost touching the PN532 |
+| iPhone | emulation, 3 to 4 mm cardboard | 0 | no | n/a | the PN532 was never activated |
+| both | sticker | not tested | | | no NTAG215 on hand |
+
+The serial log matched: 4 sessions, and the failed taps never activated the tag. `TgInitAsTarget` failed 50 times when re-armed, in bursts at 55 to 57 s and 69 to 75 s (right after session 4); the tag cannot be tapped while that happens. Heartbeat max gap 101 ms with the task at priority 1 on core 1; at priority 2 `loop()` got no time at all for 15 s. Free stack in the task stayed at 3728 of 6144 bytes. No power meter, so no current figures.
