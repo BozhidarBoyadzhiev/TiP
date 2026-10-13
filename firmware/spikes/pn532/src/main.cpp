@@ -4,10 +4,11 @@
 #include <Arduino.h>
 #include <PN532.h>
 #include <PN532_HSU.h>
-#include <emulatetag.h>
 #include <stdarg.h>
 
 #include "ndef.h"
+#include "pn532_target.h"
+#include "type4_tag.h"
 
 #ifndef SPIKE_NFC_CORE
 #define SPIKE_NFC_CORE 1
@@ -21,11 +22,12 @@ namespace {
 constexpr int8_t kPn532RxPin = 16;  // PN532 TX (labelled SDA)
 constexpr int8_t kPn532TxPin = 17;  // PN532 RX (labelled SCL)
 constexpr uint32_t kNfcStackBytes = 6144;
+constexpr size_t kLogTxBufferBytes = 4096;
 constexpr uint32_t kHeartbeatMs = 100;
 constexpr uint32_t kGapAlarmMs = 200;
 constexpr uint32_t kStatsEveryMs = 10000;
 constexpr uint32_t kLinkRetryMs = 2000;
-constexpr uint16_t kSamConfigReplyMs = 1000;
+constexpr uint32_t kAbortSettleMs = 10;
 constexpr size_t kMessageCapacity = 120;
 
 SemaphoreHandle_t logMutex;
@@ -34,6 +36,7 @@ uint8_t message[kMessageCapacity];
 size_t messageLength;
 
 PN532_HSU hsu(Serial2, kPn532RxPin, kPn532TxPin);
+spike::Pn532Target target(hsu, Serial2);
 
 void logLine(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
@@ -56,58 +59,185 @@ void logHex(const char *label, const uint8_t *bytes, size_t length) {
   logLine("%s (%u bytes): %s", label, static_cast<unsigned>(length), hex);
 }
 
-// PN532::SAMConfig() reports false on success: the reply has no data bytes and it checks
-// readResponse() > 0. Same command (normal mode, 1 s timeout, IRQ on), checked for >= 0.
-bool samConfig() {
-  const uint8_t command[] = {PN532_COMMAND_SAMCONFIGURATION, 0x01, 0x14, 0x01};
-  uint8_t reply[8];
-  return hsu.writeCommand(command, sizeof(command)) == 0 &&
-         hsu.readResponse(reply, sizeof(reply), kSamConfigReplyMs) >= 0;
-}
-
 // Step 1. Expect IC 0x32, version 1.6. Retries until the PN532 answers, then runs SAMConfig.
-// The only begin() (opens UART2, wakes the PN532); EmulateTag::init() would run a second one.
+// PN532::SAMConfig() reports false on success (its reply has no data bytes and it checks
+// readResponse() > 0), so the target helper sends it.
+// The PN532 keeps running when only the ESP32 resets, possibly still inside TgInitAsTarget, so
+// the first frame is an abort.
 void linkTest(PN532 &nfc) {
   nfc.begin();
+  target.abort();
+  vTaskDelay(pdMS_TO_TICKS(kAbortSettleMs));
   for (;;) {
-    uint32_t version = nfc.getFirmwareVersion();
-    if (version != 0) {
-      uint8_t length = 0;
-      logHex("Link: GetFirmwareVersion raw response data", nfc.getBuffer(&length), 4);
-      logLine("Link: IC 0x%02X, firmware %u.%u, support 0x%02X",
-              static_cast<unsigned>(version >> 24), static_cast<unsigned>((version >> 16) & 0xFF),
-              static_cast<unsigned>((version >> 8) & 0xFF), static_cast<unsigned>(version & 0xFF));
-      if (!samConfig()) {
-        logLine("Link: SAMConfig failed");
+    uint8_t version[4];
+    int16_t result = target.firmwareVersion(version);
+    if (result == 0) {
+      logHex("Link: GetFirmwareVersion raw response data", version, sizeof(version));
+      logLine("Link: IC 0x%02X, firmware %u.%u, support 0x%02X", version[0], version[1], version[2],
+              version[3]);
+      result = target.samConfig();
+      if (result != 0) {
+        logLine("Link: SAMConfig failed (%d)", result);
       }
       return;
     }
-    logLine("Link: no answer from the PN532 on GPIO16/17; check power, DIP 0 0, or swap the data wires");
+    logLine("Link: no answer from the PN532 on GPIO16/17 (%d); check power, DIP 0 0, or swap the data wires",
+            result);
     vTaskDelay(pdMS_TO_TICKS(kLinkRetryMs));
   }
 }
 
 #if defined(SPIKE_MODE_EMULATE)
 
+constexpr uint16_t kActivationWaitMs = 1000;
+constexpr uint16_t kApduWaitMs = 2000;
+constexpr uint16_t kReplyMs = 1000;
+constexpr uint32_t kFieldPollMs = 20;
+constexpr uint32_t kFieldQuietMs = 100;
+constexpr uint32_t kFieldWaitCapMs = 3000;
+constexpr uint32_t kFirstBackoffMs = 20;
+constexpr uint32_t kMaxBackoffMs = 640;
+constexpr uint16_t kCiuStatus1 = 0x6337;
+constexpr uint8_t kCiuRfOn = 0x04;
+
+// Wake-up and SAMConfig until the PN532 answers, backing off from 20 ms doubling to 640 ms.
+void resync(const char *after, int16_t error) {
+  logLine("Fail: %s (%d), resyncing", after, error);
+  uint32_t backoff = kFirstBackoffMs;
+  for (uint32_t attempt = 1;; attempt++) {
+    vTaskDelay(pdMS_TO_TICKS(backoff));
+    int16_t result = target.resync();
+    if (result == 0) {
+      logLine("Resync: ok on attempt %lu", static_cast<unsigned long>(attempt));
+      return;
+    }
+    logLine("Resync: attempt %lu failed (%d)", static_cast<unsigned long>(attempt), result);
+    backoff = min(backoff * 2, kMaxBackoffMs);
+  }
+}
+
+// After a session, waits until the phone has left: no field for kFieldQuietMs, at most
+// kFieldWaitCapMs. Logs both field signals so the tap tests show which one is trustworthy.
+void waitForFieldToLeave() {
+  uint32_t start = millis();
+  uint32_t quietSince = 0;
+  int16_t lastField = -1;
+  int16_t lastRfOn = -1;
+  uint32_t fieldChanges = 0;
+  uint32_t rfOnChanges = 0;
+  for (;;) {
+    int16_t field = target.fieldPresent();
+    int16_t ciu = target.readRegister(kCiuStatus1);
+    uint32_t now = millis();
+    if (field < 0 || ciu < 0) {
+      resync("field check", field < 0 ? field : ciu);
+      return;
+    }
+    int16_t rfOn = (ciu & kCiuRfOn) != 0 ? 1 : 0;
+    fieldChanges += lastField >= 0 && field != lastField;
+    rfOnChanges += lastRfOn >= 0 && rfOn != lastRfOn;
+    lastField = field;
+    lastRfOn = rfOn;
+    if (field == 0) {
+      quietSince = quietSince == 0 ? now : quietSince;
+      if (now - quietSince >= kFieldQuietMs) {
+        logLine("Field: gone after %lu ms (status field changes %lu, CIU RFOn changes %lu, last CIU 0x%02X)",
+                static_cast<unsigned long>(now - start), static_cast<unsigned long>(fieldChanges),
+                static_cast<unsigned long>(rfOnChanges), ciu);
+        return;
+      }
+    } else {
+      quietSince = 0;
+    }
+    if (now - start >= kFieldWaitCapMs) {
+      logLine("Field: still present after %lu ms, arming anyway (changes %lu, CIU RFOn changes %lu)",
+              static_cast<unsigned long>(now - start), static_cast<unsigned long>(fieldChanges),
+              static_cast<unsigned long>(rfOnChanges));
+      return;
+    }
+    vTaskDelay(pdMS_TO_TICKS(kFieldPollMs));
+  }
+}
+
+void armUntilAcknowledged() {
+  for (;;) {
+    int16_t result = target.arm();
+    if (result == 0) {
+      return;
+    }
+    resync("TgInitAsTarget", result);
+  }
+}
+
+// Answers APDUs until the phone releases the tag. Returns how it ended for the log.
+const char *runSession(spike::Type4Tag &tag, uint32_t &apdus, int16_t &code) {
+  uint8_t command[255];
+  uint8_t reply[spike::Type4Tag::kMaxReply];
+  for (;;) {
+    uint8_t status = 0;
+    int16_t length = target.getData(command, sizeof(command), kApduWaitMs, status);
+    if (length < 0) {
+      code = length;
+      return "TgGetData transport";
+    }
+    if (status != 0) {
+      code = status;
+      return "TgGetData status";
+    }
+    apdus++;
+    size_t replyLength = tag.respond(command, length, reply);
+    int16_t result = target.setData(reply, static_cast<uint8_t>(replyLength), kReplyMs, status);
+    if (result < 0) {
+      code = result;
+      return "TgSetData transport";
+    }
+    if (status != 0) {
+      code = status;
+      return "TgSetData status";
+    }
+  }
+}
+
 void runNfc() {
   PN532 nfc(hsu);
   linkTest(nfc);
-  EmulateTag tag(hsu);
-  tag.setNdefFile(message, static_cast<int16_t>(messageLength));
-  tag.setTagWriteable(false);
-  logLine("Emulate: Type 4 tag ready, %s", spike::kTipUrl);
+  spike::Type4Tag tag;
+  tag.setNdef(message, messageLength);
+  logLine("Emulate: Type 4 tag, %s", spike::kTipUrl);
   uint32_t sessions = 0;
+  uint32_t sessionEndedAt = 0;
   for (;;) {
-    uint32_t armedAt = millis();
-    // Blocks until a reader activates the tag and the session ends (the phone leaves).
-    if (tag.emulate(0)) {
-      sessions++;
-      logLine("Emulate: session %lu ended, armed for %lu ms", static_cast<unsigned long>(sessions),
-              static_cast<unsigned long>(millis() - armedAt));
+    armUntilAcknowledged();
+    if (sessionEndedAt == 0) {
+      logLine("Arm: armed");
     } else {
-      logLine("Emulate: TgInitAsTarget failed, re-arming");
-      vTaskDelay(pdMS_TO_TICKS(100));
+      logLine("Arm: armed %lu ms after session %lu ended",
+              static_cast<unsigned long>(millis() - sessionEndedAt), static_cast<unsigned long>(sessions));
     }
+    int16_t activation;
+    while ((activation = target.waitActivation(kActivationWaitMs)) == PN532_TIMEOUT) {
+    }
+    if (activation < 0) {
+      resync("TgInitAsTarget response", activation);
+      continue;
+    }
+    uint32_t activatedAt = millis();
+    sessions++;
+    tag.startSession();
+    uint32_t apdus = 0;
+    int16_t code = 0;
+    const char *ending = runSession(tag, apdus, code);
+    sessionEndedAt = millis();
+    // A status is the PN532's byte (0x29: released by the phone); a transport error is negative.
+    logLine("Session %lu: %lu APDUs in %lu ms, ended by %s %d (0x%02X)",
+            static_cast<unsigned long>(sessions), static_cast<unsigned long>(apdus),
+            static_cast<unsigned long>(sessionEndedAt - activatedAt), ending, code,
+            static_cast<unsigned>(code & 0xFF));
+    if (code < 0) {
+      target.abort();
+      resync(ending, code);
+    }
+    waitForFieldToLeave();
   }
 }
 
@@ -182,6 +312,8 @@ void nfcLoop(void *) {
 }  // namespace
 
 void setup() {
+  // A large transmit buffer: a log line costs the NFC task microseconds, not milliseconds.
+  Serial.setTxBufferSize(kLogTxBufferBytes);
   Serial.begin(115200);
   logMutex = xSemaphoreCreateMutex();
   delay(500);
