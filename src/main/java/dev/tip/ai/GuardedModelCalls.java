@@ -32,7 +32,7 @@ class GuardedModelCalls implements ModelCalls {
     @Override
     public Message create(AnthropicClient client, MessageCreateParams params) {
         if (!breaker.tryCall()) {
-            throw new ModelUnavailable("resting after a spend limit or authentication error");
+            throw new ModelUnavailable("resting after the model API rejected a request");
         }
         try {
             Message message = client.messages().create(params);

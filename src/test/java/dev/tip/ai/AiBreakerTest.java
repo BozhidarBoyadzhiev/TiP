@@ -118,6 +118,10 @@ class AiBreakerTest extends IntegrationTest {
 
         assertUnavailable(duringTip);
         assertThat(AnthropicStubs.requestsFor(ANTHROPIC, during)).isEmpty();
+        assertThat(output.getOut())
+                .contains(
+                        "Tip " + duringTip
+                                + " reacts PLAIN once, the model is unavailable: resting after the model API rejected a request");
 
         String after = TestData.uniqueMessage("After the rest");
         UUID afterTip = tip(after, 500);
