@@ -129,7 +129,7 @@ One line each, without personal data: IPs only as an HMAC under a key made fresh
 | `sandbox_expired owner=<id> label=<code label>` | INFO | the hourly job deleted an expired sandbox |
 | `resume_link_used owner=<id>` | INFO | a resume link signed a browser in |
 | `demo_session ip=<hash>` | INFO | someone opened the public demo |
-| `ai_breaker_opened status=<status> until=<time>`, `ai_breaker_closed` | INFO | a spend limit or authentication error rested the model, and it came back |
+| `ai_breaker_opened status=<status> type=<API error type> message=<API error message> until=<time>`, `ai_breaker_closed` | INFO | a 400, 401, 402, 403 or 404 from the model API (spend limit, credit, key, permission, model) rested the model, and it came back |
 | `code_rejected ip=<hash>` | WARN | a wrong or expired access code |
 | `rate_limited endpoint=<name> ip=<hash>` | WARN | a per IP limit refused a request |
 | `daily_summary sandboxes=<label:n,…> tipsPaid=<kind:n,…> aiCalls=<n> aiFailures=<n>` | INFO | 00:10 London time, from the database, for the last 24 hours |

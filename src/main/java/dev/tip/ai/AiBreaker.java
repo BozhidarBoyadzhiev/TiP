@@ -1,25 +1,30 @@
 package dev.tip.ai;
 
 import dev.tip.ai.api.AiAvailability;
+import dev.tip.tipping.api.MessageSanitizer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Stops calling the model after an error no retry can fix: the spend limit or credit balance (402, or a 400 naming
- * the usage limit or credit balance) and authentication or permission errors (401, 403). While open, every call is
- * skipped; after {@link #REST} one trial call goes through. Success, or an answer of another kind, closes it; another
- * such error opens it for {@link #REST} again. Other failures (429, 5xx, timeouts) never open it: they cost one call
- * each and are never retried. In memory, like the rest of the single instance backend.
+ * Stops calling the model after an answer no retry can fix: any 400, 401, 402, 403 or 404, which covers the spend
+ * limit, the credit balance, authentication, permissions and a model that does not exist, whatever the API's wording.
+ * While open, every call is skipped; after {@link #REST} one trial call goes through. Success, or an answer of another
+ * kind, closes it; another such answer opens it for {@link #REST} again. Other failures (429, 5xx, timeouts) never
+ * open it: they cost one call each and are never retried. The opening is logged with the status and the API's error
+ * type and message, which describe the request, never the prompt or a tip. In memory, like the rest of the single
+ * instance backend.
  */
 @Component
 class AiBreaker implements AiAvailability {
 
     static final Duration REST = Duration.ofMinutes(10);
+
+    /** Caps the API's error message in the log line. */
+    static final int MAX_LOGGED_MESSAGE = 200;
 
     private static final Logger log = LoggerFactory.getLogger(AiBreaker.class);
 
@@ -48,12 +53,17 @@ class AiBreaker implements AiAvailability {
         close();
     }
 
-    /** A call the API answered with {@code status}. */
-    synchronized void failed(int status, String errorText) {
+    /** A call the API answered with {@code status}, its error type and message, either of which may be null. */
+    synchronized void failed(int status, String errorType, String errorMessage) {
         trialInFlight = false;
-        if (opens(status, errorText)) {
+        if (opens(status)) {
             openUntil = clock.instant().plus(REST);
-            log.info("ai_breaker_opened status={} until={}", status, openUntil);
+            log.info(
+                    "ai_breaker_opened status={} type={} message={} until={}",
+                    status,
+                    loggable(errorType),
+                    loggable(errorMessage),
+                    openUntil);
         } else {
             close();
         }
@@ -76,11 +86,16 @@ class AiBreaker implements AiAvailability {
         }
     }
 
-    static boolean opens(int status, String errorText) {
-        if (status == 401 || status == 402 || status == 403) {
-            return true;
+    static boolean opens(int status) {
+        return status == 400 || status == 401 || status == 402 || status == 403 || status == 404;
+    }
+
+    /** One line of at most {@link #MAX_LOGGED_MESSAGE} characters, or {@code -}. */
+    private static String loggable(String text) {
+        String clean = MessageSanitizer.sanitize(text);
+        if (clean == null) {
+            return "-";
         }
-        String text = errorText == null ? "" : errorText.toLowerCase(Locale.ROOT);
-        return status == 400 && (text.contains("credit balance") || text.contains("usage limit"));
+        return clean.length() > MAX_LOGGED_MESSAGE ? clean.substring(0, MAX_LOGGED_MESSAGE) : clean;
     }
 }

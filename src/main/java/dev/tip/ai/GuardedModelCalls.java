@@ -5,6 +5,7 @@ import com.anthropic.errors.AnthropicServiceException;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import java.time.Clock;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -40,12 +41,36 @@ class GuardedModelCalls implements ModelCalls {
             return message;
         } catch (AnthropicServiceException e) {
             count(true);
-            breaker.failed(e.statusCode(), e.getMessage() + " " + e.body());
+            ApiError error = ApiError.of(e);
+            breaker.failed(e.statusCode(), error.type(), error.message());
             throw new ModelUnavailable("api status " + e.statusCode());
         } catch (RuntimeException e) {
             count(true);
             breaker.failedWithoutAnswer();
             throw new ModelUnavailable(e.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * The {@code error.type} and {@code error.message} of the API's error body, null when absent. The body describes
+     * the request, never repeats the prompt.
+     */
+    record ApiError(String type, String message) {
+
+        static ApiError of(AnthropicServiceException e) {
+            try {
+                Map<?, ?> body = e.body().convert(Map.class);
+                if (body != null && body.get("error") instanceof Map<?, ?> error) {
+                    return new ApiError(text(error.get("type")), text(error.get("message")));
+                }
+            } catch (RuntimeException unreadable) {
+                log.debug("Unreadable model API error body");
+            }
+            return new ApiError(e.errorType().map(Object::toString).orElse(null), null);
+        }
+
+        private static String text(Object value) {
+            return value instanceof String s ? s : null;
         }
     }
 

@@ -33,8 +33,8 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * A failed model call never fails a paid tip: it reacts PLAIN once as UNAVAILABLE and is not retried. A spend limit
- * or an authentication error also rests the model for 10 minutes, then lets one trial call through.
+ * A failed model call never fails a paid tip: it reacts PLAIN once as UNAVAILABLE and is not retried. Any 400, 401,
+ * 402, 403 or 404 also rests the model for 10 minutes, then lets one trial call through.
  */
 @ExtendWith(OutputCaptureExtension.class)
 class AiBreakerTest extends IntegrationTest {
@@ -81,9 +81,11 @@ class AiBreakerTest extends IntegrationTest {
         "402, billing_error, Your credit balance is too low to access the Anthropic API",
         "401, authentication_error, invalid x-api-key",
         "403, permission_error, Your API key does not have permission",
-        "400, invalid_request_error, You have reached your specified workspace API usage limits"
+        "400, invalid_request_error, You have reached your specified workspace API usage limits",
+        "400, invalid_request_error, max_tokens: must be at most 64000",
+        "404, not_found_error, model: claude-haiku-5-5"
     })
-    void aSpendLimitOrAuthErrorRestsTheModelForTenMinutes(int status, String type, String text, CapturedOutput output)
+    void anyRejectionOfTheRequestRestsTheModelForTenMinutes(int status, String type, String text, CapturedOutput output)
             throws Exception {
         String first = TestData.uniqueMessage("First");
         UUID firstTip = tip(first, 1000);
@@ -95,7 +97,9 @@ class AiBreakerTest extends IntegrationTest {
         assertThat(breaker.resting()).isTrue();
         mvc.perform(get("/api/owner/me").with(user(owner())))
                 .andExpect(jsonPath("$.aiResting").value(true));
-        assertThat(output.getOut()).contains("ai_breaker_opened status=" + status);
+        assertThat(output.getOut())
+                .contains("ai_breaker_opened status=" + status + " type=" + type + " message=" + text)
+                .doesNotContain(first);
 
         String during = TestData.uniqueMessage("During the rest");
         UUID duringTip = tip(during, 500);
@@ -120,7 +124,7 @@ class AiBreakerTest extends IntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {400, 429, 500, 529})
+    @ValueSource(ints = {429, 500, 503, 529})
     void otherFailuresReactPlainOnceWithoutRetryAndLeaveTheModelAwake(int status) {
         String message = TestData.uniqueMessage("Unlucky");
         UUID tipId = tip(message, 1000);
@@ -164,7 +168,7 @@ class AiBreakerTest extends IntegrationTest {
 
     @Test
     void onlyOneTrialGoesOutAfterTheRest() {
-        breaker.failed(402, "billing_error");
+        breaker.failed(402, "billing_error", "Your credit balance is too low");
         clock.pin(NOW.plus(AiBreaker.REST));
 
         assertThat(breaker.tryCall()).isTrue();
