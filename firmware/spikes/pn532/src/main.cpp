@@ -169,13 +169,42 @@ void armUntilAcknowledged() {
   }
 }
 
+// One APDU's timings in microseconds: getUs from asking TgGetData to having the command (the
+// phone's own time plus both UART frames), setUs from there to TgSetData's answer (our reply
+// and both frames).
+struct ApduTiming {
+  uint32_t startUs;
+  uint32_t getUs;
+  uint32_t setUs;
+  uint8_t ins;
+  uint16_t p1p2;
+  uint8_t le;
+  uint8_t replyLength;
+  uint16_t sw;
+};
+
+constexpr size_t kTimedApdus = 16;
+ApduTiming timings[kTimedApdus];
+
+void logTimings(uint32_t apdus, uint32_t activatedUs) {
+  for (uint32_t i = 0; i < apdus && i < kTimedApdus; i++) {
+    const ApduTiming &t = timings[i];
+    logLine("  APDU %lu at +%lu us: INS %02X P1P2 %04X Le/Lc %u -> %u bytes SW %04X, get %lu us, set %lu us",
+            static_cast<unsigned long>(i + 1), static_cast<unsigned long>(t.startUs - activatedUs), t.ins,
+            t.p1p2, t.le, t.replyLength, t.sw, static_cast<unsigned long>(t.getUs),
+            static_cast<unsigned long>(t.setUs));
+  }
+}
+
 // Answers APDUs until the phone releases the tag. Returns how it ended for the log.
 const char *runSession(spike::Type4Tag &tag, uint32_t &apdus, int16_t &code) {
   uint8_t command[255];
   uint8_t reply[spike::Type4Tag::kMaxReply];
   for (;;) {
     uint8_t status = 0;
+    uint32_t startUs = micros();
     int16_t length = target.getData(command, sizeof(command), kApduWaitMs, status);
+    uint32_t gotUs = micros();
     if (length < 0) {
       code = length;
       return "TgGetData transport";
@@ -184,9 +213,19 @@ const char *runSession(spike::Type4Tag &tag, uint32_t &apdus, int16_t &code) {
       code = status;
       return "TgGetData status";
     }
-    apdus++;
     size_t replyLength = tag.respond(command, length, reply);
     int16_t result = target.setData(reply, static_cast<uint8_t>(replyLength), kReplyMs, status);
+    if (apdus < kTimedApdus) {
+      timings[apdus] = {startUs,
+                        gotUs - startUs,
+                        micros() - gotUs,
+                        length > 1 ? command[1] : uint8_t{0},
+                        length > 3 ? static_cast<uint16_t>((command[2] << 8) | command[3]) : uint16_t{0},
+                        length > 4 ? command[4] : uint8_t{0},
+                        static_cast<uint8_t>(replyLength),
+                        static_cast<uint16_t>((reply[replyLength - 2] << 8) | reply[replyLength - 1])};
+    }
+    apdus++;
     if (result < 0) {
       code = result;
       return "TgSetData transport";
@@ -222,6 +261,7 @@ void runNfc() {
       continue;
     }
     uint32_t activatedAt = millis();
+    uint32_t activatedUs = micros();
     sessions++;
     tag.startSession();
     uint32_t apdus = 0;
@@ -233,6 +273,7 @@ void runNfc() {
             static_cast<unsigned long>(sessions), static_cast<unsigned long>(apdus),
             static_cast<unsigned long>(sessionEndedAt - activatedAt), ending, code,
             static_cast<unsigned>(code & 0xFF));
+    logTimings(apdus, activatedUs);
     if (code < 0) {
       target.abort();
       resync(ending, code);
