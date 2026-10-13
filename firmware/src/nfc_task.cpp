@@ -1,6 +1,7 @@
 #include "log.h"
 #include "pn532.h"
 #include "tasks.h"
+#include "tip_alive_check.h"
 #include "tip_config.h"
 #include "tip_ndef.h"
 #include "tip_type4_tag.h"
@@ -37,6 +38,17 @@ Pn532 pn532(Serial2, kRxPin, kTxPin);
 Type4Tag tag;
 uint8_t command[pn532::kMaxFrameData];
 uint8_t reply[Type4Tag::kMaxReply];
+// When a phone's field was last seen: at a tap and while waiting for it to leave. The tag cannot
+// see a field while armed, so the alive check's timer runs across taps and re-arms: one that falls
+// due during a tap meets the field seen just before the tag was armed again.
+bool fieldSeen = false;
+uint32_t lastFieldAt = 0;
+uint32_t aliveTimerStartedAt = 0;
+
+void sawField() {
+  fieldSeen = true;
+  lastFieldAt = millis();
+}
 
 // Wake-up and SAMConfig, backing off from kNfcResyncFirstMs. False when the PN532 still does not
 // answer, which sends the task back to looking for it.
@@ -94,20 +106,25 @@ int16_t link() {
 
 enum class Armed : uint8_t { kPhone, kArmAgain, kLost };
 
-// Waits for a phone to activate the armed tag. Every kNfcAliveCheckMs without one it stops the tag
-// and asks the PN532 for its firmware version, so one that was unplugged or reset is noticed; the
-// tag is then armed again.
+// Waits for a phone to activate the armed tag. When aliveCheck says so it stops the tag and asks
+// the PN532 for its firmware version, so one that was unplugged or reset is noticed; the tag is
+// then armed again.
 Armed waitForPhone() {
-  uint32_t armedAt = millis();
   for (;;) {
     int16_t result = pn532.waitActivation(kActivationWaitMs);
     if (result >= 0) {
+      sawField();
       return Armed::kPhone;
     }
     if (result != pn532::kTimeout) {
       return resync("TgInitAsTarget response", result) ? Armed::kArmAgain : Armed::kLost;
     }
-    if (millis() - armedAt >= kNfcAliveCheckMs) {
+    AliveCheck due = aliveCheck(millis(), aliveTimerStartedAt, fieldSeen, lastFieldAt, kNfcAliveCheckMs,
+                                kNfcAliveSkipAfterFieldMs);
+    if (due == AliveCheck::kRestartTimer) {
+      aliveTimerStartedAt = millis();
+    } else if (due == AliveCheck::kProbe) {
+      aliveTimerStartedAt = millis();
       pn532.abort();
       vTaskDelay(pdMS_TO_TICKS(kAbortSettleMs));
       uint8_t version[4];
@@ -160,6 +177,9 @@ bool waitForFieldToLeave() {
     if (field < 0) {
       return resync("field check", field);
     }
+    if (field == 1) {
+      sawField();
+    }
     if (field == 0) {
       quietSince = quietSince == 0 ? now : quietSince;
       if (now - quietSince >= kNfcFieldQuietMs) {
@@ -199,6 +219,7 @@ void serveTaps() {
     uint32_t apdus = 0;
     int16_t code = 0;
     const char *ending = runSession(apdus, code);
+    sawField();
     taps++;
     logLine("NFC: tap %lu, %lu APDUs in %lu ms, ended by %s %d (0x%02X)", static_cast<unsigned long>(taps),
             static_cast<unsigned long>(apdus), static_cast<unsigned long>(millis() - activatedAt), ending, code,
@@ -241,6 +262,7 @@ void nfcLoop(void *) {
       continue;
     }
     retryMs = kNfcRetryFirstMs;
+    aliveTimerStartedAt = millis();
     logLine("NFC: tag ready");
     serveTaps();
     logLine("NFC: PN532 stopped answering, looking for it again");

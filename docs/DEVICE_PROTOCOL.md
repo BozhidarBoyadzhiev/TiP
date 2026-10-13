@@ -4,7 +4,7 @@ This is a shared contract. The backend, the ESP32 firmware and the virtual panda
 
 ## NFC tag
 
-The NTAG215 on the coin holds one NDEF URI record:
+The panda presents an NFC Forum Type 4 tag, emulated by the PN532 behind the coin and read only, holding one NDEF URI record with the tip URL:
 
 ```
 https://<host>/t/{deviceSlug}
@@ -12,7 +12,9 @@ https://<host>/t/{deviceSlug}
 
 `deviceSlug` is lowercase letters, digits and hyphens, 3 to 40 characters. Phones open it in the browser without an app.
 
-v2 (stretch): the ESP32 rewrites the tag through the PN532 after every tip with `https://<host>/t/{deviceSlug}?k={tapToken}`, where `tapToken` is a one time value issued by the backend. Not part of v1.
+After a phone has read the tag, the tag stays off for 3 seconds and then until there has been no field for 100 ms (at most 3 seconds more), so a phone left on the coin does not read it again and show a second prompt.
+
+v2 (stretch): the ESP32 changes the URL the emulated tag holds after every tip with `https://<host>/t/{deviceSlug}?k={tapToken}`, where `tapToken` is a one time value issued by the backend. Not part of v1.
 
 ## Device channel (authenticated)
 

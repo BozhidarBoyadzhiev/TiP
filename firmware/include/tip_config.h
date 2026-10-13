@@ -76,9 +76,12 @@ constexpr uint32_t kNfcRetryFirstMs = 1000;
 constexpr uint32_t kNfcRetryCapMs = 30000;
 constexpr uint32_t kNfcResyncFirstMs = 20;
 constexpr uint32_t kNfcResyncAttempts = 6;
-// While armed and untouched, the tag is stopped this often to check the PN532 still answers, so
-// one that was unplugged or lost power is found again. The tag is off for about 20 ms each time.
-constexpr uint32_t kNfcAliveCheckMs = 10000;
+// While armed, the tag is stopped this often to check the PN532 still answers, so one that was
+// unplugged or lost power is found again. The tag is off for about 20 ms each time. When a phone's
+// field was seen less than kNfcAliveSkipAfterFieldMs before a check is due, the wait starts over
+// instead (tip_alive_check).
+constexpr uint32_t kNfcAliveCheckMs = 30000;
+constexpr uint32_t kNfcAliveSkipAfterFieldMs = 5000;
 // After a read the tag stays off this long: an iPhone left on the coin reads it again about 500 ms
 // later and shows a second prompt. Real taps are 20 s or more apart.
 constexpr uint32_t kNfcRearmHoldOffMs = 3000;

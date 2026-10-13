@@ -20,6 +20,10 @@ constexpr uint32_t kAckWaitMs = 10;
 // The PN532 switches within 200 us of the host ACK (user manual, SetSerialBaudRate).
 constexpr uint32_t kBaudSwitchMs = 1;
 constexpr uint32_t kBitsPerByte = 10;
+// The UART's transmit ring buffer holds any frame whole, so write() copies it and returns at once
+// instead of waiting for the 128 byte FIFO to drain. Without one (the core's default) write() waits
+// until the last byte is in the FIFO.
+constexpr size_t kTxBufferBytes = 512;
 
 // Mode 0x05: PICC only, passive only. SENS_RES 0x0004, NFCID1 left to the PN532 (it fixes the
 // first byte at 0x08 and draws the rest at random), SEL_RES 0x20 (ISO 14443-4). No FeliCa,
@@ -41,7 +45,9 @@ constexpr uint8_t kWakeup[] = {0x55, 0x55, 0x00, 0x00, 0x00};
 }  // namespace
 
 void Pn532::begin(uint32_t baud) {
+  static_assert(kTxBufferBytes >= sizeof(frame_), "a frame must fit the transmit buffer");
   baud_ = baud;
+  serial_.setTxBufferSize(kTxBufferBytes);
   serial_.begin(baud, SERIAL_8N1, rxPin_, txPin_);
 }
 
@@ -74,7 +80,7 @@ int16_t Pn532::writeCommand(const uint8_t *header, size_t headerLength, const ui
   }
   reader_.reset();
   command_ = header[0];
-  // write returns once the frame is in the UART's FIFO, which can still hold most of it.
+  // write returns once the frame is in the transmit buffer; none of it may be on the wire yet.
   serial_.write(frame_, length);
   uint32_t start = millis();
   uint32_t limit = sendMs(length) + kAckWaitMs;
