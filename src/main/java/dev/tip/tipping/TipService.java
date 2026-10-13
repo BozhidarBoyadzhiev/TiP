@@ -46,7 +46,7 @@ class TipService {
     }
 
     TipCreated create(String slug, long amountMinor, String currency, String rawMessage) {
-        DeviceSummary device = devices.getBySlug(slug);
+        DeviceSummary device = devices.getTippableBySlug(slug);
         if (!properties.currency().equals(currency)) {
             throw new TipExceptions.InvalidTip(
                     "CURRENCY_NOT_SUPPORTED", "Tips are taken in " + properties.currency() + " only.");
@@ -93,7 +93,8 @@ class TipService {
             result = payPal.lookupOrder(tip.paypalOrderId());
         }
         apply(tipId, result);
-        return tips.findStatus(tipId).orElseThrow();
+        // The tip may be gone: an expired sandbox is deleted with its tips while PayPal is called.
+        return tips.findStatus(tipId).orElseThrow(TipExceptions.TipNotFound::new);
     }
 
     private void apply(UUID tipId, CaptureResult result) {

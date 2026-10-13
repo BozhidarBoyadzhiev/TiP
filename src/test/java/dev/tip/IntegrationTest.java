@@ -2,6 +2,9 @@ package dev.tip;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import dev.tip.owners.AccessCode;
+import java.security.SecureRandom;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,6 +37,16 @@ public abstract class IntegrationTest {
     /** The demo device's secret, generated per test run so no secret is committed. */
     protected static final String DEMO_DEVICE_SECRET = TestData.randomSecret();
 
+    /** Access codes, generated per test run like the secret. {@code judges} never expires in a test. */
+    protected static final String JUDGE_CODE = AccessCode.display(AccessCode.generate(new SecureRandom()));
+
+    /** Expires at {@link #SHORT_CODE_EXPIRES}; tests pin the clock around it. */
+    protected static final String SHORT_CODE = AccessCode.display(AccessCode.generate(new SecureRandom()));
+
+    protected static final Instant SHORT_CODE_EXPIRES = Instant.parse("2027-01-01T00:00:00Z");
+
+    protected static final String EXPIRED_CODE = AccessCode.display(AccessCode.generate(new SecureRandom()));
+
     protected static final WireMockServer PAYPAL =
             new WireMockServer(WireMockConfiguration.options().dynamicPort());
 
@@ -54,6 +67,11 @@ public abstract class IntegrationTest {
         registry.add("PAYPAL_BASE_URL", PAYPAL::baseUrl);
         registry.add("ANTHROPIC_BASE_URL", ANTHROPIC::baseUrl);
         registry.add("TIP_DEMO_DEVICE_SECRET", () -> DEMO_DEVICE_SECRET);
+        registry.add(
+                "TIP_ACCESS_CODES",
+                () -> "judges:" + AccessCode.hashHex(JUDGE_CODE) + ":2099-01-01T00:00:00Z;"
+                        + "short:" + AccessCode.hashHex(SHORT_CODE) + ":" + SHORT_CODE_EXPIRES + ";"
+                        + "old:" + AccessCode.hashHex(EXPIRED_CODE) + ":2020-01-01T00:00:00+01:00");
     }
 
     @Autowired

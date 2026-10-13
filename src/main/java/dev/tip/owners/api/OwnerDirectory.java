@@ -14,4 +14,7 @@ public interface OwnerDirectory {
     default ZoneId timeZone(UUID ownerId) {
         return find(ownerId).map(OwnerProfile::timeZone).orElse(OwnerProfile.DEFAULT_TIME_ZONE);
     }
+
+    /** True while the owner exists and, for a sandbox, has not expired. */
+    boolean isActive(UUID ownerId);
 }

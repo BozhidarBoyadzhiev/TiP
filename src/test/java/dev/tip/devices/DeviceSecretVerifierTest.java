@@ -16,7 +16,9 @@ import org.junit.jupiter.api.Test;
 class DeviceSecretVerifierTest {
 
     private final DeviceRepository devices = mock(DeviceRepository.class);
-    private final DefaultDeviceSecretVerifier verifier = new DefaultDeviceSecretVerifier(devices);
+    private final DeviceService deviceService = mock(DeviceService.class);
+    private final DefaultDeviceSecretVerifier verifier = new DefaultDeviceSecretVerifier(devices, deviceService);
+    private final UUID ownerId = UUID.randomUUID();
 
     private final UUID deviceId = UUID.randomUUID();
     private final byte[] secret = new byte[32];
@@ -27,8 +29,16 @@ class DeviceSecretVerifierTest {
         new SecureRandom().nextBytes(secret);
         presented = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
         Device device = new Device(
-                deviceId, "busker-panda", "Busker Panda", UUID.randomUUID(), DeviceSecrets.hash(secret), Instant.now());
+                deviceId, "busker-panda", "Busker Panda", ownerId, DeviceSecrets.hash(secret), Instant.now());
         when(devices.findById(deviceId)).thenReturn(Optional.of(device));
+        when(deviceService.acceptsHardware(ownerId)).thenReturn(true);
+    }
+
+    @Test
+    void aVirtualOnlyDeviceWithTheRightSecretIsRejectedLikeAnUnknownOne() {
+        when(deviceService.acceptsHardware(ownerId)).thenReturn(false);
+
+        assertThat(verifier.verify(deviceId, presented)).isEmpty();
     }
 
     @Test

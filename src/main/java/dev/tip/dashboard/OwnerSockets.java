@@ -37,6 +37,8 @@ class OwnerSockets {
     static final CloseStatus REPLACED = new CloseStatus(4000, "replaced");
     static final CloseStatus SIGNED_OUT = new CloseStatus(4001, "signed out");
     static final CloseStatus SESSION_EXPIRED = new CloseStatus(4002, "session expired");
+    static final CloseStatus SANDBOX_EXPIRED = new CloseStatus(4003, "sandbox expired");
+    static final CloseStatus READ_ONLY = new CloseStatus(4004, "read only");
 
     private static final Logger log = LoggerFactory.getLogger(OwnerSockets.class);
 

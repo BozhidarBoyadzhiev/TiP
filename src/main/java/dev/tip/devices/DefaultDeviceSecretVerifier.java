@@ -18,9 +18,11 @@ class DefaultDeviceSecretVerifier implements DeviceSecretVerifier {
     private static final byte[] NO_MATCH_HASH = DeviceSecrets.hash(randomBytes());
 
     private final DeviceRepository devices;
+    private final DeviceService deviceService;
 
-    DefaultDeviceSecretVerifier(DeviceRepository devices) {
+    DefaultDeviceSecretVerifier(DeviceRepository devices, DeviceService deviceService) {
         this.devices = devices;
+        this.deviceService = deviceService;
     }
 
     @Override
@@ -31,7 +33,11 @@ class DefaultDeviceSecretVerifier implements DeviceSecretVerifier {
         byte[] presentedHash = DeviceSecrets.hash(secret.orElse(NO_MATCH_SECRET));
         byte[] storedHash = device.map(Device::secretHash).orElse(NO_MATCH_HASH);
         boolean matches = MessageDigest.isEqual(presentedHash, storedHash);
-        return matches && device.isPresent() && secret.isPresent()
+        // A sandbox's or the public demo's device is virtual only: turned away like an unknown device.
+        return matches
+                        && device.isPresent()
+                        && secret.isPresent()
+                        && deviceService.acceptsHardware(device.get().ownerId())
                 ? device.map(DeviceService::summary)
                 : Optional.empty();
     }

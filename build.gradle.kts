@@ -102,6 +102,18 @@ tasks.register<JavaExec>("fakeDevice") {
     environment(dotEnv())
 }
 
+// Prints a new judge access code once and its TIP_ACCESS_CODES entry. Writes no file.
+tasks.register<JavaExec>("newAccessCode") {
+    group = "application"
+    description = "Makes a judge access code. Pass -Plabel=<label> -Pexpires=<ISO 8601 time with an offset>."
+    classpath = tools.runtimeClasspath
+    mainClass = "dev.tip.tools.NewAccessCode"
+    args(
+        "--label=" + (project.findProperty("label") ?: ""),
+        "--expires=" + (project.findProperty("expires") ?: ""),
+    )
+}
+
 // Calls the real Claude API, so it is never part of build, check or CI. Run it by hand.
 tasks.register<JavaExec>("aiEval") {
     group = "application"

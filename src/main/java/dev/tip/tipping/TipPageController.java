@@ -48,7 +48,8 @@ class TipPageController {
      */
     @GetMapping("/t/{slug}")
     ResponseEntity<String> tipPage(@PathVariable String slug, HttpServletRequest request) {
-        if (!slug.matches(DeviceSlug.PATTERN) || devices.findBySlug(slug).isEmpty()) {
+        if (!slug.matches(DeviceSlug.PATTERN)
+                || devices.findTippableBySlug(slug).isEmpty()) {
             return notFoundPage.response(request);
         }
         return ResponseEntity.ok()

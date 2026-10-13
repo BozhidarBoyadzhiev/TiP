@@ -1,5 +1,6 @@
 package dev.tip.dashboard;
 
+import dev.tip.owners.api.OwnerPrincipal;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -23,7 +25,8 @@ import org.springframework.web.socket.WebSocketSession;
  * checked and pinged. When the HTTP session behind a socket ends (it expires, or is invalidated), Tomcat
  * closes the socket at once with 1008, since the handshake was authenticated. This check backs that up: a
  * socket whose HTTP session is gone or no longer holds a signed in owner gets {@code closing} {@code
- * session_expired} and is closed with 4002. A socket whose last pong is 45 seconds old is closed with
+ * session_expired} and is closed with 4002; one whose owner is a sandbox past its expiry gets {@code closing}
+ * {@code sandbox_expired} and is closed with 4003. A socket whose last pong is 45 seconds old is closed with
  * 1001. On shutdown every socket is closed with 1001.
  */
 @Component
@@ -62,9 +65,13 @@ class OwnerKeepalive {
         for (OwnerSockets.Owned owned : sockets.all()) {
             WebSocketSession session = owned.session();
             AtomicReference<Instant> lastPong = lastPongOf(session);
-            if (!signedIn((HttpSession) session.getAttributes().get(OwnerHandshakeInterceptor.HTTP_SESSION))) {
+            HttpSession httpSession = (HttpSession) session.getAttributes().get(OwnerHandshakeInterceptor.HTTP_SESSION);
+            if (!signedIn(httpSession)) {
                 log.debug("Owner socket {} outlived its HTTP session, closing it", session.getId());
                 sockets.closeWithReason(session, "session_expired", OwnerSockets.SESSION_EXPIRED);
+            } else if (expiredSandbox(httpSession)) {
+                log.debug("Owner socket {} belongs to an expired sandbox, closing it", session.getId());
+                sockets.closeWithReason(session, "sandbox_expired", OwnerSockets.SANDBOX_EXPIRED);
             } else if (lastPong != null && !lastPong.get().isAfter(deadline)) {
                 log.debug("Owner socket {} missed two pongs, closing it", session.getId());
                 OwnerSockets.close(session, CloseStatus.GOING_AWAY);
@@ -86,6 +93,19 @@ class OwnerKeepalive {
         }
         try {
             return httpSession.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY) != null;
+        } catch (IllegalStateException invalidated) {
+            return false;
+        }
+    }
+
+    /** True when the session's owner is a sandbox past its expiry. */
+    private boolean expiredSandbox(HttpSession httpSession) {
+        try {
+            return httpSession.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY)
+                            instanceof SecurityContext context
+                    && context.getAuthentication() != null
+                    && context.getAuthentication().getPrincipal() instanceof OwnerPrincipal owner
+                    && owner.expiredAt(clock.instant());
         } catch (IllegalStateException invalidated) {
             return false;
         }

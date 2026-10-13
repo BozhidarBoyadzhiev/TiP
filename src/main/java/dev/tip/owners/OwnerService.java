@@ -64,6 +64,13 @@ class OwnerService implements UserDetailsService, OwnerProvisioning, OwnerDirect
     @Override
     @Transactional(readOnly = true)
     public Optional<OwnerProfile> find(UUID ownerId) {
-        return owners.findById(ownerId).map(o -> new OwnerProfile(o.displayName(), o.timeZone()));
+        return owners.findById(ownerId)
+                .map(o -> new OwnerProfile(o.displayName(), o.timeZone(), o.kind(), o.expiresAt()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isActive(UUID ownerId) {
+        return find(ownerId).map(o -> o.activeAt(clock.instant())).orElse(false);
     }
 }

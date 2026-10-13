@@ -20,13 +20,15 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
  * request without a signed in owner with 401. Here the {@code Origin} header must be exactly the origin of
  * {@code TIP_PUBLIC_BASE_URL}, or the answer is an empty 403: a page on another site cannot open the
  * channel with the owner's cookie (cross site WebSocket hijacking), and unlike Spring's own origin check a
- * missing {@code Origin} is refused too. The owner and the HTTP session go into the socket's attributes.
+ * missing {@code Origin} is refused too. The owner, the HTTP session and whether the session is read only go into
+ * the socket's attributes. An expired sandbox never gets here: the owner chain answers 401 first.
  */
 @Component
 class OwnerHandshakeInterceptor implements HandshakeInterceptor {
 
     static final String OWNER_ID = OwnerHandshakeInterceptor.class.getName() + ".ownerId";
     static final String HTTP_SESSION = OwnerHandshakeInterceptor.class.getName() + ".httpSession";
+    static final String READ_ONLY = OwnerHandshakeInterceptor.class.getName() + ".readOnly";
 
     private final String publicOrigin;
 
@@ -55,6 +57,7 @@ class OwnerHandshakeInterceptor implements HandshakeInterceptor {
         }
         attributes.put(OWNER_ID, owner.id());
         attributes.put(HTTP_SESSION, httpSession);
+        attributes.put(READ_ONLY, owner.readOnly());
         return true;
     }
 

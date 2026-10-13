@@ -32,8 +32,16 @@ class OwnerChannelHandler extends TextWebSocketHandler {
         this.keepalive = keepalive;
     }
 
+    /**
+     * A read only session (the public demo) gets {@code closing} {@code read_only} and is closed at once, before it
+     * is registered, so it never counts towards an owner's limit and hears nothing.
+     */
     @Override
     public void afterConnectionEstablished(WebSocketSession raw) {
+        if (Boolean.TRUE.equals(raw.getAttributes().get(OwnerHandshakeInterceptor.READ_ONLY))) {
+            sockets.closeWithReason(raw, "read_only", OwnerSockets.READ_ONLY);
+            return;
+        }
         WebSocketSession session =
                 new ConcurrentWebSocketSessionDecorator(raw, SEND_TIME_LIMIT_MILLIS, BUFFER_SIZE_LIMIT_BYTES);
         raw.getAttributes().put(CONCURRENT, session);

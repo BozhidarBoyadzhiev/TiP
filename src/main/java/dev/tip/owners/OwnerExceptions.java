@@ -1,0 +1,37 @@
+package dev.tip.owners;
+
+import dev.tip.shared.DomainException;
+import org.springframework.http.HttpStatus;
+
+/** Failures of the owners feature, each mapped to problem details by the shared advice. */
+final class OwnerExceptions {
+
+    private OwnerExceptions() {}
+
+    /** The same status and code as a wrong password, for a wrong and an expired code alike. */
+    static final class CodeRejected extends DomainException {
+        CodeRejected() {
+            super(HttpStatus.UNAUTHORIZED, "LOGIN_FAILED", "The access code is not valid.");
+        }
+    }
+
+    static final class RateLimited extends DomainException {
+        RateLimited() {
+            super(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many attempts. Please wait and try again.");
+        }
+    }
+
+    /** A resume link is only for sandbox sessions. */
+    static final class SandboxOnly extends DomainException {
+        SandboxOnly() {
+            super(HttpStatus.FORBIDDEN, "SANDBOX_ONLY", "Only a sandbox session can make a resume link.");
+        }
+    }
+
+    /** The public demo owner is missing, which only happens before startup finished. */
+    static final class DemoUnavailable extends DomainException {
+        DemoUnavailable() {
+            super(HttpStatus.SERVICE_UNAVAILABLE, "DEMO_UNAVAILABLE", "The demo is not ready. Please try again.");
+        }
+    }
+}
