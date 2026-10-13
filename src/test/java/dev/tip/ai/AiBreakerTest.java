@@ -10,6 +10,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.http.Fault;
 import dev.tip.AnthropicStubs;
 import dev.tip.IntegrationTest;
 import dev.tip.ReactedEvents;
@@ -19,6 +21,8 @@ import dev.tip.ai.api.Reaction;
 import dev.tip.owners.api.OwnerPrincipal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,10 +30,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -61,6 +67,9 @@ class AiBreakerTest extends IntegrationTest {
 
     @Autowired
     ReactedEvents reacted;
+
+    @Autowired
+    JdbcClient jdbc;
 
     UUID deviceId;
 
@@ -143,6 +152,73 @@ class AiBreakerTest extends IntegrationTest {
         assertThat(data.tipRow(nextTip)).containsEntry("ai_status", "DONE");
     }
 
+    /**
+     * A 5xx, a read timeout (the stub answers after the 2 s test timeout) and a connection that fails without an
+     * answer: each tip reacts PLAIN once as UNAVAILABLE, the device is sent PLAIN x1, the breaker stays closed, and
+     * the next tip calls the model as usual.
+     */
+    @ParameterizedTest
+    @EnumSource(Failure.class)
+    void aFailedCallEndsThatTipOnlyAndLeavesTheBreakerClosed(Failure failure, CapturedOutput output) {
+        String message = TestData.uniqueMessage("Bad luck " + failure);
+        UUID tipId = tip(message, 1000);
+        ANTHROPIC.stubFor(post(urlPathEqualTo(AnthropicStubs.MESSAGES_PATH))
+                .withRequestBody(containing(message))
+                .willReturn(failure.response()));
+
+        worker.process(tipId);
+        recoveryJob.recover();
+
+        assertUnavailable(tipId);
+        await().atMost(Duration.ofSeconds(30)).until(() -> delivery(tipId).isPresent());
+        assertThat(delivery(tipId).orElseThrow()).containsEntry("reaction", "PLAIN");
+        assertThat(((Number) delivery(tipId).orElseThrow().get("repeats")).intValue())
+                .isOne();
+        assertThat(AnthropicStubs.requestsFor(ANTHROPIC, message)).hasSize(1);
+        assertThat(breaker.resting()).isFalse();
+        assertThat(output.getOut())
+                .contains("Tip " + tipId + " reacts PLAIN once, the model is unavailable: " + failure.reason)
+                .doesNotContain("ai_breaker_opened");
+
+        String next = TestData.uniqueMessage("Next one after " + failure);
+        UUID nextTip = tip(next, 200);
+        AnthropicStubs.replyFor(ANTHROPIC, next, AnthropicStubs.classification("PLAYFUL", false, null));
+        worker.process(nextTip);
+
+        assertThat(data.tipRow(nextTip)).containsEntry("ai_status", "DONE").containsEntry("reaction", "PLAYFUL");
+        assertThat(AnthropicStubs.requestsFor(ANTHROPIC, next)).hasSize(1);
+    }
+
+    enum Failure {
+        SERVER_ERROR("api status 503"),
+        READ_TIMEOUT("AnthropicIoException"),
+        CONNECTION_RESET("AnthropicIoException"),
+        EMPTY_RESPONSE("AnthropicIoException");
+
+        /** What the worker logs as the reason, which names the SDK exception for a call without an answer. */
+        final String reason;
+
+        Failure(String reason) {
+            this.reason = reason;
+        }
+
+        ResponseDefinitionBuilder response() {
+            return switch (this) {
+                case SERVER_ERROR ->
+                    aResponse()
+                            .withStatus(503)
+                            .withHeader("Content-Type", "application/json")
+                            .withBody("{\"type\":\"error\",\"error\":{\"type\":\"api_error\","
+                                    + "\"message\":\"Service unavailable\"}}");
+                case READ_TIMEOUT ->
+                    AnthropicStubs.reply(AnthropicStubs.classification("WARM", false, null))
+                            .withFixedDelay(3_000);
+                case CONNECTION_RESET -> aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER);
+                case EMPTY_RESPONSE -> aResponse().withFault(Fault.EMPTY_RESPONSE);
+            };
+        }
+    }
+
     @Test
     void aTrialThatHitsTheLimitAgainRestsForAnotherTenMinutes() {
         String first = TestData.uniqueMessage("Spent");
@@ -223,6 +299,16 @@ class AiBreakerTest extends IntegrationTest {
                         .withHeader("Content-Type", "application/json")
                         .withBody("{\"type\":\"error\",\"error\":{\"type\":\"" + type + "\",\"message\":\"" + text
                                 + "\"}}")));
+    }
+
+    private Optional<Map<String, Object>> delivery(UUID tipId) {
+        return jdbc
+                .sql("SELECT reaction, repeats FROM reaction_delivery WHERE tip_id = ?")
+                .param(tipId)
+                .query()
+                .listOfRows()
+                .stream()
+                .findFirst();
     }
 
     private OwnerPrincipal owner() {
