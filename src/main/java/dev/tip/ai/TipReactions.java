@@ -94,6 +94,12 @@ class TipReactions {
                     AiStatus.SKIPPED);
         }
 
+        /** The model could not be called: PLAIN once whatever the amount, like a tip nobody read. */
+        static Outcome unavailable() {
+            return new Outcome(
+                    null, Reaction.PLAIN, 1, false, null, null, null, null, null, null, AiStatus.UNAVAILABLE);
+        }
+
         static Outcome failed(long amountMinor, String currency) {
             return new Outcome(
                     null,

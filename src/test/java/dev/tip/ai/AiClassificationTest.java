@@ -88,7 +88,8 @@ class AiClassificationTest extends IntegrationTest {
                 ANTHROPIC, message, AnthropicStubs.classification(kind, flagged, flagReason, ownerNote));
         PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
 
-        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
+        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId).with(TestData.newClient()))
+                .andExpect(status().isOk());
 
         awaitAiStatus(tipId, "DONE");
         Map<String, Object> row = data.tipRow(tipId);
@@ -141,7 +142,8 @@ class AiClassificationTest extends IntegrationTest {
         data.setAmount(tipId, 1_000);
         PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
 
-        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId)).andExpect(status().isOk());
+        mvc.perform(post("/api/public/tips/{tipId}/capture", tipId).with(TestData.newClient()))
+                .andExpect(status().isOk());
 
         awaitAiStatus(tipId, "SKIPPED");
         assertThat(data.tipRow(tipId))
@@ -216,27 +218,28 @@ class AiClassificationTest extends IntegrationTest {
     }
 
     @Test
-    void timeoutPutsTheTipBackAndTheRecoveryJobFinishesIt() {
+    void aTimeoutReactsPlainOnceAsUnavailableAndIsNeverRetried() {
         String message = TestData.uniqueMessage("Slow day");
         UUID tipId = data.capturedTip(deviceId, message);
+        data.setAmount(tipId, 1000);
         AnthropicStubs.delayedReplyFor(ANTHROPIC, message, AnthropicStubs.classification("WARM", false, null), 3_000);
 
         worker.process(tipId);
 
         assertThat(data.tipRow(tipId))
-                .containsEntry("ai_status", "PENDING")
+                .containsEntry("ai_status", "UNAVAILABLE")
                 .containsEntry("ai_attempts", 1)
-                .containsEntry("reaction", null);
-        assertThat(reacted.forTip(tipId)).isEmpty();
+                .containsEntry("reaction", "PLAIN")
+                .containsEntry("message_kind", null);
+        TipReacted event = awaitOneEvent(tipId);
+        assertThat(event.reaction()).isEqualTo(Reaction.PLAIN);
+        assertThat(event.repeats()).isOne();
 
         AnthropicStubs.replyFor(ANTHROPIC, message, AnthropicStubs.classification("WARM", false, null));
         recoveryJob.recover();
 
-        assertThat(data.tipRow(tipId))
-                .containsEntry("ai_status", "DONE")
-                .containsEntry("ai_attempts", 2)
-                .containsEntry("reaction", "WARM");
-        assertThat(awaitOneEvent(tipId).reaction()).isEqualTo(Reaction.WARM);
+        assertThat(data.tipRow(tipId)).containsEntry("ai_status", "UNAVAILABLE").containsEntry("reaction", "PLAIN");
+        assertThat(AnthropicStubs.requestsFor(ANTHROPIC, message)).hasSize(1);
     }
 
     @Test

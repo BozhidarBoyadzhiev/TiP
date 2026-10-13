@@ -2,8 +2,6 @@ package dev.tip.ai;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.core.JsonValue;
-import com.anthropic.errors.AnthropicException;
-import com.anthropic.errors.AnthropicServiceException;
 import com.anthropic.models.messages.JsonOutputFormat;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
@@ -90,11 +88,13 @@ class ClaudeTipDigester implements TipDigester {
             .build();
 
     private final AnthropicClient client;
+    private final ModelCalls calls;
     private final String model;
     private final JsonMapper jsonMapper;
 
-    ClaudeTipDigester(AnthropicClient client, String model, JsonMapper jsonMapper) {
+    ClaudeTipDigester(AnthropicClient client, ModelCalls calls, String model, JsonMapper jsonMapper) {
         this.client = client;
+        this.calls = calls;
         this.model = model;
         this.jsonMapper = jsonMapper;
     }
@@ -114,11 +114,9 @@ class ClaudeTipDigester implements TipDigester {
                 .build();
         Message response;
         try {
-            response = client.messages().create(params);
-        } catch (AnthropicServiceException e) {
-            throw new DigestFailed("api status " + e.statusCode());
-        } catch (AnthropicException e) {
-            throw new DigestFailed(e.getClass().getSimpleName());
+            response = calls.create(client, params);
+        } catch (ModelUnavailable e) {
+            throw new DigestFailed(e.getMessage());
         }
         log.info(
                 "Digest of {} messages and {} notes used {} input and {} output tokens",

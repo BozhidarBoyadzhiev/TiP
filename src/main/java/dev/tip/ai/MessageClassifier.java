@@ -4,7 +4,8 @@ package dev.tip.ai;
 interface MessageClassifier {
 
     /**
-     * @throws ClassificationFailed on a timeout, an API error or a response outside the schema
+     * @throws ModelUnavailable when the call failed or was skipped by the breaker
+     * @throws ClassificationFailed on a response outside the schema
      */
     Classification classify(String message);
 

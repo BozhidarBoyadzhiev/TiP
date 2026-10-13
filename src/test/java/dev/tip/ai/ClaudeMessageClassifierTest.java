@@ -121,7 +121,8 @@ class ClaudeMessageClassifierTest {
     private ClaudeMessageClassifier classifier() {
         AiProperties properties =
                 new AiProperties(true, "claude-test", "test-key", CLAUDE.baseUrl(), Duration.ofSeconds(2));
-        return new ClaudeMessageClassifier(AiConfig.buildClient(properties), properties.model(), jsonMapper);
+        return new ClaudeMessageClassifier(
+                AiConfig.buildClient(properties), ModelCalls.direct(), properties.model(), jsonMapper);
     }
 
     private JsonNode sentBody() {

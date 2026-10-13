@@ -14,7 +14,8 @@ import org.springframework.stereotype.Component;
 /**
  * Runs the classification flow for one tip: claim, classify or skip, then finish. Safe to call from any
  * number of threads for the same tip; the conditional updates in {@link AiTipRepository} let exactly one
- * of them finish it. Claude is called outside any transaction.
+ * of them finish it. Claude is called outside any transaction. A failed or skipped call ends the tip at once as
+ * {@code UNAVAILABLE}, PLAIN once; only an answer outside the schema is tried again, up to {@link #MAX_ATTEMPTS}.
  */
 @Component
 class TipReactionWorker {
@@ -53,6 +54,11 @@ class TipReactionWorker {
             try {
                 outcome = TipReactions.Outcome.classified(
                         classifier.get().classify(work.message()), work.amountMinor(), work.currency());
+            } catch (ModelUnavailable e) {
+                // Never retried: an outage or a spent limit must not multiply calls. The tip is paid, so the
+                // panda still reacts.
+                log.warn("Tip {} reacts PLAIN once, the model is unavailable: {}", tipId, e.getMessage());
+                outcome = TipReactions.Outcome.unavailable();
             } catch (RuntimeException e) {
                 String reason = e instanceof ClassificationFailed
                         ? e.getMessage()

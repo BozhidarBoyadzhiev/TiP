@@ -2,8 +2,6 @@ package dev.tip.ai;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.core.JsonValue;
-import com.anthropic.errors.AnthropicException;
-import com.anthropic.errors.AnthropicServiceException;
 import com.anthropic.models.messages.JsonOutputFormat;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
@@ -122,11 +120,13 @@ class ClaudeMessageClassifier implements MessageClassifier {
             .build();
 
     private final AnthropicClient client;
+    private final ModelCalls calls;
     private final String model;
     private final JsonMapper jsonMapper;
 
-    ClaudeMessageClassifier(AnthropicClient client, String model, JsonMapper jsonMapper) {
+    ClaudeMessageClassifier(AnthropicClient client, ModelCalls calls, String model, JsonMapper jsonMapper) {
         this.client = client;
+        this.calls = calls;
         this.model = model;
         this.jsonMapper = jsonMapper;
     }
@@ -143,14 +143,7 @@ class ClaudeMessageClassifier implements MessageClassifier {
                         .build())
                 .addUserMessage(userTurn(message))
                 .build();
-        Message response;
-        try {
-            response = client.messages().create(params);
-        } catch (AnthropicServiceException e) {
-            throw new ClassificationFailed("api status " + e.statusCode());
-        } catch (AnthropicException e) {
-            throw new ClassificationFailed(e.getClass().getSimpleName());
-        }
+        Message response = calls.create(client, params);
         StopReason stopReason = response.stopReason().orElse(null);
         if (!StopReason.END_TURN.equals(stopReason)) {
             throw new ClassificationFailed("invalid response: stop reason " + stopReason);

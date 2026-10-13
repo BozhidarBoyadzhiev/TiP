@@ -6,5 +6,7 @@ enum AiStatus {
     PROCESSING,
     DONE,
     SKIPPED,
-    FAILED
+    FAILED,
+    /** The model could not be reached or was resting: PLAIN once, no read, never retried. */
+    UNAVAILABLE
 }

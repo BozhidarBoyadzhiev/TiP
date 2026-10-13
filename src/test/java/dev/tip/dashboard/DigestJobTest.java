@@ -12,6 +12,7 @@ import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import dev.tip.AnthropicStubs;
 import dev.tip.IntegrationTest;
 import dev.tip.TestData;
+import dev.tip.ai.api.AiAvailability;
 import dev.tip.ai.api.Reaction;
 import dev.tip.ai.api.TipReacted;
 import dev.tip.dashboard.DigestRepository.StoredDigest;
@@ -37,6 +38,9 @@ class DigestJobTest extends IntegrationTest {
 
     @Autowired
     DigestJob job;
+
+    @Autowired
+    AiAvailability ai;
 
     @Autowired
     DigestRepository digests;
@@ -258,6 +262,49 @@ class DigestJobTest extends IntegrationTest {
                                         .query(Long.class)
                                         .single()
                                 == 1);
+    }
+
+    @Test
+    void aSpendLimitKeepsTheNotesAndNoCallIsMadeUntilTheRestIsOver() {
+        threeMessages();
+        digests.markStale(ownerId, TODAY);
+        job.run();
+        assertThat(digests.find(ownerId, TODAY).orElseThrow().bullets()).containsExactly("Warm thanks all afternoon.");
+        message("Another lovely set", NOW.plusSeconds(60));
+        digests.markStale(ownerId, TODAY);
+        var spent = ANTHROPIC.stubFor(post(urlPathEqualTo(AnthropicStubs.MESSAGES_PATH))
+                .atPriority(1)
+                .withRequestBody(containing(DIGEST_REQUEST))
+                .willReturn(aResponse()
+                        .withStatus(402)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"type\":\"error\",\"error\":{\"type\":\"billing_error\","
+                                + "\"message\":\"Your credit balance is too low\"}}")));
+        try {
+            clock.pin(NOW.plus(Duration.ofMinutes(11)));
+            job.run();
+
+            assertThat(ai.resting()).isTrue();
+            assertThat(digests.find(ownerId, TODAY).orElseThrow().bullets())
+                    .containsExactly("Warm thanks all afternoon.");
+            assertThat(row()).containsEntry("stale", true);
+            int calls = digestRequests().size();
+
+            clock.pin(NOW.plus(Duration.ofMinutes(16)));
+            job.run();
+
+            assertThat(digestRequests()).hasSize(calls);
+            assertThat(digests.find(ownerId, TODAY).orElseThrow().bullets())
+                    .containsExactly("Warm thanks all afternoon.");
+        } finally {
+            ANTHROPIC.removeStub(spent);
+        }
+        reply(List.of("Even more thanks."), "[]");
+        clock.pin(NOW.plus(Duration.ofMinutes(22)));
+        job.run();
+
+        assertThat(ai.resting()).isFalse();
+        assertThat(digests.find(ownerId, TODAY).orElseThrow().bullets()).containsExactly("Even more thanks.");
     }
 
     private void threeMessages() {

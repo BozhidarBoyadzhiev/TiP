@@ -24,7 +24,10 @@ class AiConfig {
         return executor;
     }
 
-    /** SDK retries stay off: the attempt counter on the tip is the retry. Also used by {@link EvalClassifier}. */
+    /**
+     * SDK retries stay off: a failed call is never repeated (the tip reacts PLAIN once instead), and only an invalid
+     * answer gets the tip's further attempts. Also used by {@link EvalClassifier}.
+     */
     static AnthropicClient buildClient(AiProperties properties) {
         return AnthropicOkHttpClient.builder()
                 .apiKey(properties.apiKey())
@@ -46,13 +49,14 @@ class AiConfig {
 
         @Bean
         MessageClassifier claudeMessageClassifier(
-                AnthropicClient client, AiProperties properties, JsonMapper jsonMapper) {
-            return new ClaudeMessageClassifier(client, properties.model(), jsonMapper);
+                AnthropicClient client, GuardedModelCalls calls, AiProperties properties, JsonMapper jsonMapper) {
+            return new ClaudeMessageClassifier(client, calls, properties.model(), jsonMapper);
         }
 
         @Bean
-        TipDigester claudeTipDigester(AnthropicClient client, AiProperties properties, JsonMapper jsonMapper) {
-            return new ClaudeTipDigester(client, properties.model(), jsonMapper);
+        TipDigester claudeTipDigester(
+                AnthropicClient client, GuardedModelCalls calls, AiProperties properties, JsonMapper jsonMapper) {
+            return new ClaudeTipDigester(client, calls, properties.model(), jsonMapper);
         }
     }
 }

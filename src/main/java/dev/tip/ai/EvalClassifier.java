@@ -35,6 +35,7 @@ public final class EvalClassifier {
         return Optional.of(new EvalClassifier(
                 new ClaudeMessageClassifier(
                         AiConfig.buildClient(properties),
+                        ModelCalls.direct(),
                         properties.model(),
                         JsonMapper.builder().build()),
                 properties.model()));
@@ -60,7 +61,7 @@ public final class EvalClassifier {
                     hidden ? null : outcome.englishText(),
                     hidden ? null : outcome.song(),
                     null);
-        } catch (ClassificationFailed e) {
+        } catch (ClassificationFailed | ModelUnavailable e) {
             return new Verdict(null, false, null, null, null, null, e.getMessage());
         }
     }
