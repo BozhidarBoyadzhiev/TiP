@@ -9,6 +9,9 @@
 #define TIP_SERVER_PORT 443
 #define TIP_DEVICE_SLUG "demo-panda"
 #define TIP_DEVICE_PATH_PREFIX "/ws/device/"
+// The server's public base URL (port 443, so none in it). The NFC tag holds its tip page,
+// TIP_PUBLIC_BASE_URL "/t/" TIP_DEVICE_SLUG.
+#define TIP_PUBLIC_BASE_URL "https://" TIP_SERVER_HOST
 
 namespace tip {
 
