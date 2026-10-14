@@ -83,20 +83,55 @@ class OwnerPageTest extends IntegrationTest {
                 .contains("<form id=\"code-form\" method=\"post\" action=\"/judges/session\"")
                 .containsPattern("<input type=\"hidden\" name=\"_csrf\" value=\"[A-Za-z0-9_-]{20,}\">")
                 .contains("name=\"timeZone\"", "name=\"code\"", "autocomplete=\"off\"")
-                .contains("id=\"n-ended\"", "id=\"n-used\"", "id=\"n-bad\"", "id=\"n-slow\"")
+                .contains("id=\"n-ended\"", "id=\"n-bad\"", "id=\"n-slow\"")
                 .contains("<a href=\"/demo\">Look at a sample dashboard</a>")
                 .contains("<a id=\"real-panda\" href=\"/t/demo-panda\">tip the real panda</a>");
     }
 
     @Test
-    void judgesPageExplainsAnEndedSandboxAndAUsedLink() throws Exception {
+    void judgesPageExplainsAnEndedSandbox() throws Exception {
         String script = body("/js/judges.js");
 
         assertThat(script)
-                .contains("query.has(\"sandboxExpired\") ? \"n-ended\" : query.has(\"resumeFailed\") ? \"n-used\"")
+                .contains("query.has(\"sandboxExpired\") ? \"n-ended\" : null")
                 .contains("response.status === 429", "LOGIN_FAILED", "redirect: \"manual\"")
                 .contains("toUpperCase().replace(/[^0-9A-Z]/g, \"\")", "code.startsWith(\"TIP\")")
                 .contains("Intl.DateTimeFormat().resolvedOptions().timeZone");
+    }
+
+    @Test
+    void resumePageIsGenericAndCarriesItsToken() throws Exception {
+        MockHttpServletResponse response = page(get("/judges/resume").param("t", "anything"));
+        String html = response.getContentAsString();
+
+        assertPolicy(response, "TiP | Judge access", "/js/resume.js");
+        assertThat(response.getHeader("Referrer-Policy")).isEqualTo("no-referrer");
+        assertThat(html)
+                .contains("<meta name=\"csrf-header\" content=\"X-CSRF-TOKEN\">")
+                .containsPattern("<meta name=\"csrf-token\" content=\"[A-Za-z0-9_-]{20,}\">")
+                .contains("<meta name=\"referrer\" content=\"no-referrer\">")
+                .contains("<h1>Continue to your sandbox</h1>", "id=\"ready\" hidden", "id=\"failed\" hidden")
+                .contains("<button type=\"button\" class=\"gold-btn\" id=\"resume-btn\">")
+                .contains("That link was already used or has run out.", "<a class=\"gold-btn\" href=\"/judges\">")
+                .doesNotContain("anything", "<form");
+    }
+
+    @Test
+    void resumeScriptReadsTheFragmentAndPostsOnlyOnATap() throws Exception {
+        String script = body("/js/resume.js");
+
+        assertThat(script)
+                .contains("new URLSearchParams(window.location.hash.slice(1)).get(\"t\")")
+                .contains("history.replaceState(null, \"\", window.location.pathname)")
+                .contains("el(\"resume-btn\").addEventListener(\"click\", () => resume(token))")
+                .contains("body: JSON.stringify({ token })", "headers[meta(\"csrf-header\")]")
+                .contains("window.location.replace(\"/owner\")", "response.status === 429")
+                .doesNotContain("location.search", "submit");
+        // One fetch, inside resume(), which only the button's click calls.
+        assertThat(Pattern.compile("fetch\\(").matcher(script).results().count())
+                .isOne();
+        assertThat(Pattern.compile("=> resume\\(").matcher(script).results().count())
+                .isOne();
     }
 
     @Test
@@ -187,7 +222,7 @@ class OwnerPageTest extends IntegrationTest {
 
     @Test
     void pageScriptsNeverWriteMarkup() throws Exception {
-        for (String path : List.of("/js/judges.js", "/js/demo.js")) {
+        for (String path : List.of("/js/judges.js", "/js/demo.js", "/js/resume.js")) {
             assertThat(body(path))
                     .as(path)
                     .doesNotContain("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write")
@@ -290,6 +325,11 @@ class OwnerPageTest extends IntegrationTest {
     }
 
     private void assertPage(MockHttpServletResponse response, String title, String script) throws Exception {
+        assertPolicy(response, title, script);
+        assertThat(response.getContentAsString()).contains("name=\"_csrf\"");
+    }
+
+    private void assertPolicy(MockHttpServletResponse response, String title, String script) throws Exception {
         String html = response.getContentAsString();
         String policy = response.getHeader("Content-Security-Policy");
         Matcher nonce = NONCE.matcher(policy);
@@ -302,11 +342,7 @@ class OwnerPageTest extends IntegrationTest {
                 .contains("<title>" + title + "</title>")
                 .contains(ICON_TAGS)
                 .contains("<script src=\"" + script + "\" defer nonce=\"" + nonce.group(1) + "\"></script>")
-                .contains(
-                        "href=\"/fonts/fonts.css\"",
-                        "href=\"/css/brand.css\"",
-                        "href=\"/css/owner.css\"",
-                        "name=\"_csrf\"")
+                .contains("href=\"/fonts/fonts.css\"", "href=\"/css/brand.css\"", "href=\"/css/owner.css\"")
                 .doesNotContain("{{", " style=", "<style", "og:", "twitter:", "/css/tip.css");
         assertThat(Pattern.compile("<script(?![^>]*\\ssrc=\"/js/)")
                         .matcher(html)

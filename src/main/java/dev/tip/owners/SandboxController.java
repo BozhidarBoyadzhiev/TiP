@@ -6,6 +6,8 @@ import dev.tip.shared.LogSafe;
 import dev.tip.shared.TipProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -25,14 +27,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Sign ins without a password: a sandbox from an access code, the same sandbox on another device through a one
- * time resume link, and the public read only demo. Each is a form post or link in the owner security chain, so
+ * time resume link, and the public read only demo. Each is a post in the owner security chain, so
  * CSRF and the session work as for the password sign in, and each is rate limited per client IP. Codes, tokens and
  * IPs never reach a log line; IPs only as {@link LogSafe#ip}.
  */
@@ -43,11 +45,13 @@ class SandboxController {
     static final String RESUME_PATH = "/judges/resume";
     static final String DEMO_PATH = "/demo/session";
     static final String RESUME_LINK_PATH = "/api/owner/resume-link";
-    static final String RESUME_FAILED = OwnerSecurityConfig.JUDGES_PATH + "?resumeFailed";
 
     static final Duration RESUME_LIFETIME = Duration.ofMinutes(10);
     static final int RESUME_TOKEN_BYTES = 16;
     static final int MAX_ZONE_LENGTH = 64;
+
+    /** Well above the 22 characters of a token, so a malformed one still gets the answer of an unknown one. */
+    static final int MAX_TOKEN_LENGTH = 64;
 
     /** {@code UTC} rather than {@code Z}, which the browser's {@code Intl} does not accept as a zone. */
     static final ZoneId FALLBACK_ZONE = ZoneId.of("UTC");
@@ -136,7 +140,7 @@ class SandboxController {
         Instant limit = now.plus(RESUME_LIFETIME);
         Instant expiresAt = owner.expiresAt().isBefore(limit) ? owner.expiresAt() : limit;
         resumeTokens.store(sha256(token), owner.id(), now, expiresAt);
-        String url = baseUrl + RESUME_PATH + "?t="
+        String url = baseUrl + RESUME_PATH + "#t="
                 + Base64.getUrlEncoder().withoutPadding().encodeToString(token);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
@@ -144,29 +148,27 @@ class SandboxController {
     }
 
     /**
-     * Consumes the token and signs the browser in, then 303 to the dashboard so the token leaves the address bar.
-     * A malformed, unknown, used or expired token, and one whose sandbox expired, all get the same 303 to the sign
-     * in page.
+     * Consumes the token from the JSON body and signs the browser in; the resume page posts it on a tap, never on
+     * load, so a link preview that fetches the page or runs its script spends nothing. A malformed, unknown, used or
+     * expired token, and one whose sandbox expired, all get the same 401 {@code RESUME_FAILED}.
      */
-    @GetMapping(RESUME_PATH)
+    @PostMapping(RESUME_PATH)
     ResponseEntity<Void> resume(
-            @RequestParam(name = "t", required = false) String token,
-            HttpServletRequest request,
-            HttpServletResponse response) {
+            @Valid @RequestBody ResumeRequest body, HttpServletRequest request, HttpServletResponse response) {
         response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue());
         response.setHeader("Referrer-Policy", "no-referrer");
         if (!limits.resume(request.getRemoteAddr())) {
             throw new OwnerExceptions.RateLimited();
         }
-        Optional<OwnerPrincipal> owner = decode(token)
+        Optional<OwnerPrincipal> owner = decode(body.token())
                 .flatMap(bytes -> resumeTokens.consume(sha256(bytes), clock.instant()))
                 .flatMap(sandboxes::active);
         if (owner.isEmpty()) {
-            return redirect(HttpStatus.SEE_OTHER, RESUME_FAILED);
+            throw new OwnerExceptions.ResumeFailed();
         }
         signIn.signIn(owner.get(), request, response);
         log.info("resume_link_used owner={}", owner.get().id());
-        return redirect(HttpStatus.SEE_OTHER, OwnerSecurityConfig.HOME_PATH);
+        return ResponseEntity.noContent().build();
     }
 
     /** The browser's zone when {@link ZoneId} knows it, otherwise UTC. */
@@ -206,4 +208,6 @@ class SandboxController {
     }
 
     record ResumeLink(String url, Instant expiresAt, QrMatrix qr) {}
+
+    record ResumeRequest(@Size(max = MAX_TOKEN_LENGTH) String token) {}
 }

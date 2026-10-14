@@ -8,12 +8,14 @@ import dev.tip.TestData;
 import dev.tip.owners.api.OwnerPrincipal;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /** Signs in to new sandboxes and the public demo over MockMvc, each from a fresh client address. */
@@ -69,6 +71,19 @@ final class Judges {
         SecurityContext context = (SecurityContext)
                 session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
         return (OwnerPrincipal) context.getAuthentication().getPrincipal();
+    }
+
+    /** What the resume page posts on a tap: the token in a JSON body, with the page's CSRF token. */
+    static MockHttpServletRequestBuilder resume(String token) {
+        return post("/judges/resume")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(token == null ? "{}" : "{\"token\":\"" + token + "\"}")
+                .with(csrf());
+    }
+
+    /** The token in a resume link's fragment. */
+    static String token(String url) {
+        return url.substring(url.indexOf("#t=") + 3);
     }
 
     static RequestPostProcessor remoteAddr(String ip) {

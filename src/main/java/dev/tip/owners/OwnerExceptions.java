@@ -15,6 +15,13 @@ final class OwnerExceptions {
         }
     }
 
+    /** One answer for a malformed, unknown, used or expired resume token, and one whose sandbox expired. */
+    static final class ResumeFailed extends DomainException {
+        ResumeFailed() {
+            super(HttpStatus.UNAUTHORIZED, "RESUME_FAILED", "The link was already used or has run out.");
+        }
+    }
+
     static final class RateLimited extends DomainException {
         RateLimited() {
             super(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many attempts. Please wait and try again.");

@@ -35,7 +35,7 @@ class OwnerSecurityConfig {
     static final String HOME_PATH = "/owner";
     static final String LOGOUT_PATH = "/owner/logout";
 
-    /** The access code page, which also says why a sandbox session ended or a resume link failed. */
+    /** The access code page, which also says why a sandbox session ended. */
     static final String JUDGES_PATH = "/judges";
 
     /** Opens the public demo from a link: the page posts {@code /demo/session} with its CSRF token. */
@@ -68,7 +68,8 @@ class OwnerSecurityConfig {
                         // Sign ins without a password, see SandboxController. Same CSRF and session as the login.
                         .requestMatchers(HttpMethod.POST, SandboxController.SESSION_PATH, SandboxController.DEMO_PATH)
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, SandboxController.RESUME_PATH)
+                        // The resume page is safe to fetch; only its post spends the token.
+                        .requestMatchers(SandboxController.RESUME_PATH)
                         .permitAll()
                         .anyRequest()
                         .hasRole(OwnerPrincipal.ROLE))

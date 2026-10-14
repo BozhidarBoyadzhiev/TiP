@@ -35,7 +35,7 @@
     }
 
     function show(id, message) {
-        ["n-bad", "n-slow", "n-ended", "n-used"].forEach((other) => {
+        ["n-bad", "n-slow", "n-ended"].forEach((other) => {
             if (other !== id) {
                 el(other).hidden = true;
             }
@@ -113,7 +113,7 @@
         const input = el("code");
         const wrap = el("code-wrap");
         const query = new URLSearchParams(window.location.search);
-        show(query.has("sandboxExpired") ? "n-ended" : query.has("resumeFailed") ? "n-used" : null);
+        show(query.has("sandboxExpired") ? "n-ended" : null);
 
         try {
             el("time-zone").value = Intl.DateTimeFormat().resolvedOptions().timeZone || "";

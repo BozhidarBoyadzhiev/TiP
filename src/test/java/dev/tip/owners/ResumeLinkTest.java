@@ -5,6 +5,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,6 +19,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -29,10 +32,13 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -65,10 +71,10 @@ class ResumeLinkTest extends IntegrationTest {
     }
 
     @Test
-    void theLinkSignsAnotherBrowserInOnceAndTheTokenLeavesTheAddressBar() throws Exception {
+    void theLinkCarriesItsTokenInTheFragmentAndSignsAnotherBrowserInOnce() throws Exception {
         String url = link();
-        String token = url.substring(url.indexOf("?t=") + 3);
-        assertThat(url).startsWith("http://localhost:8080/judges/resume?t=");
+        String token = Judges.token(url);
+        assertThat(url).startsWith("http://localhost:8080/judges/resume#t=").doesNotContain("?");
         assertThat(Base64.getUrlDecoder().decode(token)).hasSize(16);
         assertThat(jdbc.sql("SELECT token_hash FROM resume_token WHERE owner_id = ?")
                         .param(sandbox.ownerId())
@@ -78,9 +84,8 @@ class ResumeLinkTest extends IntegrationTest {
                         .digest(Base64.getUrlDecoder().decode(token)));
 
         MockHttpSession other = new MockHttpSession();
-        mvc.perform(get("/judges/resume").param("t", token).session(other).with(TestData.newClient()))
-                .andExpect(status().isSeeOther())
-                .andExpect(header().string("Location", "/owner"))
+        mvc.perform(Judges.resume(token).session(other).with(TestData.newClient()))
+                .andExpect(status().isNoContent())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(header().string("Referrer-Policy", "no-referrer"));
         assertThat(Judges.principal(other).id()).isEqualTo(sandbox.ownerId());
@@ -89,22 +94,68 @@ class ResumeLinkTest extends IntegrationTest {
                 .andExpect(jsonPath("$.displayName").value("Judge"));
 
         MockHttpServletResponse second = resume(token);
-        MockHttpServletResponse garbage = resume("not-a-token");
-        MockHttpServletResponse missing = mvc.perform(get("/judges/resume").with(TestData.newClient()))
-                .andReturn()
-                .getResponse();
-        for (MockHttpServletResponse failed : List.of(second, garbage, missing)) {
+        assertFailed(second);
+        for (String bad : Arrays.asList("not-a-token", null, "", "A".repeat(22))) {
+            MockHttpServletResponse failed = resume(bad);
             assertFailed(failed);
+            assertThat(withoutInstance(failed)).isEqualTo(withoutInstance(second));
         }
     }
 
     @Test
+    void fetchingThePageNeverSpendsTheToken() throws Exception {
+        String token = Judges.token(link());
+
+        for (HttpMethod method : List.of(HttpMethod.GET, HttpMethod.HEAD)) {
+            for (MockHttpServletRequestBuilder fetch : List.of(
+                    request(method, "/judges/resume"),
+                    request(method, "/judges/resume").param("t", token),
+                    request(method, "/judges/resume?t=" + token + "&preview=1"))) {
+                mvc.perform(fetch.with(TestData.newClient()))
+                        .andExpect(status().isOk())
+                        .andExpect(header().string("Cache-Control", "no-store"))
+                        .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                        .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML));
+            }
+        }
+        assertThat(jdbc.sql("SELECT count(*) FROM resume_token WHERE owner_id = ? AND used_at IS NULL")
+                        .param(sandbox.ownerId())
+                        .query(Long.class)
+                        .single())
+                .isOne();
+
+        MockHttpSession other = new MockHttpSession();
+        mvc.perform(Judges.resume(token).session(other).with(TestData.newClient()))
+                .andExpect(status().isNoContent());
+        assertThat(Judges.principal(other).id()).isEqualTo(sandbox.ownerId());
+    }
+
+    @Test
+    void thePostNeedsTheCsrfTokenAndSpendsNothingWithoutIt() throws Exception {
+        String token = Judges.token(link());
+
+        mvc.perform(post("/judges/resume")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"" + token + "\"}")
+                        .with(TestData.newClient()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+
+        mvc.perform(Judges.resume(token).with(TestData.newClient())).andExpect(status().isNoContent());
+    }
+
+    @Test
     void anExpiredLinkFailsLikeAnUnknownOne() throws Exception {
-        String token = token(link());
+        String token = Judges.token(link());
 
         clock.pin(NOW.plus(Duration.ofMinutes(10)));
 
-        assertFailed(resume(token));
+        MockHttpServletResponse expired = resume(token);
+        MockHttpServletResponse unknown =
+                resume(Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[16]));
+        assertFailed(expired);
+        assertFailed(unknown);
+        assertThat(withoutInstance(expired)).isEqualTo(withoutInstance(unknown));
     }
 
     @Test
@@ -126,7 +177,7 @@ class ResumeLinkTest extends IntegrationTest {
     @Test
     void twoBrowsersOpeningTheSameLinkAtOnceGetOneSession() throws Exception {
         byte[] hash = MessageDigest.getInstance("SHA-256")
-                .digest(Base64.getUrlDecoder().decode(token(link())));
+                .digest(Base64.getUrlDecoder().decode(Judges.token(link())));
         int racers = 8;
         ExecutorService pool = Executors.newFixedThreadPool(racers);
         CountDownLatch start = new CountDownLatch(1);
@@ -190,6 +241,7 @@ class ResumeLinkTest extends IntegrationTest {
                 .getResponse()
                 .getContentAsString();
         var link = json.readTree(body);
+        assertThat(link.path("url").asString()).contains("/judges/resume#t=").doesNotContain("?");
         QrCode expected = QrCode.encodeText(link.path("url").asString(), QrCode.Ecc.MEDIUM);
 
         assertThat(link.path("qr").path("size").asInt()).isEqualTo(expected.size);
@@ -223,11 +275,11 @@ class ResumeLinkTest extends IntegrationTest {
     void resumesAreRateLimitedPerIp() throws Exception {
         String ip = TestData.uniquePublicIp();
         for (int i = 0; i < 20; i++) {
-            mvc.perform(get("/judges/resume").param("t", "x").with(Judges.remoteAddr(ip)))
-                    .andExpect(status().isSeeOther());
+            mvc.perform(Judges.resume("x").with(Judges.remoteAddr(ip))).andExpect(status().isUnauthorized());
         }
 
-        mvc.perform(get("/judges/resume").param("t", "x").with(Judges.remoteAddr(ip)))
+        mvc.perform(get("/judges/resume").with(Judges.remoteAddr(ip))).andExpect(status().isOk());
+        mvc.perform(Judges.resume("x").with(Judges.remoteAddr(ip)))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
     }
@@ -249,19 +301,16 @@ class ResumeLinkTest extends IntegrationTest {
         return problem.toString();
     }
 
-    private static String token(String url) {
-        return url.substring(url.indexOf("?t=") + 3);
-    }
-
     private MockHttpServletResponse resume(String token) throws Exception {
-        return mvc.perform(get("/judges/resume").param("t", token).with(TestData.newClient()))
+        return mvc.perform(Judges.resume(token).with(TestData.newClient()))
                 .andReturn()
                 .getResponse();
     }
 
-    private static void assertFailed(MockHttpServletResponse response) {
-        assertThat(response.getStatus()).isEqualTo(303);
-        assertThat(response.getHeader("Location")).isEqualTo("/judges?resumeFailed");
+    private void assertFailed(MockHttpServletResponse response) throws Exception {
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(json.readTree(response.getContentAsString()).path("code").asString())
+                .isEqualTo("RESUME_FAILED");
         assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
         assertThat(response.getHeader("Referrer-Policy")).isEqualTo("no-referrer");
     }

@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
@@ -141,11 +142,14 @@ class SandboxIsolationTest extends IntegrationTest {
         String url = body(asFirst(), post("/api/owner/resume-link").with(csrf()))
                 .path("url")
                 .asString();
-        MockHttpServletResponse resumed = mvc.perform(get(url.substring(url.indexOf("/judges"))))
+        MockHttpSession other = new MockHttpSession();
+        MockHttpServletResponse resumed = mvc.perform(
+                        Judges.resume(Judges.token(url)).session(other).with(TestData.newClient()))
                 .andReturn()
                 .getResponse();
 
-        assertThat(resumed.getStatus()).isEqualTo(303);
+        assertThat(resumed.getStatus()).isEqualTo(204);
+        assertThat(Judges.principal(other).id()).isEqualTo(first.ownerId());
         assertThat(jdbc.sql("SELECT owner_id FROM resume_token WHERE owner_id = ?")
                         .param(first.ownerId())
                         .query(UUID.class)

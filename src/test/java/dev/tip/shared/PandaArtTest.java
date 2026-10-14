@@ -38,6 +38,7 @@ class PandaArtTest {
             "tip.html", Set.of("head", "eyes-open", "paws"),
             "404.html", Set.of("head", "eyes-open", "paws"),
             "judges.html", Set.of("head", "eyes-open", "paws"),
+            "resume.html", Set.of("head", "eyes-open", "paws"),
             "owner-login.html", Set.of("head", "eyes-open", "paws"),
             "owner.html", Set.of("head", "eyes-open", "eyes-shut", "paws-eyes", "paws"));
 

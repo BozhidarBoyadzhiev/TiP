@@ -2,7 +2,6 @@ package dev.tip.owners;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import dev.tip.IntegrationTest;
@@ -55,8 +54,8 @@ class AccessLogTest extends IntegrationTest {
                         .getContentAsString())
                 .path("url")
                 .asString();
-        String token = url.substring(url.indexOf("?t=") + 3);
-        mvc.perform(get("/judges/resume").param("t", token).with(TestData.newClient()));
+        String token = Judges.token(url);
+        mvc.perform(Judges.resume(token).with(TestData.newClient()));
         judges.demo();
         summary.logSummary();
 

@@ -31,6 +31,7 @@ class OwnerPageController {
     private final String homeTemplate;
     private final String judgesTemplate;
     private final String demoTemplate;
+    private final String resumeTemplate;
     private final String realPandaPath;
     private final Clock clock;
 
@@ -43,6 +44,7 @@ class OwnerPageController {
         homeTemplate = load("static/owner.html");
         judgesTemplate = load("static/judges.html");
         demoTemplate = load("static/demo.html");
+        resumeTemplate = load("static/resume.html");
         realPandaPath = realPandaSlug.isBlank()
                 ? ""
                 : "/t/" + UriUtils.encodePathSegment(realPandaSlug.strip(), StandardCharsets.UTF_8);
@@ -60,10 +62,23 @@ class OwnerPageController {
         return page(fill(homeTemplate, request, csrf));
     }
 
-    /** The access code page; {@code ?sandboxExpired} and {@code ?resumeFailed} are read by its script. */
+    /** The access code page; {@code ?sandboxExpired} is read by its script. */
     @GetMapping(OwnerSecurityConfig.JUDGES_PATH)
     ResponseEntity<String> judges(HttpServletRequest request, CsrfToken csrf) {
         return page(fill(judgesTemplate, request, csrf));
+    }
+
+    /**
+     * The resume link's page, the same for any query, and for HEAD. The token is in the fragment, which never
+     * reaches the server; {@code resume.js} posts it on a tap, so fetching the page changes nothing.
+     */
+    @GetMapping(SandboxController.RESUME_PATH)
+    ResponseEntity<String> resume(HttpServletRequest request, CsrfToken csrf) {
+        return ResponseEntity.ok()
+                .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
+                .cacheControl(CacheControl.noStore())
+                .header("Referrer-Policy", "no-referrer")
+                .body(fill(resumeTemplate, request, csrf));
     }
 
     /**

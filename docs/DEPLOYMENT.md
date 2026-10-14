@@ -94,7 +94,7 @@ Per client IP (the address from `TIP_CLIENT_IP_HEADER`), in memory. The defaults
 | `TIP_RATE_CAPTURES_PER_MINUTE` | 30 | captures, `POST /api/public/tips/{id}/capture` |
 | `TIP_RATE_JUDGE_SESSIONS_PER_HOUR` | 10 | access code attempts, right or wrong, `POST /judges/session` (each success makes a sandbox) |
 | `TIP_RATE_DEMO_SESSIONS_PER_MINUTE` | 30 | public demo sign ins, `POST /demo/session` |
-| `TIP_RATE_RESUMES_PER_MINUTE` | 20 | resume links opened, `GET /judges/resume` |
+| `TIP_RATE_RESUMES_PER_MINUTE` | 20 | resume links used, `POST /judges/resume` |
 | `TIP_RATE_RESUME_LINKS_PER_TEN_MINUTES` | 5 | resume links made, `POST /api/owner/resume-link`, per sandbox rather than per IP |
 
 Owner sign in keeps its own fixed limit of 5 a minute per IP and per email. The one hard cost limit is the spend limit set in the Anthropic console ($10): when it is reached the app keeps taking tips, every tip reacts `PLAIN` once with `aiStatus` `UNAVAILABLE`, the notes stay as they were, and the model is tried again once every 10 minutes (`ai_breaker_opened` and `ai_breaker_closed` in the log).

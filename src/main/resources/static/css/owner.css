@@ -159,6 +159,13 @@ a {
     box-shadow: 0 6px 18px rgba(233, 187, 82, 0.22), inset 0 -2px 0 rgba(120, 80, 20, 0.35);
 }
 
+a.gold-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
 .gold-btn:hover {
     filter: brightness(1.05);
 }
