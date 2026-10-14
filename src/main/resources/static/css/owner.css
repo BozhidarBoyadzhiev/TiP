@@ -1,5 +1,5 @@
-/* The owner pages: the sign in card and the dashboard. Colours, the paper note and the peeking panda come
-   from brand.css; this file only adds what the owner pages need. */
+/* The owner pages: the sign in card, the access code page, the sample opener and the dashboard. Colours, the
+   paper note and the peeking panda come from brand.css; this file only adds what the owner pages need. */
 
 :root {
     --line: rgba(243, 227, 200, 0.08);
@@ -32,6 +32,22 @@ button {
 
 [hidden] {
     display: none !important;
+}
+
+a {
+    color: inherit;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
 }
 
 .sprite {
@@ -178,6 +194,69 @@ button {
     text-align: center;
     color: var(--faint);
     font-size: 14px;
+    line-height: 1.7;
+}
+
+.login-foot a {
+    color: var(--muted);
+    text-decoration-color: rgba(201, 176, 140, 0.4);
+}
+
+/* ---------- access code ---------- */
+
+/* The panda dozes over the card and wakes when the code field has focus or a code. */
+.code-wrap .peek {
+    transform: translateX(-50%) translateY(5px);
+    transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.code-wrap.awake .peek {
+    transform: translateX(-50%) translateY(0);
+}
+
+.code-wrap .lid {
+    transform-box: fill-box;
+    transform-origin: top;
+    transform: scaleY(0.55);
+    transition: transform 0.3s;
+}
+
+.code-wrap.awake .lid {
+    transform: scaleY(0);
+}
+
+.code-wrap .pupil {
+    transition: transform 0.25s ease-out;
+}
+
+.field input.code {
+    min-height: 54px;
+    font: 600 18px var(--font);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.field input.code::placeholder {
+    color: rgba(243, 227, 200, 0.22);
+}
+
+.field input.bad {
+    border-color: var(--warn);
+    box-shadow: 0 0 0 3px rgba(239, 143, 122, 0.12);
+}
+
+@media (max-width: 420px) {
+    .field input.code {
+        font-size: 16px;
+        letter-spacing: 0.5px;
+        padding: 0 10px;
+    }
+}
+
+.field .hint {
+    margin: 6px 2px 0;
+    font-size: 13px;
+    color: var(--faint);
 }
 
 /* ---------- dashboard ---------- */
@@ -222,6 +301,10 @@ button {
     margin-left: 0;
 }
 
+.topbar > a.ghost {
+    flex: none;
+}
+
 .ghost {
     min-height: 44px;
     padding: 0 14px;
@@ -237,6 +320,22 @@ button {
 .ghost:hover {
     border-color: rgba(233, 187, 82, 0.45);
     color: var(--cream);
+}
+
+a.ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.gold-btn.sm {
+    width: auto;
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 15px;
+    border-radius: 12px;
 }
 
 .ghost[disabled] {
@@ -274,6 +373,81 @@ button {
 }
 
 .live-tag {
+    color: var(--faint);
+}
+
+.device a {
+    color: var(--gold);
+    font-weight: 500;
+    text-underline-offset: 3px;
+    margin-left: 4px;
+}
+
+/* The sandbox and sample strips, the same family as the top song. */
+.strip {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px 14px;
+    flex-wrap: wrap;
+    padding: 10px 12px 10px 14px;
+    border-radius: 16px;
+    background: rgba(233, 187, 82, 0.1);
+    border: 1px solid rgba(233, 187, 82, 0.25);
+}
+
+.strip .tx {
+    flex: 1;
+    min-width: 220px;
+    font-size: 15px;
+    color: var(--muted);
+}
+
+.strip .tx strong {
+    color: var(--cream);
+    font-weight: 500;
+}
+
+.strip .acts {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.strip.sample {
+    background: rgba(243, 227, 200, 0.05);
+    border-color: rgba(243, 227, 200, 0.14);
+}
+
+.strip.sample .badge {
+    color: var(--muted);
+}
+
+/* The model is resting: a calm strip with the sleeping bear. */
+.resting {
+    margin-top: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 14px 10px 8px;
+    border-radius: 16px;
+    background: var(--raise);
+    border: 1px solid var(--line);
+}
+
+.resting svg {
+    width: 66px;
+    height: 37px;
+    flex: none;
+}
+
+.resting strong {
+    display: block;
+    font-weight: 500;
+}
+
+.resting span {
+    font-size: 14px;
     color: var(--faint);
 }
 
@@ -890,6 +1064,70 @@ button {
     color: var(--warn);
 }
 
+.badge.demo {
+    color: var(--muted);
+    border-style: dashed;
+}
+
+.badge.unread {
+    color: var(--faint);
+    border-style: dashed;
+}
+
+.badge.sandbox {
+    color: var(--gold);
+    white-space: nowrap;
+}
+
+/* The public sample: write buttons stay, switched off, with a lock that says why. */
+.ro-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.ro {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--faint);
+}
+
+.ro svg {
+    width: 13px;
+    height: 13px;
+}
+
+.ro-row .ghost[disabled],
+.ro-row .refund-btn[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ro-row .ghost[disabled]:hover {
+    border-color: rgba(243, 227, 200, 0.16);
+    color: var(--muted);
+}
+
+.ro-row .refund-btn[disabled]:hover {
+    background: transparent;
+}
+
+/* A sample tip in a sandbox: no refund, a way to send a real one instead. */
+.demo-note {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.demo-note span {
+    flex: 1;
+    min-width: 180px;
+}
+
 .amount {
     font: 600 17px var(--font);
     font-variant-numeric: tabular-nums;
@@ -1174,6 +1412,125 @@ button {
     background: radial-gradient(circle at 35% 30%, #fbe8a6, #e6b951 55%, #c9952f);
 }
 
+/* continue on another device */
+.scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(10, 7, 5, 0.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 96px 16px 24px;
+    overflow-y: auto;
+}
+
+.sheet-wrap {
+    position: relative;
+    width: min(380px, 100%);
+    margin: auto;
+}
+
+.sheet {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    background: linear-gradient(180deg, #2a1d14 0%, var(--card) 100%);
+    border: 1px solid var(--card-edge);
+    border-radius: 26px;
+    padding: 26px 20px 18px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.sheet:focus {
+    outline: none;
+}
+
+.sheet h2 {
+    margin: 0 0 4px;
+    font: 600 20px var(--font);
+}
+
+.sheet .sub {
+    margin: 0 0 16px;
+    color: var(--faint);
+    font-size: 15px;
+}
+
+.qr-card {
+    display: inline-block;
+    padding: 14px;
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(90, 60, 30, 0.25);
+    transform: rotate(-1deg);
+}
+
+.qr-card canvas {
+    display: block;
+    width: 188px;
+    height: 188px;
+    image-rendering: pixelated;
+}
+
+.qr-card.dead {
+    opacity: 0.25;
+}
+
+.link-row {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0 10px;
+}
+
+.link-row input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 12px;
+    font: 400 14px var(--font);
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.045);
+    border: 1.5px solid rgba(243, 227, 200, 0.16);
+    border-radius: 12px;
+}
+
+.countdown {
+    margin: 0;
+    font-size: 15px;
+    color: var(--muted);
+}
+
+.countdown strong {
+    color: var(--cream);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.countdown button {
+    min-height: 44px;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--gold);
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.careful {
+    margin: 10px 0 14px;
+    font-size: 13px;
+    color: var(--faint);
+}
+
+.sheet-btns {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
 /* empty states */
 .empty {
     text-align: center;
@@ -1213,5 +1570,11 @@ button {
     .empty .eyes,
     .peek .eyes {
         animation: none;
+    }
+
+    .code-wrap .peek,
+    .code-wrap .lid,
+    .code-wrap .pupil {
+        transition: none;
     }
 }

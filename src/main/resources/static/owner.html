@@ -11,6 +11,7 @@
     <meta name="theme-color" content="#120c09">
     <meta name="csrf-header" content="{{CSRF_HEADER}}">
     <meta name="csrf-token" content="{{CSRF_TOKEN}}">
+    <meta name="real-panda" content="{{REAL_PANDA_PATH}}">
     <link rel="stylesheet" href="/fonts/fonts.css">
     <link rel="stylesheet" href="/css/brand.css">
     <link rel="stylesheet" href="/css/owner.css">
@@ -38,6 +39,9 @@
       <ellipse cx="49" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="52" cy="47" r="2.8" fill="#fff"/>
       <ellipse cx="83" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="86" cy="47" r="2.8" fill="#fff"/>
     </g>
+    <g id="eyes-shut">
+      <path d="M40 51 Q49 57 58 51 M74 51 Q83 57 92 51" fill="none" stroke="#3b2414" stroke-width="2.4" stroke-linecap="round"/>
+    </g>
     <g id="paws">
       <g stroke="#5a3b22" stroke-width="1.4">
         <ellipse cx="22" cy="12" rx="14" ry="9" fill="#c99c64"/>
@@ -50,6 +54,7 @@
     <g id="i-PLAYFUL"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/><circle cx="18.5" cy="18" r="1.8" fill="currentColor"/><circle cx="5.5" cy="18.5" r="1.3" fill="currentColor"/></g>
     <g id="i-REQUEST"><path d="M9 17.5V6l10-2v11.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2.6" fill="currentColor"/><circle cx="16.5" cy="15.5" r="2.6" fill="currentColor"/></g>
     <g id="i-PLAIN"><circle cx="12" cy="12" r="4.5" fill="currentColor"/></g>
+    <g id="i-LOCK"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></g>
     <g id="i-FLAG"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M4 20L20 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
   </defs>
 </svg>
@@ -57,15 +62,33 @@
 <div class="dash">
   <header class="topbar">
     <p class="brand-sm" aria-label="TiP"><span class="g" aria-hidden="true">T</span><span class="p" aria-hidden="true">i</span><span class="c" aria-hidden="true">P</span></p>
-    <div class="who" id="who" hidden>Signed in as<strong id="who-name"></strong></div>
-    <form method="post" action="/owner/logout">
+    <div class="who" id="who" hidden><span id="who-label">Signed in as</span><strong id="who-name"></strong></div>
+    <form method="post" action="/owner/logout" id="sign-out">
       <input type="hidden" name="{{CSRF_PARAMETER}}" value="{{CSRF_TOKEN}}">
       <button type="submit" class="ghost">Sign out</button>
     </form>
+    <a class="ghost" id="tip-real-panda" href="/" hidden>Tip the real panda</a>
   </header>
 
   <main>
-    <p class="device" id="device-line" aria-live="polite"><span id="device-items"></span><span class="live-tag" id="live-tag" hidden>· live</span></p>
+    <p class="device" id="device-line" aria-live="polite"><span id="device-items"></span><span class="live-tag" id="live-tag" hidden>· live</span><a id="watch" href="/" hidden>Watch it react</a></p>
+
+    <div class="strip" id="sandbox-strip" hidden>
+      <span class="badge sandbox">Judge sandbox</span>
+      <span class="tx">Open until <strong id="sandbox-until"></strong>. Tips marked Demo are samples. Send your own to see it all work.</span>
+      <span class="acts">
+        <a class="ghost" id="sandbox-tip" href="/">Tip your panda</a>
+        <button type="button" class="gold-btn sm" id="open-sheet" aria-haspopup="dialog">Continue on another device</button>
+      </span>
+    </div>
+    <div class="strip sample" id="sample-strip" hidden>
+      <span class="badge">Sample dashboard</span>
+      <span class="tx">This is what an owner sees, with made up tips. <strong>Read only</strong>, and it resets every night.</span>
+    </div>
+    <div class="resting" id="resting" hidden>
+      <svg viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><use href="#eyes-shut"/><text x="112" y="16" font-family="Fredoka, system-ui, sans-serif" font-weight="700" font-size="16" fill="#e9bb52">z</text></svg>
+      <div><strong>The panda is resting its eyes</strong><span>New tips still go through and it blinks once for each. Reading comes back on its own in a few minutes.</span></div>
+    </div>
     <p class="page-note" id="replaced-note" role="status" hidden>The dashboard is open in another tab. Come back to this tab to use it here.</p>
     <p class="loading-line" id="loading" role="status">Loading your dashboard…</p>
     <div class="page-note err" id="load-error" role="alert" hidden>
@@ -148,6 +171,28 @@
 
     </div>
   </main>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet-wrap">
+    <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+    <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1">
+      <h2 id="sheet-title">Continue on another device</h2>
+      <p class="sub">Scan this with your phone to open your sandbox there.</p>
+      <div class="qr-card" id="qr-card"><canvas id="qr" width="37" height="37" role="img" aria-label="QR code for the link below"></canvas></div>
+      <div class="link-row">
+        <label class="visually-hidden" for="resume-url">Link to your sandbox</label>
+        <input id="resume-url" readonly value="">
+        <button type="button" class="ghost" id="copy-link">Copy</button>
+      </div>
+      <p class="countdown" id="countdown" aria-live="polite"></p>
+      <p class="careful">The link works once. Anyone who has it gets into your sandbox, so only open it on your own device.</p>
+      <div class="sheet-btns">
+        <button type="button" class="ghost" id="close-sheet">Done</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div aria-live="polite" id="toast-region">

@@ -92,11 +92,11 @@ Use your own port in both URLs if you set `SERVER_PORT`.
 
 TiP stays usable without anyone watching it until 31 Dec 2026 (access closes 2027-01-01 00:00 Europe/London), at three levels:
 
-- **Anyone:** tip the real demo panda and watch it, and look around the shared demo dashboard. `POST /demo/session` (a form post with the CSRF token, no code) signs the browser in to a read only demo owner whose sample tips are renewed every night at 00:05 London time. Every change there answers 403 `DEMO_READ_ONLY`.
-- **Code holders** (judges, the owner, the teammate): `POST /judges/session` with an access code and the browser's time zone makes a private sandbox, a fully working owner with its own virtual panda at `/p/judge-<8 characters>` and the same sample tips, valid 72 hours (never past the code's expiry). A sample tip cannot be refunded (409 `DEMO_TIP`); a real sandbox tip can. `POST /api/owner/resume-link` gives a one time link, valid 10 minutes, to continue on another device. Expired sandboxes are deleted every hour with everything in them.
+- **Anyone:** tip the real demo panda and watch it, and look around the shared demo dashboard from the link under the tip card (`/demo`). `POST /demo/session` (a form post with the CSRF token, no code) signs the browser in to a read only demo owner whose sample tips are renewed every night at 00:05 London time. Every change there answers 403 `DEMO_READ_ONLY`.
+- **Code holders** (judges, the owner, the teammate): `POST /judges/session` with an access code and the browser's time zone makes a private sandbox, a fully working owner with its own virtual panda at `/p/judge-<8 characters>` and the same sample tips, valid 72 hours (never past the code's expiry). A sample tip cannot be refunded (409 `DEMO_TIP`); a real sandbox tip can. Judges enter the code at `/judges`. "Continue on another device" on the sandbox dashboard shows a one time link, valid 10 minutes, with its QR code (`POST /api/owner/resume-link`). Expired sandboxes are deleted every hour with everything in them.
 - **The real owner and the physical panda:** unchanged, and out of reach of the other two.
 
-The pages for these come with brief 07b; until then the endpoints answer as described in `CODEBASE.md`. Make an access code with `./gradlew newAccessCode -Plabel=judges -Pexpires=2026-12-31T23:59:59Z` and see `docs/DEPLOYMENT.md` for where the code and its entry go.
+Make an access code with `./gradlew newAccessCode -Plabel=judges -Pexpires=2026-12-31T23:59:59Z` and see `docs/DEPLOYMENT.md` for where the code and its entry go.
 
 ### Paying with a test card
 

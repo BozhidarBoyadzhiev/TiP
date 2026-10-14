@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>TiP | Sample dashboard</title>
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#120c09">
+    <link rel="stylesheet" href="/fonts/fonts.css">
+    <link rel="stylesheet" href="/css/brand.css">
+    <link rel="stylesheet" href="/css/owner.css">
+    <script src="/js/demo.js" defer nonce="{{CSP_NONCE}}"></script>
+</head>
+<body>
+<main class="login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <p class="brand-sm" aria-label="TiP"><span class="g" aria-hidden="true">T</span><span class="p" aria-hidden="true">i</span><span class="c" aria-hidden="true">P</span></p>
+      <h1>Sample dashboard</h1>
+      <p class="sub">This is what an owner sees, with made up tips. Read only, and it resets every night.</p>
+      <p class="inline-note err" id="demo-error" role="alert" hidden></p>
+      <form id="demo-form" method="post" action="/demo/session">
+        <input type="hidden" name="{{CSRF_PARAMETER}}" value="{{CSRF_TOKEN}}">
+        <button type="submit" class="gold-btn" id="demo-btn">Open the sample dashboard</button>
+      </form>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -2,7 +2,9 @@
 
 // The owner dashboard. Loads everything from /api/owner/*, then listens on /ws/owner (docs/OWNER_CHANNEL.md)
 // and refetches what changed. Every value from the server is untrusted and goes into the page with
-// textContent or createTextNode; elements are built with createElement only.
+// textContent or createTextNode; elements are built with createElement only. The same page serves a judge's
+// sandbox (its strip, sample tips marked Demo, Continue on another device) and the read only public sample,
+// which opens no socket, never polls and shows its write buttons switched off.
 (function () {
     const PAGE_SIZE = 20;
     const HIDDEN_PANEL_SIZE = 5;
@@ -54,8 +56,19 @@
         token: document.querySelector("meta[name='csrf-token']").content,
     };
 
+    const REAL_PANDA = document.querySelector("meta[name='real-panda']").content;
+    const COPIED_MS = 2000;
+    const LINK_MS = 600000;
+    const QR_QUIET = 2;
+    const QR_LIGHT = "#ecd7b1";
+    const QR_DARK = "#1b0f08";
+
     const state = {
         zone: undefined,
+        // OWNER, SANDBOX or PUBLIC_DEMO, from /me.
+        kind: "OWNER",
+        readOnly: false,
+        sheet: { timer: null, expiresAt: 0, opener: null, working: false },
         currency: null,
         filter: "ALL",
         tips: [],
@@ -94,10 +107,29 @@
         }
     }
 
-    function toLogin() {
-        if (!state.leaving) {
-            state.leaving = true;
+    // A sandbox signs in again with its code, the sample opens again from its link, an owner signs in.
+    function toLogin(sandboxExpired) {
+        if (state.leaving) {
+            return;
+        }
+        state.leaving = true;
+        if (sandboxExpired) {
+            window.location.assign("/judges?sandboxExpired");
+        } else if (state.kind === "SANDBOX") {
+            window.location.assign("/judges");
+        } else if (state.readOnly) {
+            window.location.assign("/demo");
+        } else {
             window.location.assign("/owner/login");
+        }
+    }
+
+    async function problemCode(response) {
+        try {
+            const body = await response.json();
+            return body && typeof body.code === "string" ? body.code : null;
+        } catch (e) {
+            return null;
         }
     }
 
@@ -110,7 +142,7 @@
             body: options && options.body,
         });
         if (response.status === 401) {
-            toLogin();
+            toLogin((await problemCode(response)) === "SANDBOX_EXPIRED");
             throw new SignedOut();
         }
         return response;
@@ -383,7 +415,44 @@
 
     // ---------- devices ----------
 
+    function tipPagePath(slug) {
+        return "/t/" + encodeURIComponent(slug);
+    }
+
+    // The sample is invented data: no panda to report on and nothing live.
+    function renderSampleDevice() {
+        const item = make("span", "device-item");
+        item.append(make("span", "dot"), make("span", null, "Sample data"));
+        el("device-items").replaceChildren(item);
+        el("live-tag").textContent = "· not live";
+        el("live-tag").hidden = false;
+    }
+
+    // A sandbox panda is virtual: it plays on its own page whenever that page is open, so it counts as online.
+    function renderSandboxDevice() {
+        const device = state.devices[0];
+        if (!device) {
+            el("device-items").replaceChildren(make("span", "device-item", "No panda linked yet"));
+            el("watch").hidden = true;
+            return;
+        }
+        const item = make("span", "device-item");
+        item.append(make("span", "dot on"), make("span", null, "Your panda is online"));
+        el("device-items").replaceChildren(item);
+        el("watch").href = "/p/" + encodeURIComponent(device.slug);
+        el("watch").hidden = false;
+        el("sandbox-tip").href = tipPagePath(device.slug);
+    }
+
     function renderDevices() {
+        if (state.readOnly) {
+            renderSampleDevice();
+            return;
+        }
+        if (state.kind === "SANDBOX") {
+            renderSandboxDevice();
+            return;
+        }
         const items = el("device-items");
         if (state.devices.length === 0) {
             items.replaceChildren(make("span", "device-item", "No panda linked yet"));
@@ -527,6 +596,12 @@
         if (statusBadge) {
             line.append(statusBadge);
         }
+        if (unread(view)) {
+            line.append(make("span", "badge unread", "Not read"));
+        }
+        if (demoBadge(view)) {
+            line.append(make("span", "badge demo", "Demo"));
+        }
         head.append(
             kind,
             line,
@@ -577,9 +652,22 @@
         return box;
     }
 
+    // The model could not be reached, so the panda blinked once without reading the message.
+    function unread(view) {
+        return view.aiStatus === "UNAVAILABLE";
+    }
+
+    // The sample is all invented, so only a sandbox (or a dev run) needs telling which tips are samples.
+    function demoBadge(view) {
+        return view.demo && !state.readOnly;
+    }
+
     function pandaLine(view) {
         if (view.repeats === null || view.repeats === undefined) {
             return null;
+        }
+        if (unread(view) && !view.flagged) {
+            return "blinks ×1";
         }
         if (view.flagged) {
             return "blinks ×1 (hidden messages always get the smallest reaction)";
@@ -601,10 +689,27 @@
         }
         fact("Status", STATUS_NAMES[view.status] || view.status);
         detail.append(facts);
+        if (unread(view)) {
+            const note = make("div", "owner-note");
+            note.append(
+                make("small", null, "Why a single blink"),
+                document.createTextNode(
+                    "The panda couldn't read this message just then, so it gave the smallest reaction. The tip itself is fine.",
+                ),
+            );
+            detail.append(note);
+        }
         if (view.ownerNote && !view.flagged) {
             const note = make("div", "owner-note");
             note.append(make("small", null, "AI note from the message"), document.createTextNode(view.ownerNote));
             detail.append(note);
+        }
+        if (state.readOnly) {
+            const actions = readOnlyActions(view, true);
+            if (actions) {
+                detail.append(actions);
+            }
+            return;
         }
         const refund = refundSlot(view);
         if (view.flagged || view.unhidden) {
@@ -618,6 +723,68 @@
         } else if (refund) {
             detail.append(refund);
         }
+        if (view.demo && view.status === "CAPTURED") {
+            detail.append(demoNote(view));
+        }
+    }
+
+    // A sample tip was never paid, so it cannot be refunded; a real one sent to the panda can.
+    function demoNote(view) {
+        const note = make("div", "owner-note demo-note");
+        const link = make("a", "ghost", "Tip your panda");
+        link.href = tipPagePath(view.deviceSlug);
+        note.append(make("span", null, "Demo tip. Send a real tip to try refunds."), link);
+        return note;
+    }
+
+    function lock() {
+        const node = make("span", "ro");
+        node.append(icon("LOCK"), document.createTextNode("Read only"));
+        return node;
+    }
+
+    function disabledButton(className, text) {
+        const node = make("button", className, text);
+        node.type = "button";
+        node.disabled = true;
+        return node;
+    }
+
+    // The public sample shows what an owner could do, switched off. Reading a hidden message is a read and works;
+    // Hide again only folds it away in this page. In a tip's detail the hidden message controls come first, as in
+    // the hidden panel.
+    function readOnlyActions(view, inDetail) {
+        const row = make("div", "ro-row moderate");
+        let locked = false;
+        if (view.flagged) {
+            const reveal = revealOf(view.id);
+            if (reveal.step === "shown") {
+                row.append(
+                    button("ghost", "Hide again", "reveal", () => {
+                        reveal.step = "idle";
+                        uiOf(view.id).english = false;
+                        uiOf(view.id).panelEnglish = false;
+                        rerender(view.id, "reveal");
+                    }),
+                    disabledButton("ghost", "Not abusive"),
+                );
+                locked = true;
+            } else {
+                row.append(moderationSlot(view));
+            }
+        } else if (view.unhidden) {
+            row.append(disabledButton("ghost", "Hide again"));
+            locked = true;
+        }
+        const revealed = view.flagged && revealOf(view.id).step === "shown";
+        if (view.status === "CAPTURED" && !revealed && (inDetail || view.flagged)) {
+            row.append(disabledButton("refund-btn", "Refund " + money(view.amountMinor, view.currency)));
+            locked = true;
+        }
+        if (locked) {
+            row.append(lock());
+        }
+        return row.childElementCount > 0 ? row : null;
     }
 
     // A row the owner unhid in this tab stays in the panel, saying so, with the way back.
@@ -649,8 +816,19 @@
         if (statusBadge) {
             second.append(statusBadge);
         }
+        if (demoBadge(view)) {
+            second.append(make("span", "badge demo", "Demo"));
+        }
         row.append(first, second);
         const third = make("div", "row2");
+        if (state.readOnly) {
+            const actions = readOnlyActions(view, false);
+            if (actions) {
+                third.append(actions);
+            }
+            row.append(third);
+            return row;
+        }
         third.append(moderationSlot(view));
         const refund = view.flagged ? refundSlot(view) : null;
         if (refund) {
@@ -741,7 +919,8 @@
             }
         }
         reveal.step = next;
-        rerender(id, next === "shown" ? "verdict" : next === "error" ? "reveal-retry" : "reveal");
+        const shownFocus = state.readOnly ? "reveal" : "verdict";
+        rerender(id, next === "shown" ? shownFocus : next === "error" ? "reveal-retry" : "reveal");
     }
 
     async function sendVerdict(id, hidden) {
@@ -835,6 +1014,9 @@
     // ---------- refunds ----------
 
     function refundSlot(view) {
+        if (view.demo) {
+            return null;
+        }
         const refund = refundOf(view.id);
         if (refund.step === "waiting" && view.status !== "CAPTURED") {
             refund.step = view.status === "REFUNDED" ? "done" : "idle";
@@ -1315,7 +1497,15 @@
             state.openedAt = null;
             state.disconnected = true;
             if (closing.reason === "signed_out" || closing.reason === "session_expired") {
-                toLogin();
+                toLogin(false);
+                return;
+            }
+            if (closing.reason === "sandbox_expired") {
+                toLogin(true);
+                return;
+            }
+            // The server's guard for a read only session the page did not know about: no socket, no polling.
+            if (closing.reason === "read_only") {
                 return;
             }
             // A refused handshake looks like any other close; the poll's 401 sends a signed out page away.
@@ -1349,8 +1539,180 @@
         } catch (e) {
             state.zone = undefined;
         }
-        el("who-name").textContent = me.displayName;
+        state.kind = typeof me.kind === "string" ? me.kind : "OWNER";
+        state.readOnly = me.readOnly === true;
+        el("resting").hidden = me.aiResting !== true;
+        if (state.readOnly) {
+            el("who-label").textContent = "Looking at";
+            el("who-name").textContent = "A sample owner";
+            el("sign-out").hidden = true;
+            el("tip-real-panda").href = REAL_PANDA;
+            el("tip-real-panda").hidden = !REAL_PANDA;
+            el("sample-strip").hidden = false;
+        } else {
+            el("who-name").textContent = me.displayName;
+        }
+        if (state.kind === "SANDBOX" && typeof me.expiresAt === "string") {
+            el("sandbox-until").textContent = fullTime(me.expiresAt);
+            el("sandbox-strip").hidden = false;
+        }
         el("who").hidden = false;
+    }
+
+    // ---------- continue on another device ----------
+
+    function drawQr(qr) {
+        const canvas = el("qr");
+        const side = qr.size + 2 * QR_QUIET;
+        canvas.width = side;
+        canvas.height = side;
+        const g = canvas.getContext("2d");
+        g.fillStyle = QR_LIGHT;
+        g.fillRect(0, 0, side, side);
+        g.fillStyle = QR_DARK;
+        qr.rows.forEach((row, y) => {
+            for (let x = 0; x < row.length; x++) {
+                if (row.charAt(x) === "1") {
+                    g.fillRect(x + QR_QUIET, y + QR_QUIET, 1, 1);
+                }
+            }
+        });
+    }
+
+    function countdownButton(text, onClick) {
+        const node = make("button", null, text);
+        node.type = "button";
+        node.addEventListener("click", onClick);
+        return node;
+    }
+
+    function tickSheet() {
+        const left = Math.max(0, Math.ceil((state.sheet.expiresAt - Date.now()) / 1000));
+        const countdown = el("countdown");
+        if (left <= 0) {
+            clearInterval(state.sheet.timer);
+            state.sheet.timer = null;
+            el("qr-card").classList.add("dead");
+            el("resume-url").value = "This link has run out";
+            el("copy-link").disabled = true;
+            countdown.replaceChildren(
+                document.createTextNode("This link has run out. "),
+                countdownButton("Make a new one", makeLink),
+            );
+            return;
+        }
+        const time = make("strong", null, Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0"));
+        countdown.replaceChildren(document.createTextNode("Works for "), time);
+    }
+
+    function sheetFailed(message) {
+        el("qr-card").classList.add("dead");
+        el("resume-url").value = "";
+        el("copy-link").disabled = true;
+        el("countdown").replaceChildren(document.createTextNode(message + " "), countdownButton("Try again", makeLink));
+    }
+
+    // A new one time link each time: the server makes the token and its QR code; the countdown follows the
+    // server's clock through its Date header, so a phone with a wrong clock still counts right.
+    async function makeLink() {
+        if (state.sheet.working) {
+            return;
+        }
+        state.sheet.working = true;
+        clearInterval(state.sheet.timer);
+        state.sheet.timer = null;
+        el("countdown").replaceChildren(document.createTextNode("Making a link…"));
+        try {
+            const headers = {};
+            headers[csrf.header] = csrf.token;
+            const response = await request("/api/owner/resume-link", { method: "POST", headers });
+            if (response.status === 429) {
+                sheetFailed("You've made a few links just now. Wait a few minutes.");
+                return;
+            }
+            if (!response.ok) {
+                sheetFailed("The link didn't load.");
+                return;
+            }
+            const link = await response.json();
+            const serverNow = Date.parse(response.headers.get("Date"));
+            const skew = Number.isNaN(serverNow) ? 0 : Date.now() - serverNow;
+            // The Date header has whole seconds, so the link never shows longer than its 10 minutes.
+            state.sheet.expiresAt = Math.min(Date.parse(link.expiresAt) + skew, Date.now() + LINK_MS);
+            drawQr(link.qr);
+            el("qr-card").classList.remove("dead");
+            el("resume-url").value = link.url;
+            el("copy-link").disabled = false;
+            el("copy-link").textContent = "Copy";
+            tickSheet();
+            state.sheet.timer = setInterval(tickSheet, 1000);
+        } catch (e) {
+            if (!(e instanceof SignedOut)) {
+                sheetFailed("Could not reach the server.");
+            }
+        } finally {
+            state.sheet.working = false;
+        }
+    }
+
+    function openSheet() {
+        state.sheet.opener = document.activeElement;
+        el("scrim").hidden = false;
+        el("sheet").focus();
+        makeLink();
+    }
+
+    function closeSheet() {
+        clearInterval(state.sheet.timer);
+        state.sheet.timer = null;
+        el("scrim").hidden = true;
+        el("resume-url").value = "";
+        if (state.sheet.opener && state.sheet.opener.focus) {
+            state.sheet.opener.focus();
+        }
+    }
+
+    async function copyLink() {
+        const input = el("resume-url");
+        try {
+            await navigator.clipboard.writeText(input.value);
+        } catch (e) {
+            input.select();
+            return;
+        }
+        el("copy-link").textContent = "Copied";
+        setTimeout(() => {
+            el("copy-link").textContent = "Copy";
+        }, COPIED_MS);
+    }
+
+    // Escape closes the sheet and Tab stays inside it while it is open.
+    function sheetKeys(event) {
+        if (el("scrim").hidden) {
+            return;
+        }
+        if (event.key === "Escape") {
+            closeSheet();
+            return;
+        }
+        if (event.key !== "Tab") {
+            return;
+        }
+        const focusable = Array.from(el("sheet").querySelectorAll("button, input")).filter(
+            (node) => !node.disabled && node.offsetParent !== null,
+        );
+        if (focusable.length === 0) {
+            return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === el("sheet"))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
     }
 
     const LOADERS = [refreshToday, refreshDigest, refreshRequests, refreshHidden, loadTips];
@@ -1385,7 +1747,8 @@
             return;
         }
         retry = await load(LOADERS);
-        if (!state.leaving && state.socket === null && state.reconnectTimer === null) {
+        // The public sample is the same for everyone and never changes during the day: no socket, no polling.
+        if (!state.readOnly && !state.leaving && state.socket === null && state.reconnectTimer === null) {
             connect();
         }
     }
@@ -1400,6 +1763,15 @@
         });
         el("tips-retry").addEventListener("click", () => quietly(loadTips()));
         el("more").addEventListener("click", loadOlder);
+        el("open-sheet").addEventListener("click", openSheet);
+        el("close-sheet").addEventListener("click", closeSheet);
+        el("copy-link").addEventListener("click", copyLink);
+        el("scrim").addEventListener("click", (event) => {
+            if (event.target === el("scrim")) {
+                closeSheet();
+            }
+        });
+        document.addEventListener("keydown", sheetKeys);
         document.querySelectorAll("#chips .chip").forEach((chip) => {
             chip.addEventListener("click", () => chooseFilter(chip.dataset.filter));
         });

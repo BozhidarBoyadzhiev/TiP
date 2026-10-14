@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.tip.IntegrationTest;
+import dev.tip.owners.api.OwnerKind;
 import dev.tip.owners.api.OwnerPrincipal;
 import java.util.List;
 import java.util.UUID;
@@ -20,7 +21,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-/** The owner sign in page and the dashboard shell: their heads, security policy and what their scripts may do. */
+/**
+ * The owner sign in page, the access code page, the sample opener and the dashboard shell: their heads, security
+ * policy and what their scripts may do.
+ */
 class OwnerPageTest extends IntegrationTest {
 
     /** Any absolute URL except the SVG namespace and our own public base URL from the test profile. */
@@ -60,10 +64,99 @@ class OwnerPageTest extends IntegrationTest {
         assertThat(html)
                 .contains("<meta name=\"csrf-header\" content=\"X-CSRF-TOKEN\">")
                 .containsPattern("<meta name=\"csrf-token\" content=\"[A-Za-z0-9_-]{20,}\">")
-                .containsPattern("<form method=\"post\" action=\"/owner/logout\">\\s*"
+                .containsPattern("<form method=\"post\" action=\"/owner/logout\" id=\"sign-out\">\\s*"
                         + "<input type=\"hidden\" name=\"_csrf\" value=\"[A-Za-z0-9_-]{20,}\">")
                 .contains("aria-pressed=\"true\" data-filter=\"ALL\"", "aria-live=\"polite\" id=\"toast-region\"")
+                .contains("<meta name=\"real-panda\" content=\"/t/demo-panda\">")
+                .contains("id=\"sandbox-strip\" hidden", "id=\"sample-strip\" hidden", "id=\"resting\" hidden")
+                .contains("id=\"scrim\" hidden", "role=\"dialog\" aria-modal=\"true\"", "id=\"i-LOCK\"")
                 .doesNotContain("Owner Name");
+    }
+
+    @Test
+    void judgesPageHasItsHeadPolicyTokenAndStates() throws Exception {
+        MockHttpServletResponse response = page(get("/judges"));
+        String html = response.getContentAsString();
+
+        assertPage(response, "TiP | Judge access", "/js/judges.js");
+        assertThat(html)
+                .contains("<form id=\"code-form\" method=\"post\" action=\"/judges/session\"")
+                .containsPattern("<input type=\"hidden\" name=\"_csrf\" value=\"[A-Za-z0-9_-]{20,}\">")
+                .contains("name=\"timeZone\"", "name=\"code\"", "autocomplete=\"off\"")
+                .contains("id=\"n-ended\"", "id=\"n-used\"", "id=\"n-bad\"", "id=\"n-slow\"")
+                .contains("<a href=\"/demo\">Look at a sample dashboard</a>")
+                .contains("<a id=\"real-panda\" href=\"/t/demo-panda\">tip the real panda</a>");
+    }
+
+    @Test
+    void judgesPageExplainsAnEndedSandboxAndAUsedLink() throws Exception {
+        String script = body("/js/judges.js");
+
+        assertThat(script)
+                .contains("query.has(\"sandboxExpired\") ? \"n-ended\" : query.has(\"resumeFailed\") ? \"n-used\"")
+                .contains("response.status === 429", "LOGIN_FAILED", "redirect: \"manual\"")
+                .contains("toUpperCase().replace(/[^0-9A-Z]/g, \"\")", "code.startsWith(\"TIP\")")
+                .contains("Intl.DateTimeFormat().resolvedOptions().timeZone");
+    }
+
+    @Test
+    void demoPageOpensTheSampleWithAFormPostAndItsToken() throws Exception {
+        MockHttpServletResponse response = page(get("/demo"));
+        String html = response.getContentAsString();
+
+        assertPage(response, "TiP | Sample dashboard", "/js/demo.js");
+        assertThat(html)
+                .contains("<form id=\"demo-form\" method=\"post\" action=\"/demo/session\">")
+                .containsPattern("<input type=\"hidden\" name=\"_csrf\" value=\"[A-Za-z0-9_-]{20,}\">");
+        assertThat(body("/js/demo.js")).contains("redirect: \"manual\"", "window.location.replace(\"/owner\")");
+    }
+
+    @Test
+    void aSignedInOwnerFollowingTheSampleLinkStaysOnTheirOwnDashboard() throws Exception {
+        OwnerPrincipal sandbox = new OwnerPrincipal(
+                UUID.randomUUID(),
+                null,
+                "Judge",
+                null,
+                OwnerKind.SANDBOX,
+                clock.instant().plusSeconds(3600));
+        OwnerPrincipal expired = new OwnerPrincipal(
+                UUID.randomUUID(),
+                null,
+                "Judge",
+                null,
+                OwnerKind.SANDBOX,
+                clock.instant().minusSeconds(1));
+
+        mvc.perform(get("/demo").with(user(owner())))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/owner"));
+        mvc.perform(get("/demo").with(user(sandbox)))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/owner"));
+        mvc.perform(get("/demo").with(user(expired))).andExpect(status().isOk());
+    }
+
+    @Test
+    void theTipCardLinksToTheSampleDashboard() throws Exception {
+        assertThat(body("/t/demo-panda"))
+                .contains(
+                        "<p class=\"foot\">Curious what the owner sees? <a href=\"/demo\">Look at a sample dashboard</a>.</p>");
+    }
+
+    @Test
+    void ownerScriptServesSandboxesAndTheReadOnlySample() throws Exception {
+        String script = body("/js/owner.js");
+
+        assertThat(script)
+                .contains(
+                        "closing.reason === \"sandbox_expired\"", "window.location.assign(\"/judges?sandboxExpired\")")
+                .contains("=== \"SANDBOX_EXPIRED\"", "window.location.assign(\"/judges\")")
+                .contains("if (!state.readOnly && !state.leaving && state.socket === null")
+                .contains("request(\"/api/owner/resume-link\", { method: \"POST\", headers })")
+                .contains("view.aiStatus === \"UNAVAILABLE\"", "\"Not read\"", "\"Demo\"")
+                .contains("\"Demo tip. Send a real tip to try refunds.\"", "\"Read only\"")
+                .contains("node.disabled = true;");
     }
 
     @Test
@@ -73,8 +166,14 @@ class OwnerPageTest extends IntegrationTest {
 
     @Test
     void stylesAndScriptsNameNoOutsideOrigin() throws Exception {
-        for (String path :
-                List.of("/css/owner.css", "/css/brand.css", "/fonts/fonts.css", "/js/owner.js", "/js/owner-login.js")) {
+        for (String path : List.of(
+                "/css/owner.css",
+                "/css/brand.css",
+                "/fonts/fonts.css",
+                "/js/owner.js",
+                "/js/owner-login.js",
+                "/js/judges.js",
+                "/js/demo.js")) {
             String body = mvc.perform(get(path))
                     .andExpect(status().isOk())
                     .andReturn()
@@ -83,6 +182,16 @@ class OwnerPageTest extends IntegrationTest {
 
             assertThat(OUTSIDE.matcher(body).find()).as(path).isFalse();
             assertThat(body).as(path).doesNotContain("fonts.googleapis", "fonts.gstatic");
+        }
+    }
+
+    @Test
+    void pageScriptsNeverWriteMarkup() throws Exception {
+        for (String path : List.of("/js/judges.js", "/js/demo.js")) {
+            assertThat(body(path))
+                    .as(path)
+                    .doesNotContain("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write")
+                    .contains("textContent");
         }
     }
 

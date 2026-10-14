@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>TiP | Judge access</title>
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#120c09">
+    <link rel="stylesheet" href="/fonts/fonts.css">
+    <link rel="stylesheet" href="/css/brand.css">
+    <link rel="stylesheet" href="/css/owner.css">
+    <script src="/js/judges.js" defer nonce="{{CSP_NONCE}}"></script>
+</head>
+<body>
+<main class="login">
+  <div class="login-wrap code-wrap" id="code-wrap">
+    <svg class="peek" viewBox="0 0 132 74" aria-hidden="true">
+      <g stroke="#5a3b22" stroke-width="1.6" stroke-linejoin="round">
+        <circle cx="30" cy="22" r="15" fill="#c99c66"/><circle cx="31" cy="23" r="8.5" fill="#b5884f"/>
+        <circle cx="102" cy="22" r="15" fill="#bf915b"/><circle cx="101" cy="23" r="8.5" fill="#a97c45"/>
+        <polygon points="24,40 38,18 66,12 94,18 108,40 112,74 20,74" fill="#cfa470"/>
+        <polygon points="38,18 66,12 94,18 88,32 66,29 44,32" fill="#e2bc87" stroke-opacity=".7"/>
+        <polygon points="94,18 108,40 112,74 98,74 92,44 88,32" fill="#b98a54" stroke-opacity=".7"/>
+        <polygon points="56,58 66,54 76,58 79,70 53,70" fill="#d8b17b"/>
+      </g>
+      <ellipse cx="34" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <ellipse cx="98" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <path d="M62 62 Q66 60 70 62 Q68 66 66 66.5 Q64 66 62 62 Z" fill="#2a170c"/>
+      <g class="eyes">
+        <ellipse cx="49" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <ellipse cx="83" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <g class="pupil" id="pupils">
+          <ellipse cx="49" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="52" cy="47" r="2.8" fill="#fff"/>
+          <ellipse cx="83" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="86" cy="47" r="2.8" fill="#fff"/>
+        </g>
+        <rect class="lid" x="37" y="37" width="24" height="26" rx="11" fill="#cfa470"/>
+        <rect class="lid" x="71" y="37" width="24" height="26" rx="11" fill="#cfa470"/>
+      </g>
+    </svg>
+    <svg class="paws" viewBox="0 0 132 22" aria-hidden="true">
+      <g stroke="#5a3b22" stroke-width="1.4">
+        <ellipse cx="22" cy="12" rx="14" ry="9" fill="#c99c64"/>
+        <path d="M16 6 v5 M22 5 v5 M28 6 v5" stroke-width="1.2" fill="none"/>
+        <ellipse cx="110" cy="12" rx="14" ry="9" fill="#b48650"/>
+        <path d="M104 6 v5 M110 5 v5 M116 6 v5" stroke-width="1.2" fill="none"/>
+      </g>
+    </svg>
+    <div class="login-card">
+      <p class="brand-sm" aria-label="TiP"><span class="g" aria-hidden="true">T</span><span class="p" aria-hidden="true">i</span><span class="c" aria-hidden="true">P</span></p>
+      <h1>Judge access</h1>
+      <p class="sub">Get your own panda and dashboard for 72 hours, with sample tips already in it.</p>
+      <p class="inline-note" id="n-ended" role="status" hidden>Your sandbox has closed. Each one lasts 72 hours. Enter the code again to start a fresh one.</p>
+      <p class="inline-note" id="n-used" role="status" hidden>That link was already used or has run out. Make a new one on your other device, or enter the code here.</p>
+
+      <form id="code-form" method="post" action="/judges/session" novalidate>
+        <input type="hidden" name="{{CSRF_PARAMETER}}" value="{{CSRF_TOKEN}}">
+        <input type="hidden" name="timeZone" id="time-zone" value="">
+
+        <div class="field">
+          <label for="code">Access code</label>
+          <input id="code" name="code" class="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX XXXXX XXXXX XXXXX" aria-describedby="code-hint">
+          <p class="hint" id="code-hint">It's in the submission notes. Spaces and dashes are fine.</p>
+        </div>
+
+        <p class="inline-note err" id="n-bad" role="alert" hidden></p>
+        <p class="inline-note" id="n-slow" role="alert" hidden>Too many tries from this network. Wait a few minutes, then try again.</p>
+
+        <button type="submit" class="gold-btn" id="code-btn">Open my sandbox</button>
+      </form>
+    </div>
+    <p class="login-foot">No code? <a href="/demo">Look at a sample dashboard</a><span id="real-panda-line" hidden><br>or <a id="real-panda" href="{{REAL_PANDA_PATH}}">tip the real panda</a></span>.</p>
+  </div>
+</main>
+</body>
+</html>
