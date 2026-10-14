@@ -193,7 +193,7 @@
     }
 
     function showDeviceName(name) {
-        // The demo panda's display name is the brand itself, so it is not repeated under the bear.
+        // The demo panda's display name is the brand itself, so it is not repeated under the panda.
         if (window.TipBrand.isBrandName(name)) {
             return;
         }

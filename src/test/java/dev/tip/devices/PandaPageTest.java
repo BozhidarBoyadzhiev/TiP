@@ -65,12 +65,13 @@ class PandaPageTest extends IntegrationTest {
     }
 
     @Test
-    void pageShowsTheBearWithTheLightOnTheCoinAndTheBrand() throws Exception {
+    void pageShowsThePandaWithTheLightOnTheCoinAndTheBrand() throws Exception {
         String page =
                 mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getContentAsString();
 
         assertThat(page)
                 .contains("<title>TiP | Panda</title>")
+                .contains("aria-label=\"Cardboard giant panda sitting and holding a gold TiP coin\"")
                 .contains("id=\"panda-coin-glow\"", "id=\"panda-coin-light\"", "id=\"panda-coin-sparkle\"")
                 .contains("<h1>", "<button type=\"button\" id=\"brand\"", "aria-expanded=\"false\"")
                 .contains("aria-label=\"TiP, Tip integrated Panda\"")
