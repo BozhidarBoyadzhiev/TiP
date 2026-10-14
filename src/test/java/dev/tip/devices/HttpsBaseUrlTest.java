@@ -32,7 +32,7 @@ class HttpsBaseUrlTest extends IntegrationTest {
                     .as(path)
                     .contains("<meta property=\"og:url\" content=\"https://tip-demo.onrender.com" + path + "\">")
                     .contains(
-                            "<meta property=\"og:image\" content=\"https://tip-demo.onrender.com/images/og-image.png\">");
+                            "<meta property=\"og:image\" content=\"https://tip-demo.onrender.com/images/og-image-panda.png\">");
         }
     }
 

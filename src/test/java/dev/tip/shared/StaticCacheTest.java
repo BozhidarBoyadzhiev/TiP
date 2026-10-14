@@ -64,7 +64,7 @@ class StaticCacheTest extends IntegrationTest {
     @Test
     void headOnAStaticFileAnswersLikeTheGetWithoutABody() throws Exception {
         for (String path : new String[] {
-            "/fonts/fredoka/fredoka-latin-700-normal.woff2", "/icons/favicon.svg", "/images/og-image.png"
+            "/fonts/fredoka/fredoka-latin-700-normal.woff2", "/icons/favicon-panda.svg", "/images/og-image-panda.png"
         }) {
             MockHttpServletResponse got = mvc.perform(get(path)).andReturn().getResponse();
             MockHttpServletResponse headed = mvc.perform(head(path)).andReturn().getResponse();

@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,8 +33,8 @@ class LinkPreviewTest extends IntegrationTest {
 
     private static final String[] ICON_TAGS = {
         "<link rel=\"icon\" href=\"/favicon.ico\" sizes=\"48x48\">",
-        "<link rel=\"icon\" href=\"/icons/favicon.svg\" type=\"image/svg+xml\">",
-        "<link rel=\"apple-touch-icon\" href=\"/icons/apple-touch-icon.png\">",
+        "<link rel=\"icon\" href=\"/icons/favicon-panda.svg\" type=\"image/svg+xml\">",
+        "<link rel=\"apple-touch-icon\" href=\"/icons/apple-touch-icon-panda.png\">",
         "<meta name=\"theme-color\" content=\"#120c09\">"
     };
 
@@ -47,10 +48,10 @@ class LinkPreviewTest extends IntegrationTest {
     void iconsAndPreviewImageAreServedWithoutASessionAndCachedForThirtyDays() throws Exception {
         Map<String, String> types = Map.of(
                 "/favicon.ico", "image/x-icon",
-                "/icons/favicon.svg", "image/svg+xml",
-                "/icons/apple-touch-icon.png", "image/png",
-                "/icons/icon-512.png", "image/png",
-                "/images/og-image.png", "image/png");
+                "/icons/favicon-panda.svg", "image/svg+xml",
+                "/icons/apple-touch-icon-panda.png", "image/png",
+                "/icons/icon-512-panda.png", "image/png",
+                "/images/og-image-panda.png", "image/png");
         for (Map.Entry<String, String> each : types.entrySet()) {
             mvc.perform(get(each.getKey()).accept(MediaType.TEXT_HTML, MediaType.ALL))
                     .andExpect(status().isOk())
@@ -60,6 +61,14 @@ class LinkPreviewTest extends IntegrationTest {
                     .andExpect(r -> assertThat(r.getResponse().getContentAsByteArray())
                             .as(each.getKey())
                             .isNotEmpty());
+        }
+    }
+
+    @Test
+    void theOldIconNamesAreNoLongerServed() throws Exception {
+        for (String old : List.of(
+                "/icons/favicon.svg", "/icons/apple-touch-icon.png", "/icons/icon-512.png", "/images/og-image.png")) {
+            mvc.perform(get(old)).andExpect(status().isNotFound());
         }
     }
 
@@ -128,7 +137,7 @@ class LinkPreviewTest extends IntegrationTest {
             assertThat(body)
                     .as(path)
                     .contains(meta("og:url", BASE_URL + path))
-                    .contains(meta("og:image", BASE_URL + "/images/og-image.png"))
+                    .contains(meta("og:image", BASE_URL + "/images/og-image-panda.png"))
                     .doesNotContain("evil.example", "alert(", "%3C", "&lt;script", "{{");
         }
     }
@@ -158,7 +167,7 @@ class LinkPreviewTest extends IntegrationTest {
 
     private static String[] previewImageTags() {
         return new String[] {
-            meta("og:image", BASE_URL + "/images/og-image.png"),
+            meta("og:image", BASE_URL + "/images/og-image-panda.png"),
             meta("og:image:width", "1200"),
             meta("og:image:height", "630"),
             meta("og:image:type", "image/png"),

@@ -10,7 +10,7 @@ import org.springframework.web.util.HtmlUtils;
 @Component
 public class LinkPreview {
 
-    static final String IMAGE_PATH = "/images/og-image.png";
+    static final String IMAGE_PATH = "/images/og-image-panda.png";
 
     private final String baseUrl;
 
