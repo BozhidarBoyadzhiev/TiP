@@ -42,6 +42,40 @@ TiP uses the library unmodified, at the version pinned in `firmware/platformio.i
 above and the whole firmware source is in this repository, so the image can be rebuilt and relinked with a modified
 copy of the library with `pio run`.
 
+### Arduino core for the ESP32, espressif/arduino-esp32 3.3.12
+
+The Arduino framework the firmware is built on (WiFi, serial and `NetworkClientSecure`), from
+the pioarduino platform pinned in `firmware/platformio.ini`. https://github.com/espressif/arduino-esp32
+
+Copyright (c) 2005-2013 Arduino Team. All rights reserved. Parts copyright 2015-2025 Espressif Systems (Shanghai) CO
+LTD, under the Apache License 2.0 (see ESP-IDF below).
+
+This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General
+Public License as published by the Free Software Foundation; either version 2.1 of the License, or (at your option)
+any later version. This library is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public
+License for more details: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+TiP uses the core unmodified, at the version the pinned platform installs. Its source is at the address above and the
+whole firmware source is in this repository, so the image can be rebuilt and relinked with a modified copy of the core
+with `pio run`.
+
+### ESP-IDF, espressif/esp-idf 5.5.5
+
+Espressif's IoT Development Framework, linked in as the precompiled libraries of the Arduino core above (the ESP32's
+drivers, WiFi, TCP/IP, TLS with the certificate bundle, FreeRTOS). https://github.com/espressif/esp-idf
+
+Copyright 2015-2025 Espressif Systems (Shanghai) CO LTD
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at https://www.apache.org/licenses/LICENSE-2.0. Unless required by
+applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+
+TiP uses ESP-IDF unmodified, at the version the pinned platform installs. ESP-IDF itself contains components under
+their own licences, listed in its source.
+
 ### PN532 Type 4 tag emulation, ported from Seeed-Studio/PN532 1.1.0
 
 `firmware/lib/tip_core/src/tip_type4_tag.cpp` and `tip_type4_tag.h` are a port of the library's `emulatetag.cpp`
