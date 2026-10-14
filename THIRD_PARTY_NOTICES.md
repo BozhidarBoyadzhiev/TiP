@@ -3,6 +3,12 @@
 Code and assets from others that TiP ships, with the notice each licence asks for. The full text of every licence
 named here is in `LICENSES/`.
 
+## Server
+
+The server's dependencies are declared in `build.gradle.kts` and resolved at build time. They are not redistributed in
+this repository: it contains no copies of those libraries, and the server jar is built and run on TiP's own host and
+never distributed.
+
 ## QR Code generator library (Java), io.nayuki:qrcodegen 1.8.0
 
 Makes the QR code of a sandbox's "Continue on another device" link on the server (`dev.tip.owners.QrMatrix`).
