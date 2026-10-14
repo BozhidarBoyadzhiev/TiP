@@ -5,6 +5,7 @@ import dev.tip.owners.api.OwnerSignedOut;
 import dev.tip.shared.ProblemWriter;
 import dev.tip.shared.SecurityDefaults;
 import java.time.Clock;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,7 +54,8 @@ class OwnerSecurityConfig {
             ProblemWriter problems,
             LoginRateLimiter limiter,
             ApplicationEventPublisher events,
-            Clock clock)
+            Clock clock,
+            @Value("${tip.demo-device.slug:}") String realPandaSlug)
             throws Exception {
         SimpleUrlAuthenticationSuccessHandler toHome = new SimpleUrlAuthenticationSuccessHandler(HOME_PATH);
         toHome.setAlwaysUseDefaultTargetUrl(true);
@@ -93,7 +95,7 @@ class OwnerSecurityConfig {
                                 events.publishEvent(new OwnerSignedOut(o.id()));
                             }
                         })
-                        .logoutSuccessUrl(LOGIN_PATH + "?signedOut")
+                        .logoutSuccessHandler(new SignOutTarget(realPandaSlug))
                         .deleteCookies("JSESSIONID"))
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(entryPoint(problems)))

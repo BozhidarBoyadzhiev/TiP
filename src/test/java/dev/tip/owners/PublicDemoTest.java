@@ -163,8 +163,7 @@ class PublicDemoTest extends IntegrationTest {
     void signingOutOfTheDemoTellsNoOtherViewer() throws Exception {
         MockHttpSession demo = judges.demo();
 
-        mvc.perform(post("/owner/logout").session(demo).with(csrf()))
-                .andExpect(redirectedUrl("/owner/login?signedOut"));
+        mvc.perform(post("/owner/logout").session(demo).with(csrf())).andExpect(redirectedUrl("/t/demo-panda"));
 
         assertThat(events.stream(OwnerSignedOut.class)).isEmpty();
     }
