@@ -86,7 +86,7 @@ It prints the code (`TIP-XXXXX-XXXXX-XXXXX-XXXXX`, 100 random bits) once, and th
 
 ### Rate limits
 
-Per client IP (the address from `TIP_CLIENT_IP_HEADER`), in memory. The defaults sit well above what an honest person does; change one only if real use hits it. A refusal is 429 `RATE_LIMITED` and one WARN line `rate_limited endpoint=<name> ip=<hash>`.
+Per client IP (the address from `TIP_CLIENT_IP_HEADER`), in memory. The defaults sit well above what an honest person does; change one only if real use hits it. A refusal is 429 `RATE_LIMITED` and one WARN line `rate_limited endpoint=<name> ip=<hash>` (`owner=<sandbox id>` for the per sandbox limit on resume links).
 
 | Variable | Default | Limits |
 |---|---|---|
@@ -95,6 +95,7 @@ Per client IP (the address from `TIP_CLIENT_IP_HEADER`), in memory. The defaults
 | `TIP_RATE_JUDGE_SESSIONS_PER_HOUR` | 10 | access code attempts, right or wrong, `POST /judges/session` (each success makes a sandbox) |
 | `TIP_RATE_DEMO_SESSIONS_PER_MINUTE` | 30 | public demo sign ins, `POST /demo/session` |
 | `TIP_RATE_RESUMES_PER_MINUTE` | 20 | resume links opened, `GET /judges/resume` |
+| `TIP_RATE_RESUME_LINKS_PER_TEN_MINUTES` | 5 | resume links made, `POST /api/owner/resume-link`, per sandbox rather than per IP |
 
 Owner sign in keeps its own fixed limit of 5 a minute per IP and per email. The one hard cost limit is the spend limit set in the Anthropic console ($10): when it is reached the app keeps taking tips, every tip reacts `PLAIN` once with `aiStatus` `UNAVAILABLE`, the notes stay as they were, and the model is tried again once every 10 minutes (`ai_breaker_opened` and `ai_breaker_closed` in the log).
 
@@ -198,7 +199,7 @@ Render's own **Auto-Deploy** must be **Off** on the service, so the deploy hook 
       1..11 | % { curl.exe -s -o NUL -w "%{http_code}`n" -H "CF-Connecting-IP: 203.0.113.$_" -H "Content-Type: application/json" --data-binary "@body.json" https://<service>.onrender.com/api/public/devices/no-such-panda/tips }
       Remove-Item body.json
       ```
-9. Access levels: `POST /demo/session` from the demo page (07b) shows the sample dashboard and refuses every change; an access code on the judge page makes a sandbox whose panda page `/p/judge-…` loads. The log shows `demo_session` and `sandbox_created label=<label>`, never a code or an IP.
+9. Access levels: the "Look at a sample dashboard" link under the tip card (`/demo`) shows the sample dashboard and refuses every change; an access code on `/judges` makes a sandbox whose panda page `/p/judge-…` loads. The log shows `demo_session` and `sandbox_created label=<label>`, never a code or an IP.
 10. Redeploy through CI. The fake device logs a 1001 close and reconnects, and the panda page goes back to **Live**.
 
 ## Choosing the client IP header on a new host

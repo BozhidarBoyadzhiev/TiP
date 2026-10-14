@@ -43,7 +43,7 @@ class SandboxController {
     static final String RESUME_PATH = "/judges/resume";
     static final String DEMO_PATH = "/demo/session";
     static final String RESUME_LINK_PATH = "/api/owner/resume-link";
-    static final String RESUME_FAILED = OwnerSecurityConfig.LOGIN_PATH + "?resumeFailed";
+    static final String RESUME_FAILED = OwnerSecurityConfig.JUDGES_PATH + "?resumeFailed";
 
     static final Duration RESUME_LIFETIME = Duration.ofMinutes(10);
     static final int RESUME_TOKEN_BYTES = 16;
@@ -118,11 +118,17 @@ class SandboxController {
         return redirect(HttpStatus.FOUND, OwnerSecurityConfig.HOME_PATH);
     }
 
-    /** A link that signs another browser in to this sandbox once, within 10 minutes. */
+    /**
+     * A link that signs another browser in to this sandbox once, within 10 minutes, with its QR code. Any other owner
+     * gets the 404 of a path that does not exist. Each sandbox makes a few links per 10 minutes.
+     */
     @PostMapping(RESUME_LINK_PATH)
     ResponseEntity<ResumeLink> resumeLink(@AuthenticationPrincipal OwnerPrincipal owner) {
         if (owner.kind() != OwnerKind.SANDBOX) {
             throw new OwnerExceptions.SandboxOnly();
+        }
+        if (!limits.resumeLink(owner.id())) {
+            throw new OwnerExceptions.RateLimited();
         }
         byte[] token = new byte[RESUME_TOKEN_BYTES];
         RANDOM.nextBytes(token);
@@ -132,7 +138,9 @@ class SandboxController {
         resumeTokens.store(sha256(token), owner.id(), now, expiresAt);
         String url = baseUrl + RESUME_PATH + "?t="
                 + Base64.getUrlEncoder().withoutPadding().encodeToString(token);
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new ResumeLink(url, expiresAt));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(new ResumeLink(url, expiresAt, QrMatrix.of(url)));
     }
 
     /**
@@ -197,5 +205,5 @@ class SandboxController {
         return ResponseEntity.status(status).location(URI.create(location)).build();
     }
 
-    record ResumeLink(String url, Instant expiresAt) {}
+    record ResumeLink(String url, Instant expiresAt, QrMatrix qr) {}
 }

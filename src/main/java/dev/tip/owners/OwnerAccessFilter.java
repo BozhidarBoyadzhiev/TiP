@@ -20,7 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * The one place that enforces what an owner session may do beyond being signed in, in the owner security chain
  * after authorisation. An expired sandbox's session ends on its next request: the API and the owner channel answer
- * 401 {@code SANDBOX_EXPIRED}, a page goes to the sign in page. A read only session (the public demo) gets 403
+ * 401 {@code SANDBOX_EXPIRED}, a page goes to the access code page, which says the sandbox ended. A read only session (the public demo) gets 403
  * {@code DEMO_READ_ONLY} for every {@code /api/owner/**} request that is not a GET, HEAD or OPTIONS, whatever the
  * endpoint, so a new one cannot forget the check. Signing out is not under {@code /api/owner} and stays possible.
  * Not a bean, so it is not registered for every request as a servlet filter.
@@ -62,7 +62,7 @@ final class OwnerAccessFilter extends OncePerRequestFilter {
                     problems.write(
                             request, response, HttpStatus.UNAUTHORIZED, SANDBOX_EXPIRED, "This sandbox has expired.");
                 } else {
-                    response.sendRedirect(OwnerSecurityConfig.LOGIN_PATH + "?sandboxExpired");
+                    response.sendRedirect(OwnerSecurityConfig.JUDGES_PATH + "?sandboxExpired");
                 }
                 return;
             }

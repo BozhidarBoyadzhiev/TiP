@@ -21,10 +21,13 @@ final class OwnerExceptions {
         }
     }
 
-    /** A resume link is only for sandbox sessions. */
+    /**
+     * A resume link is only for sandbox sessions. Any other owner gets what a path that does not exist answers, so
+     * the endpoint tells them nothing.
+     */
     static final class SandboxOnly extends DomainException {
         SandboxOnly() {
-            super(HttpStatus.FORBIDDEN, "SANDBOX_ONLY", "Only a sandbox session can make a resume link.");
+            super(HttpStatus.NOT_FOUND, "NOT_FOUND", "The requested resource was not found.");
         }
     }
 

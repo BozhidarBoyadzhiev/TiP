@@ -40,6 +40,8 @@ dependencies {
     implementation("com.anthropic:anthropic-java:2.71.0")
     implementation("com.bucket4j:bucket4j_jdk17-core:8.21.0")
     implementation("com.github.ben-manes.caffeine:caffeine")
+    // MIT, see THIRD_PARTY_NOTICES.md: the QR code of a resume link, drawn by the page from the module matrix.
+    implementation("io.nayuki:qrcodegen:1.8.0")
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")

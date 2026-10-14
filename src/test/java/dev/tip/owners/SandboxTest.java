@@ -105,6 +105,20 @@ class SandboxTest extends IntegrationTest {
     }
 
     @Test
+    void theServerReadsACodeTypedWithCrockfordLookalikesSpacesAndDashes() throws Exception {
+        String typed = JUDGE_CODE
+                .substring(4)
+                .replace('0', 'o')
+                .replace('1', 'l')
+                .replace("-", " - ")
+                .toLowerCase();
+
+        Judges.Sandbox sandbox = judges.sandbox(typed, "UTC");
+
+        assertThat(ownerRow(sandbox.ownerId())).containsEntry("code_label", "judges");
+    }
+
+    @Test
     void anUnknownTimeZoneFallsBackToUtc() throws Exception {
         for (String zone : new String[] {"Mars/Olympus", "", "x".repeat(65)}) {
             Judges.Sandbox sandbox = judges.sandbox(JUDGE_CODE, zone);
@@ -207,7 +221,7 @@ class SandboxTest extends IntegrationTest {
         assertThat(sandbox.session().isInvalid()).isTrue();
         Judges.Sandbox again = judges.sandbox(JUDGE_CODE, "UTC");
         clock.pin(now.plus(Duration.ofHours(144)));
-        mvc.perform(get("/owner").session(again.session())).andExpect(redirectedUrl("/owner/login?sandboxExpired"));
+        mvc.perform(get("/owner").session(again.session())).andExpect(redirectedUrl("/judges?sandboxExpired"));
         mvc.perform(get("/t/" + sandbox.slug()).accept(MediaType.TEXT_HTML)).andExpect(status().isNotFound());
         mvc.perform(get("/p/" + sandbox.slug()).accept(MediaType.TEXT_HTML)).andExpect(status().isNotFound());
         mvc.perform(get("/api/public/devices/" + sandbox.slug()))

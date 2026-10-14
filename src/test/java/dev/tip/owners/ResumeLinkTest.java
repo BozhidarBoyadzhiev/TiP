@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.tip.IntegrationTest;
 import dev.tip.TestData;
 import dev.tip.owners.api.OwnerPrincipal;
+import io.nayuki.qrcodegen.QrCode;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +34,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** "Continue on another device": a one time link, valid 10 minutes, bound to its sandbox. */
 class ResumeLinkTest extends IntegrationTest {
@@ -152,17 +154,69 @@ class ResumeLinkTest extends IntegrationTest {
     }
 
     @Test
-    void onlyASandboxCanMakeALink() throws Exception {
+    void onlyASandboxCanMakeALinkAndAnyOtherOwnerGetsThe404OfAnUnknownPath() throws Exception {
         String email = TestData.uniqueEmail();
         OwnerPrincipal real =
                 new OwnerPrincipal(data.owner(email, "Real", TestData.OWNER_PASSWORD), email, "Real", null);
 
-        mvc.perform(post("/api/owner/resume-link").with(user(real)).with(csrf()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("SANDBOX_ONLY"));
+        MockHttpServletResponse link = mvc.perform(
+                        post("/api/owner/resume-link").with(user(real)).with(csrf()))
+                .andReturn()
+                .getResponse();
+        MockHttpServletResponse unknown = mvc.perform(
+                        get("/api/owner/no-such-thing").with(user(real)))
+                .andReturn()
+                .getResponse();
+
+        assertThat(link.getStatus()).isEqualTo(404).isEqualTo(unknown.getStatus());
+        assertThat(withoutInstance(link)).isEqualTo(withoutInstance(unknown));
+        assertThat(jdbc.sql("SELECT count(*) FROM resume_token WHERE owner_id = ?")
+                        .param(real.id())
+                        .query(Long.class)
+                        .single())
+                .isZero();
         mvc.perform(post("/api/owner/resume-link").session(sandbox.session()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+    }
+
+    @Test
+    void theLinkComesWithItsQrCodeAtErrorCorrectionMedium() throws Exception {
+        String body = mvc.perform(post("/api/owner/resume-link")
+                        .session(sandbox.session())
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        var link = json.readTree(body);
+        QrCode expected = QrCode.encodeText(link.path("url").asString(), QrCode.Ecc.MEDIUM);
+
+        assertThat(link.path("qr").path("size").asInt()).isEqualTo(expected.size);
+        List<String> rows = new ArrayList<>();
+        link.path("qr").path("rows").forEach(row -> rows.add(row.asString()));
+        assertThat(rows)
+                .hasSize(expected.size)
+                .allSatisfy(row -> assertThat(row).hasSize(expected.size).matches("[01]+"));
+        for (int y = 0; y < expected.size; y++) {
+            for (int x = 0; x < expected.size; x++) {
+                assertThat(rows.get(y).charAt(x) == '1').isEqualTo(expected.getModule(x, y));
+            }
+        }
+    }
+
+    @Test
+    void eachSandboxMakesAtMostFiveLinksInTenMinutes() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            link();
+        }
+
+        mvc.perform(post("/api/owner/resume-link").session(sandbox.session()).with(csrf()))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+        Judges.Sandbox other = new Judges(mvc, jdbc).sandbox(JUDGE_CODE, "UTC");
+        mvc.perform(post("/api/owner/resume-link").session(other.session()).with(csrf()))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -189,6 +243,12 @@ class ResumeLinkTest extends IntegrationTest {
         return json.readTree(body).path("url").asString();
     }
 
+    private String withoutInstance(MockHttpServletResponse response) throws Exception {
+        var problem = (ObjectNode) json.readTree(response.getContentAsString());
+        problem.remove("instance");
+        return problem.toString();
+    }
+
     private static String token(String url) {
         return url.substring(url.indexOf("?t=") + 3);
     }
@@ -201,7 +261,7 @@ class ResumeLinkTest extends IntegrationTest {
 
     private static void assertFailed(MockHttpServletResponse response) {
         assertThat(response.getStatus()).isEqualTo(303);
-        assertThat(response.getHeader("Location")).isEqualTo("/owner/login?resumeFailed");
+        assertThat(response.getHeader("Location")).isEqualTo("/judges?resumeFailed");
         assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
         assertThat(response.getHeader("Referrer-Policy")).isEqualTo("no-referrer");
     }
