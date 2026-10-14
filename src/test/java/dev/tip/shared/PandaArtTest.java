@@ -17,12 +17,13 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Every page draws the same panda. Each page keeps its own inline copy of the symbols it uses, and every copy
- * must match the approved sprite in {@code briefs/assets/08-panda/panda-sprite.svg} after whitespace is
+ * must match the canonical sprite {@code src/test/resources/art/panda-sprite.svg}, a byte identical copy of the
+ * approved {@code briefs/assets/08-panda/panda-sprite.svg}, after whitespace is
  * normalised, so a page whose art drifts fails the build.
  */
 class PandaArtTest {
 
-    private static final Path SPRITE = Path.of("briefs/assets/08-panda/panda-sprite.svg");
+    private static final Path SPRITE = Path.of("src/test/resources/art/panda-sprite.svg");
 
     private static final Path STATIC = Path.of("src/main/resources/static");
 
