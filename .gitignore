@@ -22,3 +22,6 @@ msg.txt
 firmware/.pio/
 firmware/spikes/*/.pio/
 firmware/include/secrets.h
+# pio device monitor -f log2file, run from the repo root or firmware/
+/logs/
+firmware/logs/
