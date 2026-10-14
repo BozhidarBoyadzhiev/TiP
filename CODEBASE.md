@@ -72,7 +72,7 @@ Both apply `SecurityDefaults`: CSP with nonce (`connect-src` also names the requ
 | `GET /api/owner/devices` | `DashboardController` | session; `[{slug, name, online, lastSeenAt}]` by slug |
 | `GET /ws/owner` | `OwnerChannelHandler` | WebSocket, owner session, `Origin` exactly the public origin (403 otherwise), see `docs/OWNER_CHANNEL.md` |
 | `GET /api/owner/tips/{id}` | `TipHistoryController` | session; one item of the list; 404 `TIP_NOT_FOUND` for another owner's tip, a hidden status or an unknown id alike; 400 `INVALID_PARAMETER` for a malformed id |
-| `GET` or `HEAD /favicon.ico`, `/icons/**`, `/images/og-image.png` | static | the gold TiP coin icon (`favicon.ico` 16/32/48 px, `icons/favicon.svg`, `icons/apple-touch-icon.png`, `icons/icon-512.png`) and the 1200 × 630 link preview card; public, 30 days |
+| `GET` or `HEAD /favicon.ico`, `/icons/**`, `/images/og-image.png` | static | the panda face icon (`favicon.ico` 16/32/48 px with a transparent background, `icons/favicon.svg`, `icons/apple-touch-icon.png` and `icons/icon-512.png` on the dark card colour) and the 1200 × 630 link preview card with the sitting panda; public, 30 days |
 | `GET /actuator/health` | Actuator | only public actuator endpoint; `{"status":"UP"}` without components; Render's health check path |
 
 Every `/api/owner/**` request other than GET, HEAD or OPTIONS from the read only demo answers 403 `DEMO_READ_ONLY`, and every owner request of an expired sandbox 401 `SANDBOX_EXPIRED`. An expired sandbox's devices answer like unknown ones on `/t/`, `/p/`, `/api/public/devices/` and `/ws/observe/`; the public demo's panda takes no tips (`/t/` and tip creation answer as for an unknown device); no sandbox or demo device can connect to `/ws/device/`.
