@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TiP | 07b preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ---------- brand.css tokens (unchanged) + owner additions (unchanged) ---------- */
+  :root {
+    --bg-1: #2a1e16; --bg-2: #120c09;
+    --card: #211710; --card-edge: rgba(243, 227, 200, .09);
+    --cream: #f3e3c8; --muted: #c9b08c; --faint: #8f7a5e;
+    --gold: #e9bb52; --pink: #e7a6c1; --ink: #2a1a0c;
+    --paper: #ecd7b1; --paper-ink: #4a3020; --warn: #ef8f7a;
+    --font: "Fredoka", system-ui, sans-serif;
+    --line: rgba(243, 227, 200, .08); --raise: rgba(255, 255, 255, .035);
+    --ok: #9cc98a; --radius: 22px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    min-height: 100svh;
+    background: radial-gradient(ellipse at 50% 0%, var(--bg-1) 0%, var(--bg-2) 70%) fixed, var(--bg-2);
+    color: var(--cream); font-family: var(--font); font-size: 16px; line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+
+  /* ---------- preview controls (not part of the design) ---------- */
+  .pv { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    padding: 8px 12px; background: #0a0705; border-bottom: 1px dashed #4a3a2a; font: 13px/1.2 system-ui, sans-serif; color: #9c8a70; }
+  .pv b { color: #c9b08c; font-weight: 600; margin-right: 4px; }
+  .pv button { font: 12px system-ui, sans-serif; color: #e8d8bd; background: #1d1510; border: 1px solid #3c2e22; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  .pv button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+  .pv .sep { width: 1px; height: 18px; background: #3c2e22; margin: 0 4px; }
+  .pv .opt { display: none; gap: 6px; align-items: center; }
+  .pv .opt.on { display: flex; }
+  .phone-frame { display: flex; justify-content: center; padding: 18px 0 40px; }
+  .phone-frame iframe { width: 390px; height: 820px; border: 1px solid #3c2e22; border-radius: 28px; background: var(--bg-2); }
+  body.framed .pv { display: none; }
+
+  /* ---------- shared pieces from the owner preview ---------- */
+  .brand-sm { font: 700 26px var(--font); letter-spacing: .5px; margin: 0; line-height: 1; }
+  .brand-sm .g { color: var(--gold); } .brand-sm .p { color: var(--pink); } .brand-sm .c { color: var(--cream); }
+  .ghost { min-height: 40px; padding: 0 14px; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none;
+    background: transparent; border: 1.5px solid rgba(243,227,200,.16); color: var(--muted); font-weight: 500; font-size: 15px; white-space: nowrap; }
+  .ghost:hover { border-color: rgba(233,187,82,.45); color: var(--cream); }
+  .ghost[disabled], .refund-btn[disabled] { opacity: .4; cursor: not-allowed; }
+  .ghost[disabled]:hover { border-color: rgba(243,227,200,.16); color: var(--muted); }
+  .gold-btn { width: 100%; min-height: 52px; border: 0; border-radius: 16px; cursor: pointer;
+    font: 600 18px var(--font); color: var(--ink);
+    background: radial-gradient(circle at 35% 30%, #fbe8a6 0%, #e6b951 55%, #c9952f 100%);
+    box-shadow: 0 6px 18px rgba(233,187,82,.22), inset 0 -2px 0 rgba(120,80,20,.35); }
+  .gold-btn:hover { filter: brightness(1.05); }
+  .gold-btn[disabled] { opacity: .65; cursor: progress; }
+  .gold-btn.sm { width: auto; min-height: 40px; padding: 0 16px; font-size: 15px; border-radius: 12px; }
+  .inline-note { margin: 0 0 14px; padding: 10px 14px; border-radius: 14px; font-size: 15px; background: var(--paper); color: var(--paper-ink); }
+  .inline-note.err { background: #f2c9bc; color: #5a2216; }
+  .peek { position: absolute; left: 50%; top: -66px; width: 132px; height: 74px; transform: translateX(-50%); pointer-events: none; }
+  .paws { position: absolute; left: 50%; top: -9px; width: 132px; height: 22px; transform: translateX(-50%); z-index: 2; pointer-events: none; }
+  .eyes { animation: blink 5s infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+  .pupil { transition: transform .25s ease-out; }
+  .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .badge.refunded { color: var(--faint); }
+  .badge.demo { color: var(--muted); border-style: dashed; }
+  .badge.unread { color: var(--faint); border-style: dashed; }
+  .badge.sandbox { color: var(--gold); }
+  .lang { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: rgba(243,227,200,.08); color: var(--muted); }
+  .ro { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--faint); }
+  .ro svg { width: 13px; height: 13px; }
+
+  /* ================= CODE PAGE (sibling of owner sign in) ================= */
+  .login { min-height: calc(100svh - 44px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 96px 16px 32px; }
+  body.framed .login { min-height: 100svh; }
+  .login-wrap { position: relative; width: min(400px, 100%); }
+  .login-wrap .peek { transform: translateX(-50%) translateY(5px); transition: transform .45s cubic-bezier(.3, 1.6, .5, 1); }
+  .login-wrap.awake .peek { transform: translateX(-50%) translateY(0); }
+  .lid { transform-box: fill-box; transform-origin: top; transform: scaleY(.55); transition: transform .3s; }
+  .login-wrap.awake .lid { transform: scaleY(0); }
+  .login-card { position: relative; z-index: 1; background: linear-gradient(180deg, #2a1d14 0%, var(--card) 100%);
+    border: 1px solid var(--card-edge); border-radius: 26px; padding: 30px 22px 22px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04); }
+  .login-card .brand-sm { text-align: center; font-size: 34px; }
+  .login-card h1 { margin: 10px 0 2px; text-align: center; font: 500 20px var(--font); }
+  .login-card .sub { margin: 0 0 22px; text-align: center; color: var(--faint); font-size: 15px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-weight: 500; margin: 0 0 6px; }
+  .field input { width: 100%; min-height: 54px; padding: 0 14px; font: 600 18px var(--font); letter-spacing: 1px; text-transform: uppercase; color: var(--cream);
+    background: rgba(255,255,255,.045); border: 1.5px solid rgba(243,227,200,.16); border-radius: 14px; }
+  .field input::placeholder { color: rgba(243,227,200,.22); }
+  .field input:hover { border-color: rgba(233,187,82,.45); }
+  .field input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(233,187,82,.18); }
+  .field input.bad { border-color: var(--warn); box-shadow: 0 0 0 3px rgba(239,143,122,.12); }
+  @media (max-width: 420px) { .field input { font-size: 16px; letter-spacing: .5px; padding: 0 10px; } }
+  .field .hint { margin: 6px 2px 0; font-size: 13px; color: var(--faint); }
+  .login-foot { margin-top: 18px; text-align: center; color: var(--faint); font-size: 14px; line-height: 1.7; }
+  .login-foot a { color: var(--muted); text-decoration-color: rgba(201,176,140,.4); }
+
+  /* ================= DASHBOARD (owner preview, unchanged) ================= */
+  .dash { width: min(1080px, 100%); margin: 0 auto; padding: 0 16px 48px; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 16px 0 12px; }
+  .topbar .who { margin-left: auto; text-align: right; font-size: 14px; color: var(--muted); line-height: 1.2; }
+  .topbar .who strong { display: block; color: var(--cream); font-weight: 500; font-size: 15px; }
+  .device { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); flex-wrap: wrap; margin: 0; }
+  .device a { color: var(--gold); font-weight: 500; text-underline-offset: 3px; margin-left: 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(156,201,138,.18); }
+  .live-tag { color: var(--faint); }
+  .slug { font-size: 13px; color: var(--faint); letter-spacing: .3px; }
+  .today { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .stat.busy-card { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; }
+  .busy-card .v { font-size: 22px; } .busy-card .sub { font-size: 13px; color: var(--muted); }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 44px; }
+  .bars span { width: 9px; border-radius: 3px 3px 1px 1px; background: rgba(243,227,200,.16); }
+  .bars span.peak { background: var(--gold); box-shadow: 0 0 10px rgba(233,187,82,.45); }
+  .bars-wrap { margin-left: auto; text-align: center; }
+  .bars-wrap .ax { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .stat { background: var(--raise); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; }
+  .stat .k { font-size: 13px; color: var(--faint); }
+  .stat .v { font: 600 24px var(--font); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .stat.money .v { color: var(--gold); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 18px; }
+  .grid > * { min-width: 0; }
+  @media (min-width: 900px) {
+    .grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
+    .today { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.6fr); }
+    .stat.busy-card { grid-column: auto; }
+  }
+  .panel { background: linear-gradient(180deg, #261a12 0%, var(--card) 100%); border: 1px solid var(--card-edge); border-radius: var(--radius); padding: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.3); }
+  .panel + .panel { margin-top: 18px; }
+  .panel-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .panel-head h2 { margin: 0; font: 600 19px var(--font); }
+  .panel-head .count { color: var(--faint); font-size: 14px; }
+  .derived { margin: 0 0 12px; font-size: 13px; color: var(--faint); }
+  .notes-wrap { position: relative; margin-top: 70px; }
+  .kraft { position: relative; z-index: 1; background: var(--paper); color: var(--paper-ink); border-radius: 16px; padding: 22px 18px 14px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.35), inset 0 0 0 1px rgba(90,60,30,.25);
+    background-image: repeating-linear-gradient(180deg, transparent 0 29px, rgba(90,60,30,.10) 29px 30px); background-position: 0 14px; }
+  .kraft h2 { margin: 0 0 6px; font: 600 18px var(--font); color: #3b2414; }
+  .kraft ul { margin: 0; padding: 0 0 0 18px; line-height: 30px; }
+  .kraft .sig { margin: 8px 0 0; font-size: 13px; color: #7a5a3e; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ai-chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(90,60,30,.14); color: #5a3b22; }
+  .top-song { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 10px 12px; border-radius: 14px; background: rgba(233,187,82,.10); border: 1px solid rgba(233,187,82,.25); }
+  .top-song svg { width: 20px; height: 20px; color: var(--gold); flex: none; }
+  .top-song .t { font-size: 13px; color: var(--muted); display: block; }
+  .top-song strong { font-weight: 600; color: var(--cream); }
+  .req { list-style: none; margin: 0; padding: 0; }
+  .req li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+  .req li:first-child { border-top: 0; }
+  .req .times { flex: none; min-width: 38px; height: 30px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center; font-weight: 600; font-size: 15px; background: rgba(243,227,200,.08); }
+  .req .times.hot { background: rgba(233,187,82,.16); color: var(--gold); }
+  .req .what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .req .when { flex: none; font-size: 13px; color: var(--faint); }
+  .flag-head { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+  .flag-head svg { width: 66px; height: 46px; flex: none; }
+  .flag-head p { margin: 0; color: var(--muted); font-size: 14px; }
+  .flagged { list-style: none; margin: 0; padding: 0; }
+  .flagged li { padding: 12px 0; border-top: 1px solid var(--line); }
+  .flagged .row1 { display: flex; align-items: baseline; gap: 10px; }
+  .flagged .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .flagged .why { color: var(--warn); }
+  .flagged .when { margin-left: auto; font-size: 13px; color: var(--faint); }
+  .flagged .row2 { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .hidden-msg { font-size: 14px; color: var(--faint); font-style: italic; }
+  .revealed { margin-top: 8px; background: rgba(243,227,200,.06); border-radius: 12px; padding: 8px 12px; font-size: 15px; overflow-wrap: anywhere; }
+  .revealed small { display: block; color: var(--faint); font-size: 12px; margin-top: 6px; }
+  .revealed .en { color: var(--cream); }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; margin: 6px -2px 0; scrollbar-width: none; }
+  .chip { flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; cursor: pointer; background: transparent; border: 1.5px solid rgba(243,227,200,.14); color: var(--muted); font-size: 15px; font-weight: 500; }
+  .chip[aria-pressed="true"] { background: var(--cream); color: var(--ink); border-color: var(--cream); }
+  .tips { list-style: none; margin: 0; padding: 0; }
+  .tip { border-top: 1px solid var(--line); }
+  .tip:first-child { border-top: 0; }
+  .tip > button { width: 100%; display: grid; grid-template-columns: 36px 1fr auto; gap: 4px 12px; align-items: start; padding: 12px 2px; background: none; border: 0; text-align: left; cursor: pointer; }
+  .kind { grid-row: span 2; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: rgba(243,227,200,.07); }
+  .kind svg { width: 20px; height: 20px; }
+  .k-WARM { background: rgba(231,166,193,.15); color: var(--pink); }
+  .k-PLAYFUL { background: rgba(233,187,82,.15); color: var(--gold); }
+  .k-REQUEST { background: rgba(201,176,140,.15); color: var(--muted); }
+  .k-PLAIN { background: rgba(143,122,94,.14); color: var(--faint); }
+  .k-FLAG { background: rgba(239,143,122,.14); color: var(--warn); }
+  .line1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; flex-wrap: wrap; }
+  .kname { font-weight: 500; }
+  .amount { font: 600 17px var(--font); font-variant-numeric: tabular-nums; text-align: right; }
+  .tip.refunded .amount { color: var(--faint); text-decoration: line-through; }
+  .msg { grid-column: 2 / 3; color: var(--muted); font-size: 15px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+  .msg.none { color: var(--faint); font-style: italic; }
+  .time { grid-column: 3; grid-row: 2; font-size: 13px; color: var(--faint); text-align: right; white-space: nowrap; }
+  .trans { display: grid; grid-template-columns: 36px 1fr; gap: 0 12px; padding: 0 2px 12px; }
+  .translate { grid-column: 2 / 3; justify-self: start; padding: 0; background: none; border: 0; cursor: pointer; color: var(--gold); font-size: 14px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+  .english { grid-column: 2 / 3; font-size: 15px; color: var(--cream); }
+  .english small { display: block; font-size: 12px; color: var(--faint); }
+  .detail { padding: 0 2px 14px 50px; display: grid; gap: 10px; }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+  .facts dt { color: var(--faint); } .facts dd { margin: 0; color: var(--cream); }
+  .owner-note { background: rgba(243,227,200,.06); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+  .owner-note small { display: block; color: var(--faint); font-size: 12px; }
+  .refund-btn { justify-self: start; min-height: 40px; padding: 0 14px; border-radius: 12px; cursor: pointer; background: transparent; border: 1.5px solid rgba(239,143,122,.45); color: var(--warn); font-weight: 500; font-size: 15px; }
+  .confirm { background: rgba(239,143,122,.07); border: 1px solid rgba(239,143,122,.3); border-radius: 14px; padding: 12px; font-size: 15px; }
+  .confirm p { margin: 0 0 10px; } .confirm .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .danger { min-height: 40px; padding: 0 16px; border-radius: 12px; border: 0; cursor: pointer; background: var(--warn); color: #2a0f08; font-weight: 600; font-size: 15px; }
+  .result.ok { color: var(--ok); font-size: 14px; margin: 0; }
+  .ro-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* ================= 07b additions ================= */
+  /* sandbox and sample strips: same family as .top-song */
+  .strip { margin-top: 14px; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
+    padding: 10px 12px 10px 14px; border-radius: 16px; background: rgba(233,187,82,.10); border: 1px solid rgba(233,187,82,.25); }
+  .strip .tx { flex: 1; min-width: 220px; font-size: 15px; color: var(--muted); }
+  .strip .tx strong { color: var(--cream); font-weight: 500; }
+  .strip .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .strip.sample { background: rgba(243,227,200,.05); border-color: rgba(243,227,200,.14); }
+  .strip.sample .badge { color: var(--muted); }
+  /* AI resting: a calm strip with the sleeping bear */
+  .resting { margin-top: 12px; display: flex; gap: 12px; align-items: center; padding: 10px 14px 10px 8px; border-radius: 16px; background: var(--raise); border: 1px solid var(--line); }
+  .resting svg { width: 66px; height: 37px; flex: none; }
+  .resting strong { display: block; font-weight: 500; }
+  .resting span { font-size: 14px; color: var(--faint); }
+  /* continue on another device */
+  .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(10,7,5,.78); display: flex; align-items: center; justify-content: center; padding: 96px 16px 24px; overflow-y: auto; }
+  .sheet-wrap { position: relative; width: min(380px, 100%); }
+  .sheet { position: relative; z-index: 1; text-align: center; background: linear-gradient(180deg, #2a1d14 0%, var(--card) 100%);
+    border: 1px solid var(--card-edge); border-radius: 26px; padding: 26px 20px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+  .sheet h2 { margin: 0 0 4px; font: 600 20px var(--font); }
+  .sheet .sub { margin: 0 0 16px; color: var(--faint); font-size: 15px; }
+  .qr-card { display: inline-block; padding: 14px; border-radius: 16px; background: var(--paper); box-shadow: 0 10px 24px rgba(0,0,0,.35), inset 0 0 0 1px rgba(90,60,30,.25); transform: rotate(-1deg); }
+  .qr-card canvas { display: block; width: 188px; height: 188px; image-rendering: pixelated; }
+  .qr-card.dead { opacity: .25; }
+  .link-row { display: flex; gap: 8px; margin: 16px 0 10px; }
+  .link-row input { flex: 1; min-width: 0; min-height: 40px; padding: 0 12px; font: 400 14px var(--font); color: var(--muted); background: rgba(255,255,255,.045); border: 1.5px solid rgba(243,227,200,.16); border-radius: 12px; }
+  .countdown { font-size: 15px; color: var(--muted); }
+  .countdown strong { color: var(--cream); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .countdown button { background: none; border: 0; padding: 0; color: var(--gold); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .careful { margin: 10px 0 14px; font-size: 13px; color: var(--faint); }
+
+  /* entry options */
+  .entry { min-height: calc(100svh - 44px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; }
+  .tip-card { width: min(440px, 100%); background: linear-gradient(180deg, #2a1d14 0%, var(--card) 100%); border: 1px solid var(--card-edge); border-radius: 26px; padding: 22px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+  .tip-card .faded { opacity: .45; }
+  .total { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 17px; color: var(--muted); }
+  .total strong { font: 700 22px var(--font); color: var(--cream); }
+  .coin-dot { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fbe8a6, #e6b951 55%, #b5832a); box-shadow: inset 0 0 0 2px #a9781f; }
+  .pp { height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font: 600 15px system-ui, sans-serif; margin-top: 10px; }
+  .pp.gold { background: #ffc439; color: #111; } .pp.black { background: #2c2e2f; color: #fff; }
+  .foot { margin-top: 18px; text-align: center; font-size: 13px; color: var(--faint); line-height: 1.8; }
+  .foot a { color: var(--muted); text-decoration-color: rgba(201,176,140,.4); }
+  .foot .new { display: inline-block; outline: 1.5px dashed rgba(233,187,82,.5); outline-offset: 4px; border-radius: 6px; }
+  .pv-cap { margin: 10px 0 0; font: 12px system-ui, sans-serif; color: #9c8a70; text-align: center; }
+  .home { width: min(760px, 100%); text-align: center; }
+  .home .brand-sm { font-size: 44px; }
+  .home .lede { color: var(--muted); font-size: 17px; margin: 10px auto 26px; max-width: 460px; }
+  .doors { display: grid; gap: 14px; grid-template-columns: 1fr; text-align: left; }
+  @media (min-width: 700px) { .doors { grid-template-columns: repeat(3, 1fr); } }
+  .door { position: relative; margin-top: 66px; }
+  .door .panel { padding: 20px 16px 16px; height: 100%; display: flex; flex-direction: column; }
+  .door h2 { margin: 0 0 4px; font: 600 18px var(--font); }
+  .door p { margin: 0 0 14px; color: var(--faint); font-size: 14px; flex: 1; }
+  .door .gold-btn.sm, .door .ghost { align-self: stretch; }
+
+  @media (prefers-reduced-motion: reduce) { .eyes { animation: none !important; } .peek, .lid, .pupil { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- Preview controls only. Not part of the design. -->
+<div class="pv" role="toolbar" aria-label="Preview controls">
+  <b>Preview</b>
+  <button type="button" data-screen="code" aria-pressed="true">Judge code</button>
+  <button type="button" data-screen="sandbox" aria-pressed="false">Sandbox dashboard</button>
+  <button type="button" data-screen="public" aria-pressed="false">Sample dashboard</button>
+  <button type="button" data-screen="entry" aria-pressed="false">Sample entry</button>
+  <span class="sep"></span>
+  <button type="button" data-width="desktop" aria-pressed="true">Laptop</button>
+  <button type="button" data-width="phone" aria-pressed="false">Phone</button>
+  <span class="sep"></span>
+  <span class="opt" data-for="code">
+    <button type="button" data-p="cstate" data-v="idle" aria-pressed="true">Empty</button>
+    <button type="button" data-p="cstate" data-v="typed" aria-pressed="false">Typed</button>
+    <button type="button" data-p="cstate" data-v="busy" aria-pressed="false">Opening</button>
+    <button type="button" data-p="cstate" data-v="bad" aria-pressed="false">Wrong code</button>
+    <button type="button" data-p="cstate" data-v="slow" aria-pressed="false">Too many tries</button>
+    <button type="button" data-p="cstate" data-v="ended" aria-pressed="false">Sandbox ended</button>
+    <button type="button" data-p="cstate" data-v="used" aria-pressed="false">Link used</button>
+  </span>
+  <span class="opt" data-for="sandbox">
+    <button type="button" data-p="rest" data-v="off" aria-pressed="true">AI normal</button>
+    <button type="button" data-p="rest" data-v="on" aria-pressed="false">AI resting</button>
+    <button type="button" id="pv-sheet">Continue on another device</button>
+  </span>
+  <span class="opt" data-for="public">
+    <button type="button" data-p="wb" data-v="disabled" aria-pressed="true">Write buttons shown, off</button>
+    <button type="button" data-p="wb" data-v="hidden" aria-pressed="false">Write buttons hidden</button>
+  </span>
+  <span class="opt" data-for="entry">
+    <button type="button" data-p="entry" data-v="tip" aria-pressed="true">Link on tip page</button>
+    <button type="button" data-p="entry" data-v="home" aria-pressed="false">Page at /</button>
+  </span>
+</div>
+
+<!-- Reusable SVG pieces (same as the owner preview, plus closed eyes and a lock) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="head">
+      <g stroke="#5a3b22" stroke-width="1.6" stroke-linejoin="round">
+        <circle cx="30" cy="22" r="15" fill="#c99c66"/><circle cx="31" cy="23" r="8.5" fill="#b5884f"/>
+        <circle cx="102" cy="22" r="15" fill="#bf915b"/><circle cx="101" cy="23" r="8.5" fill="#a97c45"/>
+        <polygon points="24,40 38,18 66,12 94,18 108,40 112,74 20,74" fill="#cfa470"/>
+        <polygon points="38,18 66,12 94,18 88,32 66,29 44,32" fill="#e2bc87" stroke-opacity=".7"/>
+        <polygon points="94,18 108,40 112,74 98,74 92,44 88,32" fill="#b98a54" stroke-opacity=".7"/>
+        <polygon points="56,58 66,54 76,58 79,70 53,70" fill="#d8b17b"/>
+      </g>
+      <ellipse cx="34" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <ellipse cx="98" cy="62" rx="7" ry="4" fill="#ef8fa8" opacity=".7"/>
+      <path d="M62 62 Q66 60 70 62 Q68 66 66 66.5 Q64 66 62 62 Z" fill="#2a170c"/>
+    </g>
+    <g id="eyes-open">
+      <ellipse cx="49" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+      <ellipse cx="83" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+      <ellipse cx="49" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="52" cy="47" r="2.8" fill="#fff"/>
+      <ellipse cx="83" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="86" cy="47" r="2.8" fill="#fff"/>
+    </g>
+    <g id="eyes-shut">
+      <path d="M40 51 Q49 57 58 51 M74 51 Q83 57 92 51" fill="none" stroke="#3b2414" stroke-width="2.4" stroke-linecap="round"/>
+    </g>
+    <g id="paws">
+      <g stroke="#5a3b22" stroke-width="1.4">
+        <ellipse cx="22" cy="12" rx="14" ry="9" fill="#c99c64"/><path d="M16 6 v5 M22 5 v5 M28 6 v5" stroke-width="1.2" fill="none"/>
+        <ellipse cx="110" cy="12" rx="14" ry="9" fill="#b48650"/><path d="M104 6 v5 M110 5 v5 M116 6 v5" stroke-width="1.2" fill="none"/>
+      </g>
+    </g>
+    <g id="i-WARM"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/></g>
+    <g id="i-PLAYFUL"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/><circle cx="18.5" cy="18" r="1.8" fill="currentColor"/><circle cx="5.5" cy="18.5" r="1.3" fill="currentColor"/></g>
+    <g id="i-REQUEST"><path d="M9 17.5V6l10-2v11.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2.6" fill="currentColor"/><circle cx="16.5" cy="15.5" r="2.6" fill="currentColor"/></g>
+    <g id="i-PLAIN"><circle cx="12" cy="12" r="4.5" fill="currentColor"/></g>
+    <g id="i-FLAG"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M4 20L20 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+    <g id="i-LOCK"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></g>
+  </defs>
+</svg>
+
+<div id="frame-slot" class="phone-frame" hidden></div>
+
+<div id="screens">
+<!-- ================= JUDGE CODE ================= -->
+<main id="s-code" class="login">
+  <div class="login-wrap" id="code-wrap">
+    <svg class="peek" viewBox="0 0 132 74" aria-hidden="true">
+      <use href="#head"/>
+      <g class="eyes">
+        <ellipse cx="49" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <ellipse cx="83" cy="50" rx="11" ry="12" fill="#5b3620" stroke="#5a3b22" stroke-width="1.4"/>
+        <g class="pupil" id="pupils">
+          <ellipse cx="49" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="52" cy="47" r="2.8" fill="#fff"/>
+          <ellipse cx="83" cy="51" rx="8" ry="9" fill="#1b0f08"/><circle cx="86" cy="47" r="2.8" fill="#fff"/>
+        </g>
+        <rect class="lid" x="37" y="37" width="24" height="26" rx="11" fill="#cfa470"/>
+        <rect class="lid" x="71" y="37" width="24" height="26" rx="11" fill="#cfa470"/>
+      </g>
+    </svg>
+    <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+    <div class="login-card">
+      <p class="brand-sm" aria-label="TiP"><span class="g">T</span><span class="p">i</span><span class="c">P</span></p>
+      <h1>Judge access</h1>
+      <p class="sub">Get your own panda and dashboard for 72 hours, with sample tips already in it.</p>
+      <p class="inline-note" id="n-ended" role="status" hidden>Your sandbox has closed. Each one lasts 72 hours. Enter the code again to start a fresh one.</p>
+      <p class="inline-note" id="n-used" role="status" hidden>That link was already used or has run out. Make a new one on your other device, or enter the code here.</p>
+      <form id="code-form" novalidate>
+        <div class="field">
+          <label for="code">Access code</label>
+          <input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX XXXX XXXX XXXX XXXX" aria-describedby="code-hint">
+          <p class="hint" id="code-hint">It's in the submission notes. Spaces and dashes are fine.</p>
+        </div>
+        <p class="inline-note err" id="n-bad" role="alert" hidden>That code didn't work. Check it and try again.</p>
+        <p class="inline-note" id="n-slow" role="alert" hidden>Too many tries from this network. Wait a few minutes, then try again.</p>
+        <button type="submit" class="gold-btn" id="code-btn">Open my sandbox</button>
+      </form>
+    </div>
+    <p class="login-foot">No code? <a href="#" data-go="public">Look at a sample dashboard</a><br>or <a href="#">tip the real panda</a>.</p>
+  </div>
+</main>
+
+<!-- ================= SANDBOX DASHBOARD ================= -->
+<div id="s-sandbox" class="dash" hidden>
+  <header class="topbar">
+    <p class="brand-sm" aria-label="TiP"><span class="g">T</span><span class="p">i</span><span class="c">P</span></p>
+    <div class="who">Signed in as<strong>Judge</strong></div>
+    <button type="button" class="ghost">Sign out</button>
+  </header>
+  <p class="device"><span class="dot on"></span><span>Your panda is online</span><span class="live-tag">· live</span><a href="#">Watch it react</a></p>
+  <div class="strip">
+    <span class="badge sandbox">Judge sandbox</span>
+    <span class="tx">Open until <strong>Fri 16 Oct, 14:00</strong>. Tips marked Demo are samples. Send your own to see it all work.</span>
+    <span class="acts">
+      <a class="ghost" href="#">Tip your panda</a>
+      <button type="button" class="gold-btn sm" id="open-sheet">Continue on another device</button>
+    </span>
+  </div>
+  <div class="resting" id="resting" hidden>
+    <svg viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><use href="#eyes-shut"/><text x="112" y="16" font-family="Fredoka" font-weight="700" font-size="16" fill="#e9bb52">z</text></svg>
+    <div><strong>The panda is resting its eyes</strong><span>New tips still go through and it blinks once for each. Reading comes back on its own in a few minutes.</span></div>
+  </div>
+  <section class="today" id="sb-today"></section>
+  <div class="grid">
+    <div class="side" id="sb-side"></div>
+    <section class="panel" aria-labelledby="sb-tips-title">
+      <div class="panel-head"><h2 id="sb-tips-title">Tips</h2><span class="count">29 in total</span></div>
+      <div class="chips" role="group" aria-label="Show"><button type="button" class="chip" aria-pressed="true">All</button><button type="button" class="chip" aria-pressed="false">Warm</button><button type="button" class="chip" aria-pressed="false">Playful</button><button type="button" class="chip" aria-pressed="false">Requests</button><button type="button" class="chip" aria-pressed="false">Plain</button><button type="button" class="chip" aria-pressed="false">Hidden</button></div>
+      <ul class="tips" id="sb-tips"></ul>
+      <button type="button" class="ghost" style="width:100%;margin-top:8px;min-height:44px">Show older tips</button>
+    </section>
+  </div>
+</div>
+
+<!-- ================= SAMPLE (PUBLIC DEMO) DASHBOARD ================= -->
+<div id="s-public" class="dash" hidden>
+  <header class="topbar">
+    <p class="brand-sm" aria-label="TiP"><span class="g">T</span><span class="p">i</span><span class="c">P</span></p>
+    <div class="who">Looking at<strong>A sample owner</strong></div>
+    <a class="ghost" href="#">Tip the real panda</a>
+  </header>
+  <p class="device"><span class="dot"></span><span>Sample data</span><span class="live-tag">· not live</span></p>
+  <div class="strip sample">
+    <span class="badge">Sample dashboard</span>
+    <span class="tx">This is what an owner sees, with made up tips. <strong>Read only</strong>, and it resets every night.</span>
+  </div>
+  <section class="today" id="pb-today"></section>
+  <div class="grid">
+    <div class="side" id="pb-side"></div>
+    <section class="panel" aria-labelledby="pb-tips-title">
+      <div class="panel-head"><h2 id="pb-tips-title">Tips</h2><span class="count">28 in total</span></div>
+      <div class="chips" role="group" aria-label="Show"><button type="button" class="chip" aria-pressed="true">All</button><button type="button" class="chip" aria-pressed="false">Warm</button><button type="button" class="chip" aria-pressed="false">Playful</button><button type="button" class="chip" aria-pressed="false">Requests</button><button type="button" class="chip" aria-pressed="false">Plain</button><button type="button" class="chip" aria-pressed="false">Hidden</button></div>
+      <ul class="tips" id="pb-tips"></ul>
+      <button type="button" class="ghost" style="width:100%;margin-top:8px;min-height:44px">Show older tips</button>
+    </section>
+  </div>
+</div>
+
+<!-- ================= SAMPLE ENTRY ================= -->
+<main id="s-entry" class="entry" hidden>
+  <div id="entry-tip">
+    <div class="tip-card">
+      <div class="faded">
+        <div class="total"><span class="coin-dot"></span><span>You're tipping <strong>£2.00</strong></span></div>
+        <div class="pp gold">PayPal button (rendered by PayPal)</div>
+        <div class="pp black">Debit or Credit Card (rendered by PayPal)</div>
+      </div>
+      <p class="foot">After paying, <a href="#">watch the panda react</a>.<br><span class="new">Curious what the owner sees? <a href="#" data-go="public">Look at a sample dashboard</a>.</span></p>
+    </div>
+    <p class="pv-cap">Preview only: the bottom of the existing tip card, faded, with the new line outlined.</p>
+  </div>
+  <div id="entry-home" class="home" hidden>
+    <p class="brand-sm" aria-label="TiP"><span class="g">T</span><span class="p">i</span><span class="c">P</span></p>
+    <p class="lede">A cardboard panda that takes PayPal tips, reads the message and lights up to match.</p>
+    <div class="doors">
+      <div class="door">
+        <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+        <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+        <div class="panel"><h2>Tip the panda</h2><p>Send a sandbox tip and watch the real panda react.</p><a class="gold-btn sm" href="#" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">Tip now</a></div>
+      </div>
+      <div class="door">
+        <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+        <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+        <div class="panel"><h2>See the owner side</h2><p>A sample dashboard with notes, requests and hidden messages.</p><a class="ghost" href="#" data-go="public">Open the sample</a></div>
+      </div>
+      <div class="door">
+        <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+        <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+        <div class="panel"><h2>Judges</h2><p>Have an access code? Get your own panda and dashboard.</p><a class="ghost" href="#" data-go="code">Enter a code</a></div>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- ================= CONTINUE ON ANOTHER DEVICE ================= -->
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet-wrap">
+    <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+    <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <h2 id="sheet-title">Continue on another device</h2>
+      <p class="sub">Scan this with your phone to open your sandbox there.</p>
+      <div class="qr-card" id="qr-card"><canvas id="qr" width="33" height="33" aria-label="QR code for the link below"></canvas></div>
+      <div class="link-row"><input id="link" readonly value="tip-integrated-panda.onrender.com/judges/resume?t=Q7XM2KD9R4TPW8HN"><button type="button" class="ghost">Copy</button></div>
+      <p class="countdown" id="countdown" aria-live="polite"></p>
+      <p class="careful">The link works once. Anyone who has it gets into your sandbox, so only open it on your own device.</p>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button type="button" class="ghost" id="pv-expire" title="Preview only">Preview: run out</button>
+        <button type="button" class="ghost" id="close-sheet">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Sample data. In the real page every string goes in with textContent.
+  const KIND_NAME = { WARM: "Warm", PLAYFUL: "Playful", REQUEST: "Request", PLAIN: "Plain", FLAG: "Hidden" };
+  const REACTION = { WARM: "heartbeats", PLAYFUL: "giggles", REQUEST: "noted pulses", PLAIN: "blinks" };
+  const fmt = n => "£" + n.toFixed(2);
+  const params = new URLSearchParams(location.search);
+  const state = {
+    screen: params.get("screen") || "code", width: "desktop",
+    cstate: params.get("cstate") || "idle", rest: params.get("rest") || "off",
+    wb: params.get("wb") || "disabled", entry: params.get("entry") || "tip"
+  };
+  if (params.has("framed")) document.body.classList.add("framed");
+
+  const SAMPLE = [
+    { kind: "REQUEST", amount: 5, ago: "2 h ago", time: "Fri 16 Oct, 12:10", msg: "Could you play Lantern Road by The Copper Owls next?", note: "Request: Lantern Road", status: "CAPTURED", repeats: 4, demo: true, open: true },
+    { kind: "WARM", amount: 10, ago: "5 h ago", time: "Fri 16 Oct, 09:02", msg: "You made our anniversary dinner. Thank you both!", status: "CAPTURED", repeats: 5, demo: true },
+    { kind: "PLAYFUL", amount: 2, ago: "yesterday", time: "Thu 15 Oct, 21:40", msg: "The drummer deserves a raise 🥁", status: "CAPTURED", repeats: 2, demo: true },
+    { kind: "WARM", amount: 3, ago: "yesterday", time: "Thu 15 Oct, 20:15", msg: "Благодаря, страхотна вечер!", lang: "Bulgarian", en: "Thank you, great evening!", status: "CAPTURED", repeats: 3, demo: true },
+    { kind: "FLAG", amount: 3, ago: "yesterday", time: "Thu 15 Oct, 19:58", why: "Insults the performer", status: "CAPTURED", repeats: 1, demo: true },
+    { kind: "PLAIN", amount: 1, ago: "Wed", time: "Wed 14 Oct, 18:30", msg: "thanks", status: "REFUNDED", repeats: 1, demo: true }
+  ];
+  const MINE = { kind: "PLAIN", amount: 1, ago: "just now", time: "Fri 16 Oct, 14:02", msg: "Testing the panda from my phone", status: "CAPTURED", repeats: 1, unread: true, open: false };
+
+  function icon(kind) { return '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-' + kind + '"/></svg>'; }
+  const LOCK = '<span class="ro"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-LOCK"/></svg>Read only</span>';
+
+  // mode: "sandbox" or "sample"
+  function row(t, mode) {
+    const li = document.createElement("li");
+    li.className = "tip" + (t.status === "REFUNDED" ? " refunded" : "");
+    const msg = t.kind === "FLAG" ? '<span class="msg none">Message hidden · ' + t.why + "</span>"
+      : t.msg ? '<span class="msg">' + t.msg + "</span>" : '<span class="msg none">No message</span>';
+    const badges = (t.lang ? '<span class="lang">' + t.lang + "</span>" : "")
+      + (t.status === "REFUNDED" ? '<span class="badge refunded">Refunded</span>' : "")
+      + (t.unread ? '<span class="badge unread">Not read</span>' : "")
+      + (t.demo && mode === "sandbox" ? '<span class="badge demo">Demo</span>' : "");
+    li.innerHTML = '<button type="button" aria-expanded="false"><span class="kind k-' + t.kind + '">' + icon(t.kind) + '</span><span class="line1"><span class="kname">' + KIND_NAME[t.kind] + "</span>" + badges + '</span><span class="amount">' + fmt(t.amount) + "</span>" + msg + '<span class="time">' + t.ago + "</span></button>"
+      + (t.en ? '<div class="trans"><span></span><button type="button" class="translate" aria-expanded="false">Show in English</button></div>' : "")
+      + '<div class="detail" hidden></div>';
+    const btn = li.querySelector("button"), detail = li.querySelector(".detail"), tr = li.querySelector(".translate");
+    if (tr) tr.addEventListener("click", () => {
+      const box = tr.parentElement, shown = box.querySelector(".english");
+      if (shown) { shown.previousElementSibling.remove(); shown.remove(); tr.textContent = "Show in English"; return; }
+      box.appendChild(document.createElement("span"));
+      const en = document.createElement("span"); en.className = "english";
+      en.innerHTML = "<small>Translated by AI from " + t.lang + "</small>"; en.appendChild(document.createTextNode(t.en));
+      box.appendChild(en); tr.textContent = "Hide translation";
+    });
+    const toggle = open => { btn.setAttribute("aria-expanded", String(open)); detail.hidden = !open; if (open) fillDetail(detail, t, mode); };
+    btn.addEventListener("click", () => toggle(btn.getAttribute("aria-expanded") !== "true"));
+    if (t.open) toggle(true);
+    return li;
+  }
+
+  function fillDetail(el, t, mode) {
+    const reaction = t.kind === "FLAG" ? "blinks ×1 (hidden messages always get the smallest reaction)"
+      : t.unread ? "blinks ×1" : REACTION[t.kind] + " ×" + t.repeats + " round" + (t.repeats > 1 ? "s" : "");
+    const status = { CAPTURED: "Paid", REFUNDED: "Refunded" }[t.status];
+    let html = '<dl class="facts"><dt>When</dt><dd>' + t.time + "</dd><dt>Panda</dt><dd>" + reaction + "</dd><dt>Status</dt><dd>" + status + "</dd></dl>";
+    if (t.unread) html += '<div class="owner-note"><small>Why a single blink</small>The panda couldn\'t read this message just then, so it gave the smallest reaction. The tip itself is fine.</div>';
+    if (t.note) html += '<div class="owner-note"><small>AI note from the message</small>' + t.note + "</div>";
+    html += "<div data-refund></div>";
+    el.innerHTML = html;
+    const slot = el.querySelector("[data-refund]");
+    if (t.status !== "CAPTURED") return;
+    if (mode === "sample") {
+      if (state.wb === "disabled") slot.innerHTML = '<div class="ro-row"><button type="button" class="refund-btn" disabled>Refund ' + fmt(t.amount) + "</button>" + LOCK + "</div>";
+    } else if (t.demo) {
+      slot.innerHTML = '<div class="owner-note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px">Demo tip. Send a real tip to try refunds.</span><a class="ghost" href="#">Tip your panda</a></div>';
+    } else refundFlow(slot, t);
+  }
+
+  function refundFlow(slot, t) {
+    slot.innerHTML = '<button type="button" class="refund-btn">Refund ' + fmt(t.amount) + "</button>";
+    slot.querySelector("button").addEventListener("click", () => {
+      slot.innerHTML = '<div class="confirm"><p>Refund ' + fmt(t.amount) + " to the tipper through PayPal? This can't be undone.</p><div class=\"btns\"><button type=\"button\" class=\"danger\">Refund " + fmt(t.amount) + '</button><button type="button" class="ghost">Keep the tip</button></div></div>';
+      const [yes, no] = slot.querySelectorAll("button");
+      no.addEventListener("click", () => refundFlow(slot, t));
+      yes.addEventListener("click", () => { slot.innerHTML = '<p class="result ok" role="status">Refunded. The tipper gets ' + fmt(t.amount) + " back.</p>"; });
+    });
+  }
+
+  function today(el, o) {
+    el.innerHTML = '<div class="stat money"><div class="k">Today</div><div class="v">' + o.total + '</div></div><div class="stat"><div class="k">Tips</div><div class="v">' + o.count + '</div></div><div class="stat"><div class="k">Requests</div><div class="v">' + o.req + '</div></div>'
+      + '<div class="stat busy-card"><div><div class="k">Busiest hour</div><div class="v">' + o.hour + '</div><div class="sub">' + o.sub + '</div></div><div class="bars-wrap" aria-hidden="true"><div class="bars"><span style="height:25%"></span><span style="height:8%"></span><span style="height:50%"></span><span class="peak" style="height:100%"></span><span style="height:25%"></span><span style="height:8%"></span><span style="height:25%"></span><span style="height:8%"></span></div><div class="ax"><span>9</span><span>am</span><span>5</span></div></div></div>';
+  }
+
+  function side(el, mode) {
+    el.innerHTML =
+      '<section class="notes-wrap"><svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg><svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>'
+      + '<div class="kraft"><h2>The panda\'s notes for today</h2><ul><li>Lots of love for the drummer tonight.</li><li>Two people asked for Lantern Road by The Copper Owls.</li><li>One couple was celebrating an anniversary.</li></ul><p class="sig"><span class="ai-chip">Written by AI</span>from 6 tippers\' messages · updated 12:40 pm</p></div></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>What people asked for</h2><span class="count">last 7 days</span></div><p class="derived">Short notes the AI took from tippers\' messages.</p>'
+      + '<p class="top-song"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-REQUEST"/></svg><span><span class="t">Most asked song</span><strong>Lantern Road</strong> · 2 requests</span></p>'
+      + '<ul class="req"><li><span class="times hot">×2</span><span class="what">Lantern Road by The Copper Owls</span><span class="when">today</span></li><li><span class="times">×1</span><span class="what">Something slow for a first dance</span><span class="when">yesterday</span></li><li><span class="times">×1</span><span class="what">More from the new album</span><span class="when">Wed</span></li></ul></section>'
+      + '<section class="panel"><div class="flag-head"><svg viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g stroke="#5a3b22" stroke-width="1.4"><ellipse cx="47" cy="50" rx="16" ry="12" fill="#c99c64" transform="rotate(-12 47 50)"/><path d="M38 44 l3 6 M45 41 l2 7 M52 41 l1 7" stroke-width="1.2" fill="none"/><ellipse cx="85" cy="50" rx="16" ry="12" fill="#b48650" transform="rotate(12 85 50)"/><path d="M94 44 l-3 6 M87 41 l-2 7 M80 41 l-1 7" stroke-width="1.2" fill="none"/></g></svg>'
+      + '<div><div class="panel-head"><h2>Hidden messages</h2><span class="count">1</span></div><p>The panda covered its eyes so you don\'t have to read these. The tips still count.</p></div></div>'
+      + '<ul class="flagged"><li><div class="row1"><span class="amt">£3.00</span><span class="why">Insults the performer</span><span class="when">yesterday</span></div>'
+      + '<div class="row2"><span class="hidden-msg">Message hidden</span>' + (mode === "sandbox" ? '<span class="badge demo">Demo</span>' : "") + '</div>'
+      + '<div class="reveal-slot"></div><div class="row2 acts"></div></li></ul></section>';
+    const slot = el.querySelector(".reveal-slot"), acts = el.querySelector(".acts");
+    const draw = open => {
+      slot.innerHTML = open ? '<div class="revealed">Свирите ужасно, спрете.<small>Translated by AI from Bulgarian</small><span class="en">You play terribly, stop.</span></div>' : "";
+      let a = '<button type="button" class="ghost" data-r>' + (open ? "Hide again" : "Show message") + "</button>";
+      if (mode === "sandbox") a += open ? '<button type="button" class="ghost">Not abusive</button>' : "";
+      else if (state.wb === "disabled") a += (open ? '<button type="button" class="ghost" disabled>Not abusive</button>' : '<button type="button" class="refund-btn" disabled>Refund £3.00</button>') + LOCK;
+      acts.innerHTML = a;
+      acts.querySelector("[data-r]").addEventListener("click", () => draw(!open));
+    };
+    draw(false);
+  }
+
+  function renderSandbox() {
+    today(document.getElementById("sb-today"), { total: "£16.00", count: 4, req: 1, hour: "12 to 1 pm", sub: "2 tips, your best hour today" });
+    side(document.getElementById("sb-side"), "sandbox");
+    const ul = document.getElementById("sb-tips"); ul.textContent = "";
+    [MINE, ...SAMPLE].forEach(t => ul.appendChild(row(t, "sandbox")));
+    document.getElementById("resting").hidden = state.rest !== "on";
+  }
+  function renderPublic() {
+    today(document.getElementById("pb-today"), { total: "£19.00", count: 6, req: 2, hour: "12 to 1 pm", sub: "2 tips, the best hour today" });
+    side(document.getElementById("pb-side"), "sample");
+    const ul = document.getElementById("pb-tips"); ul.textContent = "";
+    SAMPLE.forEach(t => ul.appendChild(row(t, "sample")));
+  }
+
+  // ---------- judge code page ----------
+  const code = document.getElementById("code"), wrap = document.getElementById("code-wrap"), pupils = document.getElementById("pupils");
+  const group = v => { const c = v.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 20); return c.replace(/(.{4})(?=.)/g, "$1 "); };
+  function look() { const n = code.value.replace(/ /g, "").length; pupils.style.transform = "translate(" + ((n / 20) - .5) * 6 + "px," + (n ? 2 : 0) + "px)"; }
+  code.addEventListener("focus", () => { wrap.classList.add("awake"); look(); });
+  code.addEventListener("blur", () => { if (!code.value) wrap.classList.remove("awake"); pupils.style.transform = ""; });
+  code.addEventListener("input", () => { code.value = group(code.value); code.classList.remove("bad"); document.getElementById("n-bad").hidden = true; look(); });
+  document.getElementById("code-form").addEventListener("submit", e => { e.preventDefault(); setCode("busy"); });
+  function setCode(s) {
+    state.cstate = s;
+    ["bad", "slow", "ended", "used"].forEach(k => document.getElementById("n-" + k).hidden = s !== k);
+    code.classList.toggle("bad", s === "bad");
+    code.value = (s === "idle" || s === "ended" || s === "used") ? "" : "K7QM 2XD9 R4TP W8HN 3BVC";
+    code.disabled = s === "busy";
+    const b = document.getElementById("code-btn");
+    b.disabled = s === "busy" || s === "slow";
+    b.textContent = s === "busy" ? "Opening your sandbox…" : "Open my sandbox";
+    wrap.classList.toggle("awake", !!code.value); look();
+  }
+
+  // ---------- continue on another device ----------
+  function drawQr() { // placeholder; the real one is drawn from the matrix the server returns
+    const N = 33, g = document.getElementById("qr").getContext("2d"); let seed = 11;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    g.fillStyle = "#ecd7b1"; g.fillRect(0, 0, N, N); g.fillStyle = "#1b0f08";
+    const inF = (x, y) => (x < 8 && y < 8) || (x > N - 9 && y < 8) || (x < 8 && y > N - 9);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!inF(x, y) && rnd() < .47) g.fillRect(x, y, 1, 1);
+    const fin = (x, y) => { for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) if (i === 0 || i === 6 || j === 0 || j === 6 || (i > 1 && i < 5 && j > 1 && j < 5)) g.fillRect(x + i, y + j, 1, 1); };
+    fin(0, 0); fin(N - 7, 0); fin(0, N - 7);
+  }
+  let left = 600, timer;
+  function tick() {
+    const cd = document.getElementById("countdown");
+    if (left <= 0) {
+      clearInterval(timer);
+      document.getElementById("qr-card").classList.add("dead"); document.getElementById("link").value = "This link has run out";
+      cd.innerHTML = 'This link has run out. <button type="button" id="renew">Make a new one</button>';
+      document.getElementById("renew").addEventListener("click", openSheet); return;
+    }
+    cd.innerHTML = "Works for <strong>" + Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0") + "</strong>"; left--;
+  }
+  function openSheet() {
+    left = 600; document.getElementById("qr-card").classList.remove("dead");
+    document.getElementById("link").value = "tip-integrated-panda.onrender.com/judges/resume?t=Q7XM2KD9R4TPW8HN";
+    drawQr(); clearInterval(timer); tick(); timer = setInterval(tick, 1000);
+    document.getElementById("scrim").hidden = false;
+  }
+  document.getElementById("open-sheet").addEventListener("click", openSheet);
+  document.getElementById("close-sheet").addEventListener("click", () => { document.getElementById("scrim").hidden = true; clearInterval(timer); });
+  document.getElementById("pv-expire").addEventListener("click", () => { left = 0; tick(); });
+
+  // ---------- preview controls ----------
+  function apply() {
+    document.querySelectorAll("[data-screen]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.screen === state.screen)));
+    document.querySelectorAll("[data-width]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.width === state.width)));
+    document.querySelectorAll(".pv .opt").forEach(o => o.classList.toggle("on", o.dataset.for === state.screen));
+    document.querySelectorAll("[data-p]").forEach(b => b.setAttribute("aria-pressed", String(state[b.dataset.p] === b.dataset.v)));
+    const phone = state.width === "phone" && !document.body.classList.contains("framed");
+    document.getElementById("screens").hidden = phone;
+    const slot = document.getElementById("frame-slot"); slot.hidden = !phone;
+    if (phone) {
+      const q = new URLSearchParams({ framed: 1, screen: state.screen, cstate: state.cstate, rest: state.rest, wb: state.wb, entry: state.entry });
+      slot.innerHTML = '<iframe title="Phone width" src="?' + q + '"></iframe>';
+      return;
+    }
+    ["code", "sandbox", "public", "entry"].forEach(s => document.getElementById("s-" + s).hidden = s !== state.screen);
+    document.getElementById("entry-tip").hidden = state.entry !== "tip";
+    document.getElementById("entry-home").hidden = state.entry !== "home";
+    setCode(state.cstate); renderSandbox(); renderPublic();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll("[data-screen]").forEach(b => b.addEventListener("click", () => { state.screen = b.dataset.screen; apply(); }));
+  document.querySelectorAll("[data-width]").forEach(b => b.addEventListener("click", () => { state.width = b.dataset.width; apply(); }));
+  document.querySelectorAll("[data-p]").forEach(b => b.addEventListener("click", () => { state[b.dataset.p] = b.dataset.v; apply(); }));
+  document.getElementById("pv-sheet").addEventListener("click", () => { state.width = "desktop"; state.screen = "sandbox"; apply(); openSheet(); });
+  document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) { e.preventDefault(); state.screen = g.dataset.go; apply(); } });
+  apply();
+</script>
+</body>
+</html>
