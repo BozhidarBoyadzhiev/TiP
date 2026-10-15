@@ -1,5 +1,7 @@
 #include "pn532.h"
 
+#include "watchdog.h"
+
 namespace tip {
 
 namespace {
@@ -95,6 +97,7 @@ int16_t Pn532::writeCommand(const uint8_t *header, size_t headerLength, const ui
     if (millis() - start >= limit) {
       return pn532::kTimeout;
     }
+    watchdogFeed();
     vTaskDelay(1);
   }
 }
@@ -112,6 +115,7 @@ int16_t Pn532::readResponse(uint8_t *out, size_t capacity, uint32_t timeoutMs) {
     if (millis() - start >= timeoutMs) {
       return pn532::kTimeout;
     }
+    watchdogFeed();
     vTaskDelay(1);
   }
 }

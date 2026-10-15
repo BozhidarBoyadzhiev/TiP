@@ -66,6 +66,10 @@ constexpr uint32_t kRecentIds = 16;
 // The playback task updates the LED this often.
 constexpr uint32_t kLedTickMs = 10;
 
+// A watched task (net, led, nfc) that does not feed the task watchdog for this long restarts the
+// board. Every wait in them is far shorter: the longest, a TLS connect, is under 30 s.
+constexpr uint32_t kTaskWatchdogMs = 60000;
+
 // The network task logs the longest pause between two of its steps this often.
 constexpr uint32_t kStepGapLogMs = 60000;
 

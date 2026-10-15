@@ -2,6 +2,7 @@
 #include "tasks.h"
 #include "tip_config.h"
 #include "tip_player.h"
+#include "watchdog.h"
 
 namespace tip {
 
@@ -24,9 +25,11 @@ void playbackLoop(void *) {
   if (!ledcAttach(kLedPin, kLedFrequencyHz, kLedResolutionBits)) {
     logLine("LED: ledcAttach failed");
   }
+  watchdogWatch();
   int lastLevel = -1;
   TickType_t wake = xTaskGetTickCount();
   for (;;) {
+    watchdogFeed();
     Reaction reaction;
     while (xQueueReceive(incoming, &reaction, 0) == pdTRUE) {
       Reaction dropped;

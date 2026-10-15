@@ -12,6 +12,7 @@
 #include "tip_intake.h"
 #include "tip_link.h"
 #include "tip_protocol.h"
+#include "watchdog.h"
 
 #if __has_include("secrets.h")
 #include "secrets.h"
@@ -325,6 +326,7 @@ void networkLoop(void *) {
   socket.setAuthorization("Bearer " TIP_DEVICE_SECRET);
   socket.setReconnectInterval(kLibraryNeverReconnects);
   socket.onEvent(onEvent);
+  watchdogWatch();
 
   // Evidence that the lower priority NFC task never holds this one up: the longest time between
   // the end of one step and the start of the next, kLoopDelayMs when nothing does.
@@ -332,6 +334,7 @@ void networkLoop(void *) {
   uint32_t gapLoggedAt = stepEndedAt;
   uint32_t longestGap = 0;
   for (;;) {
+    watchdogFeed();
     uint32_t now = millis();
     longestGap = max(longestGap, now - stepEndedAt);
     if (now - gapLoggedAt >= kStepGapLogMs) {

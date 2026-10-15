@@ -7,6 +7,7 @@
 #include "tasks.h"
 #include "tip_config.h"
 #include "tip_protocol.h"
+#include "watchdog.h"
 
 namespace {
 
@@ -27,6 +28,7 @@ void setup() {
   delay(500);
   tip::logLine("TiP panda firmware, device %s on %s", TIP_DEVICE_SLUG, TIP_SERVER_HOST);
   printChipInfo();
+  tip::watchdogBegin();
   QueueHandle_t reactions = xQueueCreate(tip::kWaitingReactions, sizeof(tip::Reaction));
   tip::startPlaybackTask(reactions);
   tip::startNetworkTask(reactions);

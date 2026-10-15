@@ -5,6 +5,7 @@
 #include "tip_config.h"
 #include "tip_ndef.h"
 #include "tip_type4_tag.h"
+#include "watchdog.h"
 
 namespace tip {
 
@@ -56,6 +57,7 @@ bool resync(const char *after, int16_t error) {
   logLine("NFC: %s failed (%d), resyncing", after, error);
   uint32_t backoff = kNfcResyncFirstMs;
   for (uint32_t attempt = 1; attempt <= kNfcResyncAttempts; attempt++) {
+    watchdogFeed();
     vTaskDelay(pdMS_TO_TICKS(backoff));
     int16_t result = pn532.resync();
     if (result == 0) {
@@ -111,6 +113,7 @@ enum class Armed : uint8_t { kPhone, kArmAgain, kLost };
 // then armed again.
 Armed waitForPhone() {
   for (;;) {
+    watchdogFeed();
     int16_t result = pn532.waitActivation(kActivationWaitMs);
     if (result >= 0) {
       sawField();
@@ -142,6 +145,7 @@ Armed waitForPhone() {
 const char *runSession(uint32_t &apdus, int16_t &code) {
   tag.startSession();
   for (;;) {
+    watchdogFeed();
     uint8_t status = 0;
     int16_t length = pn532.getData(command, sizeof(command), kApduWaitMs, status);
     if (length < 0) {
@@ -172,6 +176,7 @@ bool waitForFieldToLeave() {
   uint32_t start = millis();
   uint32_t quietSince = 0;
   for (;;) {
+    watchdogFeed();
     int16_t field = pn532.fieldPresent();
     uint32_t now = millis();
     if (field < 0) {
@@ -201,6 +206,7 @@ bool waitForFieldToLeave() {
 void serveTaps() {
   uint32_t taps = 0;
   for (;;) {
+    watchdogFeed();
     int16_t error = pn532.arm();
     if (error != 0) {
       if (!resync("TgInitAsTarget", error)) {
@@ -231,6 +237,7 @@ void serveTaps() {
       }
     }
     vTaskDelay(pdMS_TO_TICKS(kNfcRearmHoldOffMs));
+    watchdogFeed();
     if (!waitForFieldToLeave()) {
       return;
     }
@@ -251,13 +258,16 @@ void nfcLoop(void *) {
   }
   logLine("NFC: tag holds %s (%u byte message), PN532 on UART2 GPIO16/17", url, static_cast<unsigned>(messageLength));
   pn532.begin(kRunBaud);
+  watchdogWatch();
   uint32_t retryMs = kNfcRetryFirstMs;
   for (;;) {
+    watchdogFeed();
     int16_t error = link();
     if (error != 0) {
       logLine("NFC: no PN532 at 115200 or 921600 baud (%d), retrying in %lu s", error,
               static_cast<unsigned long>(retryMs / 1000));
       vTaskDelay(pdMS_TO_TICKS(retryMs));
+      watchdogFeed();
       retryMs = retryMs * 2 < kNfcRetryCapMs ? retryMs * 2 : kNfcRetryCapMs;
       continue;
     }
