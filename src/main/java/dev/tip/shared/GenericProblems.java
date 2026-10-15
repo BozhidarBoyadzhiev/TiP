@@ -21,7 +21,7 @@ final class GenericProblems {
             case METHOD_NOT_ALLOWED -> "This method is not allowed for the requested resource.";
             case NOT_ACCEPTABLE -> "No acceptable representation is available.";
             case UNSUPPORTED_MEDIA_TYPE -> "This content type is not supported.";
-            case PAYLOAD_TOO_LARGE -> "The request is too large.";
+            case CONTENT_TOO_LARGE -> "The request is too large.";
             default -> status.getReasonPhrase() + ".";
         };
     }

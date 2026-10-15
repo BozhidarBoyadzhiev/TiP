@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -79,6 +80,19 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
                                 String.valueOf(error.getDefaultMessage()))))
                 .toList();
         return ResponseEntity.badRequest().body(validationProblem(errors));
+    }
+
+    /** A body {@link RequestSizeLimit} cut off is too large, not malformed: the 413 of a declared length. */
+    @Override
+    protected @Nullable ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException e, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof RequestSizeLimit.TooLarge) {
+                return createResponseEntity(
+                        ProblemDetail.forStatus(RequestSizeLimit.STATUS), headers, RequestSizeLimit.STATUS, request);
+            }
+        }
+        return super.handleHttpMessageNotReadable(e, headers, status, request);
     }
 
     /** A browser asking for a page that does not exist gets the 404 page. */
