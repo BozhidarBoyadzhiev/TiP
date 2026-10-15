@@ -22,11 +22,13 @@ class TipReactions {
     }
 
     @Transactional
-    public boolean finish(UUID tipId, UUID deviceId, Instant claimedAt, Outcome outcome, Instant reactedAt) {
+    public boolean finish(
+            UUID tipId, UUID deviceId, Instant claimedAt, Outcome outcome, Instant reactedAt, boolean playOnDevice) {
         if (tips.finish(tipId, claimedAt, outcome, reactedAt) != 1) {
             return false;
         }
-        events.publishEvent(new TipReacted(tipId, deviceId, outcome.reaction(), outcome.repeats(), reactedAt));
+        events.publishEvent(
+                new TipReacted(tipId, deviceId, outcome.reaction(), outcome.repeats(), reactedAt, playOnDevice));
         return true;
     }
 
@@ -35,8 +37,8 @@ class TipReactions {
         return tips.failExhausted(tipId, staleBefore, reactedAt)
                 .map(tip -> {
                     Outcome outcome = Outcome.failed(tip.amountMinor(), tip.currency());
-                    events.publishEvent(
-                            new TipReacted(tipId, tip.deviceId(), outcome.reaction(), outcome.repeats(), reactedAt));
+                    events.publishEvent(new TipReacted(
+                            tipId, tip.deviceId(), outcome.reaction(), outcome.repeats(), reactedAt, !tip.revived()));
                     return true;
                 })
                 .orElse(false);

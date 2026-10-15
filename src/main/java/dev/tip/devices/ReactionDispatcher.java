@@ -11,8 +11,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /**
  * Delivers each committed {@link TipReacted}: stores it, sends it to the device when connected, and
  * broadcasts it to the device's observers. The insert is the duplicate check, so a repeated event
- * neither stores nor sends twice. A device that is offline gets the reaction on its next connect. Runs
- * on the delivery executor, see {@link WebSocketConfig#deliveryExecutor()}.
+ * neither stores nor sends twice. A device that is offline gets the reaction on its next connect. A
+ * reaction the device must not play (a tip PayPal confirmed after it was failed or abandoned) is neither
+ * stored nor sent nor broadcast. Runs on the delivery executor, see {@link WebSocketConfig#deliveryExecutor()}.
  */
 @Component
 class ReactionDispatcher {
@@ -44,6 +45,10 @@ class ReactionDispatcher {
     @Async(WebSocketConfig.DELIVERY_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void on(TipReacted event) {
+        if (!event.playOnDevice()) {
+            log.info("Tip {} was confirmed after it was closed, not played on the device", event.tipId());
+            return;
+        }
         PendingReaction reaction = new PendingReaction(
                 event.tipId(), event.deviceId(), event.reaction(), event.repeats(), event.reactedAt());
         try {

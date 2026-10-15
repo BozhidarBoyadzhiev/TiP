@@ -25,12 +25,14 @@ interface TipRepository extends JpaRepository<Tip, UUID> {
 
     /**
      * PayPal confirmed the capture, so the money moved: recorded even when the tip was marked failed or abandoned
-     * meanwhile, for example after a lost capture answer and a webhook that came hours later.
+     * meanwhile, for example after a lost capture answer and a webhook that came hours later. Such a tip is marked
+     * {@code revived} (the SET reads the status before the update), so the panda never plays it.
      */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
-            value = "UPDATE tip SET status = 'CAPTURED', paypal_capture_id = :captureId, captured_at = :capturedAt"
+            value = "UPDATE tip SET status = 'CAPTURED', paypal_capture_id = :captureId, captured_at = :capturedAt,"
+                    + " revived = status IN ('FAILED', 'ABANDONED')"
                     + " WHERE id = :id AND status IN ('CREATED', 'PENDING', 'FAILED', 'ABANDONED')",
             nativeQuery = true)
     int markCaptured(UUID id, String captureId, Instant capturedAt);

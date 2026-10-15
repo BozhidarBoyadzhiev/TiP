@@ -273,7 +273,8 @@ class AiClassificationTest extends IntegrationTest {
                         null,
                         null,
                         AiStatus.DONE),
-                Instant.now().truncatedTo(ChronoUnit.MICROS));
+                Instant.now().truncatedTo(ChronoUnit.MICROS),
+                true);
 
         assertThat(lateWriteAccepted).isFalse();
         assertThat(data.tipRow(tipId)).containsEntry("reaction", "WARM").containsEntry("flagged", false);

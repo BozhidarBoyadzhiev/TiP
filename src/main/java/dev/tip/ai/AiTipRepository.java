@@ -33,7 +33,7 @@ class AiTipRepository {
                         WHERE id = :id AND status = 'CAPTURED'
                           AND (ai_status = 'PENDING' OR (ai_status = 'PROCESSING' AND ai_claimed_at < :staleBefore))
                           AND ai_attempts < :maxAttempts
-                        RETURNING device_id, message, ai_attempts, amount_minor, currency""")
+                        RETURNING device_id, message, ai_attempts, amount_minor, currency, revived""")
                 .param("id", tipId)
                 .param("now", utc(now))
                 .param("staleBefore", utc(staleBefore))
@@ -43,7 +43,8 @@ class AiTipRepository {
                         rs.getString("message"),
                         rs.getInt("ai_attempts"),
                         rs.getLong("amount_minor"),
-                        rs.getString("currency")))
+                        rs.getString("currency"),
+                        rs.getBoolean("revived")))
                 .optional();
     }
 
@@ -95,13 +96,16 @@ class AiTipRepository {
                                        ai_status = 'FAILED', reaction_at = :reactedAt
                         WHERE id = :id AND status = 'CAPTURED' AND ai_status = 'PROCESSING'
                           AND ai_claimed_at < :staleBefore AND ai_attempts >= :maxAttempts
-                        RETURNING device_id, amount_minor, currency""")
+                        RETURNING device_id, amount_minor, currency, revived""")
                 .param("id", tipId)
                 .param("staleBefore", utc(staleBefore))
                 .param("reactedAt", utc(reactedAt))
                 .param("maxAttempts", TipReactionWorker.MAX_ATTEMPTS)
                 .query((rs, row) -> new Exhausted(
-                        rs.getObject("device_id", UUID.class), rs.getLong("amount_minor"), rs.getString("currency")))
+                        rs.getObject("device_id", UUID.class),
+                        rs.getLong("amount_minor"),
+                        rs.getString("currency"),
+                        rs.getBoolean("revived")))
                 .optional();
     }
 
@@ -124,7 +128,8 @@ class AiTipRepository {
     }
 
     /** {@code amountMinor} is the amount the server created the PayPal order for, which is what was charged. */
-    record Claim(UUID deviceId, String message, int attempts, long amountMinor, String currency) {}
+    /** {@code revived}: PayPal confirmed the capture after the tip was marked failed or abandoned. */
+    record Claim(UUID deviceId, String message, int attempts, long amountMinor, String currency, boolean revived) {}
 
-    record Exhausted(UUID deviceId, long amountMinor, String currency) {}
+    record Exhausted(UUID deviceId, long amountMinor, String currency, boolean revived) {}
 }
