@@ -110,6 +110,43 @@ class CaptureTipTest extends IntegrationTest {
     }
 
     @Test
+    void aCaptureOfAnotherAmountOrCurrencyLeavesTheTipUnchanged() throws Exception {
+        PayPalStubs.captureCompleted(PAYPAL, orderId, captureId, "0.01", "GBP");
+
+        capture(tipId)
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("PAYPAL_CAPTURE_FAILED"));
+
+        PayPalStubs.capturePending(PAYPAL, orderId, captureId, "2.00", "EUR");
+        capture(tipId)
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("PAYPAL_CAPTURE_FAILED"));
+
+        assertThat(data.tipRow(tipId)).containsEntry("status", "CREATED").containsEntry("paypal_capture_id", null);
+        assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    @Test
+    void anAlreadyCapturedOrderOfAnotherAmountLeavesTheTipUnchanged() throws Exception {
+        PayPalStubs.captureError(PAYPAL, orderId, 422, "UNPROCESSABLE_ENTITY", "ORDER_ALREADY_CAPTURED");
+        PayPalStubs.getOrder(PAYPAL, orderId, captureId, "COMPLETED", "200.00", "GBP");
+
+        capture(tipId)
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("PAYPAL_CAPTURE_FAILED"));
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+        assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    @Test
+    void theCapturedAmountMayBeWrittenWithAnyScale() throws Exception {
+        PayPalStubs.captureCompleted(PAYPAL, orderId, captureId, "2", "GBP");
+
+        capture(tipId).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CAPTURED"));
+    }
+
+    @Test
     void payPalOutageReturns502AndKeepsTipCapturable() throws Exception {
         PayPalStubs.captureError(PAYPAL, orderId, 500, "INTERNAL_SERVER_ERROR", "INTERNAL_SERVICE_ERROR");
 

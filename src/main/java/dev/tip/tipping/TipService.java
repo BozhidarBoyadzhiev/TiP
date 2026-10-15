@@ -92,12 +92,17 @@ class TipService {
         if (result instanceof CaptureResult.AlreadyCaptured) {
             result = payPal.lookupOrder(tip.paypalOrderId());
         }
-        apply(tipId, result);
+        apply(tip, result);
         // The tip may be gone: an expired sandbox is deleted with its tips while PayPal is called.
         return tips.findStatus(tipId).orElseThrow(TipExceptions.TipNotFound::new);
     }
 
-    private void apply(UUID tipId, CaptureResult result) {
+    private void apply(Tip tip, CaptureResult result) {
+        UUID tipId = tip.id();
+        if (result instanceof CaptureResult.Captured captured && !captured.charges(tip.amountMinor(), tip.currency())) {
+            log.warn("Tip {}: PayPal's capture does not charge the tip's amount, left the tip unchanged", tipId);
+            throw new TipExceptions.PayPalUnavailable("PAYPAL_CAPTURE_FAILED");
+        }
         switch (result) {
             case CaptureResult.Completed completed -> transitions.capture(tipId, completed.captureId());
             case CaptureResult.Pending pending -> transitions.pending(tipId, pending.captureId());

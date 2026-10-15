@@ -3,9 +3,27 @@ package dev.tip.paypal.api;
 /** What PayPal says about the capture of an order. */
 public sealed interface CaptureResult {
 
-    record Completed(String captureId) implements CaptureResult {}
+    /**
+     * A capture PayPal reports, with the amount it captured as PayPal wrote it ({@code amountValue} in major units,
+     * either may be null when PayPal left it out).
+     */
+    sealed interface Captured extends CaptureResult {
 
-    record Pending(String captureId) implements CaptureResult {}
+        String captureId();
+
+        String amountValue();
+
+        String currency();
+
+        /** True when the capture is exactly {@code amountMinor} of {@code currency}. */
+        default boolean charges(long amountMinor, String currency) {
+            return PayPalAmounts.equal(amountValue(), currency(), amountMinor, currency);
+        }
+    }
+
+    record Completed(String captureId, String amountValue, String currency) implements Captured {}
+
+    record Pending(String captureId, String amountValue, String currency) implements Captured {}
 
     /** The payer's funding instrument was declined. The payer can pick another one and retry. */
     record Declined() implements CaptureResult {}

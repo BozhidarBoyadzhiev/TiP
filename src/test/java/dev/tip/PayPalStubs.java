@@ -56,30 +56,53 @@ public final class PayPalStubs {
                         """)));
     }
 
+    /** A completed capture of 2.00 GBP, the amount of {@link TestData#tip}. */
     public static void captureCompleted(WireMockServer server, String orderId, String captureId) {
-        server.stubFor(post(urlPathEqualTo(capturePath(orderId)))
-                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "COMPLETED"))));
+        captureCompleted(server, orderId, captureId, "2.00", "GBP");
     }
 
-    public static void capturePending(WireMockServer server, String orderId, String captureId) {
+    public static void captureCompleted(
+            WireMockServer server, String orderId, String captureId, String amountValue, String currency) {
         server.stubFor(post(urlPathEqualTo(capturePath(orderId)))
-                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "PENDING"))));
+                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "COMPLETED", amountValue, currency))));
+    }
+
+    /** A pending capture of 2.00 GBP. */
+    public static void capturePending(WireMockServer server, String orderId, String captureId) {
+        capturePending(server, orderId, captureId, "2.00", "GBP");
+    }
+
+    public static void capturePending(
+            WireMockServer server, String orderId, String captureId, String amountValue, String currency) {
+        server.stubFor(post(urlPathEqualTo(capturePath(orderId)))
+                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "PENDING", amountValue, currency))));
     }
 
     public static void captureError(WireMockServer server, String orderId, int status, String name, String issue) {
         server.stubFor(post(urlPathEqualTo(capturePath(orderId))).willReturn(json(status, error(name, issue))));
     }
 
+    /** The order with one capture of 2.00 GBP in {@code captureStatus}. */
     public static void getOrder(WireMockServer server, String orderId, String captureId, String captureStatus) {
+        getOrder(server, orderId, captureId, captureStatus, "2.00", "GBP");
+    }
+
+    public static void getOrder(
+            WireMockServer server,
+            String orderId,
+            String captureId,
+            String captureStatus,
+            String amountValue,
+            String currency) {
         server.stubFor(get(urlPathEqualTo("/v2/checkout/orders/" + orderId))
-                .willReturn(json(200, order(orderId, "COMPLETED", captureId, captureStatus))));
+                .willReturn(json(200, order(orderId, "COMPLETED", captureId, captureStatus, amountValue, currency))));
     }
 
     /** Like {@link #captureCompleted} with a random response delay, so racing callers finish in any order. */
     public static void captureCompletedWithJitter(
             WireMockServer server, String orderId, String captureId, int maxDelayMillis) {
         server.stubFor(post(urlPathEqualTo(capturePath(orderId)))
-                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "COMPLETED"))
+                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "COMPLETED", "2.00", "GBP"))
                         .withUniformRandomDelay(0, maxDelayMillis)));
     }
 
@@ -107,13 +130,19 @@ public final class PayPalStubs {
                 """.formatted(refundId, status);
     }
 
-    private static String order(String orderId, String orderStatus, String captureId, String captureStatus) {
+    private static String order(
+            String orderId,
+            String orderStatus,
+            String captureId,
+            String captureStatus,
+            String amountValue,
+            String currency) {
         return """
                 {"id":"%s","status":"%s","purchase_units":[{"reference_id":"default",
                   "payments":{"captures":[{"id":"%s","status":"%s",
-                    "amount":{"currency_code":"GBP","value":"2.00"},"final_capture":true}]}}],
+                    "amount":{"currency_code":"%s","value":"%s"},"final_capture":true}]}}],
                  "links":[]}
-                """.formatted(orderId, orderStatus, captureId, captureStatus);
+                """.formatted(orderId, orderStatus, captureId, captureStatus, currency, amountValue);
     }
 
     private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder json(int status, String body) {

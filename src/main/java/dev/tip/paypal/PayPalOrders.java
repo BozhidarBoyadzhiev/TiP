@@ -9,6 +9,7 @@ import com.paypal.sdk.models.CheckoutPaymentIntent;
 import com.paypal.sdk.models.CreateOrderInput;
 import com.paypal.sdk.models.ErrorDetails;
 import com.paypal.sdk.models.GetOrderInput;
+import com.paypal.sdk.models.Money;
 import com.paypal.sdk.models.Order;
 import com.paypal.sdk.models.OrderRequest;
 import com.paypal.sdk.models.OrdersCapture;
@@ -157,9 +158,12 @@ class PayPalOrders {
             return new CaptureResult.Failed("no capture in order");
         }
         String captureId = capture.get().getId();
+        Optional<Money> amount = Optional.ofNullable(capture.get().getAmount());
+        String value = amount.map(Money::getValue).orElse(null);
+        String currency = amount.map(Money::getCurrencyCode).orElse(null);
         return switch (capture.get().getStatus()) {
-            case COMPLETED -> new CaptureResult.Completed(captureId);
-            case PENDING -> new CaptureResult.Pending(captureId);
+            case COMPLETED -> new CaptureResult.Completed(captureId, value, currency);
+            case PENDING -> new CaptureResult.Pending(captureId, value, currency);
             case DECLINED, FAILED -> new CaptureResult.Declined();
             default ->
                 new CaptureResult.Failed(

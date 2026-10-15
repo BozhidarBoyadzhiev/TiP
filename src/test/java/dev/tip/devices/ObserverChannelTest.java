@@ -83,7 +83,7 @@ class ObserverChannelTest extends IntegrationTest {
                 ANTHROPIC,
                 message,
                 AnthropicStubs.classification("REQUEST", true, "threat", "Request: something by Oasis"));
-        PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
+        PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"), "20.00", "GBP");
 
         try (TestSocket observer = TestSocket.connectObserver(port, slug, DeviceChannelTest.uniqueIp())) {
             await().atMost(Duration.ofSeconds(5)).until(() -> observers.isWatched(slug));

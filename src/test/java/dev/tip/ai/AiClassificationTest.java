@@ -140,7 +140,7 @@ class AiClassificationTest extends IntegrationTest {
         String orderId = TestData.uniqueId("ORDER");
         UUID tipId = data.tip(deviceId, "CREATED", orderId, Instant.now());
         data.setAmount(tipId, 1_000);
-        PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"));
+        PayPalStubs.captureCompleted(PAYPAL, orderId, TestData.uniqueId("CAPTURE"), "10.00", "GBP");
 
         mvc.perform(post("/api/public/tips/{tipId}/capture", tipId).with(TestData.newClient()))
                 .andExpect(status().isOk());

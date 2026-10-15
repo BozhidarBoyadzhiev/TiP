@@ -75,7 +75,7 @@ class PayPalGatewayTest extends IntegrationTest {
 
         CaptureResult result = gateway.captureOrder(tipId, "ORDER-2");
 
-        assertThat(result).isEqualTo(new CaptureResult.Completed("CAPTURE-2"));
+        assertThat(result).isEqualTo(new CaptureResult.Completed("CAPTURE-2", "2.00", "GBP"));
         PAYPAL.verify(postRequestedFor(urlPathEqualTo(PayPalStubs.capturePath("ORDER-2")))
                 .withHeader("PayPal-Request-Id", equalTo("capture-" + tipId)));
     }
@@ -85,7 +85,7 @@ class PayPalGatewayTest extends IntegrationTest {
         PayPalStubs.capturePending(PAYPAL, "ORDER-3", "CAPTURE-3");
 
         assertThat(gateway.captureOrder(UUID.randomUUID(), "ORDER-3"))
-                .isEqualTo(new CaptureResult.Pending("CAPTURE-3"));
+                .isEqualTo(new CaptureResult.Pending("CAPTURE-3", "2.00", "GBP"));
     }
 
     @Test
@@ -105,7 +105,7 @@ class PayPalGatewayTest extends IntegrationTest {
     void lookupOrderReportsTheCaptureState() {
         PayPalStubs.getOrder(PAYPAL, "ORDER-4", "CAPTURE-4", "COMPLETED");
 
-        assertThat(gateway.lookupOrder("ORDER-4")).isEqualTo(new CaptureResult.Completed("CAPTURE-4"));
+        assertThat(gateway.lookupOrder("ORDER-4")).isEqualTo(new CaptureResult.Completed("CAPTURE-4", "2.00", "GBP"));
     }
 
     @Test

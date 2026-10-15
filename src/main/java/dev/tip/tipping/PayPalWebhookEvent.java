@@ -1,7 +1,6 @@
 package dev.tip.tipping;
 
-import java.math.BigDecimal;
-import java.util.Currency;
+import dev.tip.paypal.api.PayPalAmounts;
 import java.util.Optional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -61,15 +60,7 @@ record PayPalWebhookEvent(
      * amount as a decimal string in major units, for example "2.50" for 250 GBP minor units.
      */
     boolean amountEquals(long amountMinor, String currency) {
-        if (amountValue == null || !currency.equals(amountCurrency)) {
-            return false;
-        }
-        try {
-            int digits = Math.max(Currency.getInstance(currency).getDefaultFractionDigits(), 0);
-            return new BigDecimal(amountValue).compareTo(BigDecimal.valueOf(amountMinor, digits)) == 0;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+        return PayPalAmounts.equal(amountValue, amountCurrency, amountMinor, currency);
     }
 
     private static String refundedCaptureId(JsonNode resource) {
