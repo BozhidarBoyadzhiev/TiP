@@ -143,6 +143,17 @@ class TipPageTest extends IntegrationTest {
     }
 
     @Test
+    void aCaptureThePageCouldNotConfirmOffersTryAgainWithoutSayingItFailed() throws Exception {
+        String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .containsPattern("if \\(response\\.status >= 500 && code !== \"PAYPAL_ORDER_NOT_FOUND\"\\) \\{\\s+"
+                        + "//[^\\n]*\\n\\s+formError\\(CAPTURE_UNCONFIRMED, \\(\\) => onApprove\\(data, actions\\)\\);")
+                .contains("We could not confirm your payment yet. Please do not pay again")
+                .doesNotContain("PAYPAL_CAPTURE_FAILED", "could not complete the payment");
+    }
+
+    @Test
     void aResolvedClickSaysPayPalIsOpeningUntilItOpensComesBackOrFiveSecondsPass() throws Exception {
         String page =
                 mvc.perform(get("/t/demo-panda")).andReturn().getResponse().getContentAsString();

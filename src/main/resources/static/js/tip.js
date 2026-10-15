@@ -19,7 +19,6 @@
         VALIDATION_FAILED: "Something in the form is not right. Please check it and try again.",
         RATE_LIMITED: "Lots of tips from this network just now. Please wait a minute and try again.",
         PAYPAL_ORDER_FAILED: "PayPal could not start the payment. Please try again.",
-        PAYPAL_CAPTURE_FAILED: "PayPal could not complete the payment. You have not been charged twice. Please try again.",
         PAYPAL_ORDER_NOT_FOUND: "PayPal could not find this payment. Please start again.",
         TIP_NOT_FOUND: "This tip could not be found. Please start again.",
         TIP_CLOSED: "This tip can no longer be completed. Please start again.",
@@ -27,6 +26,9 @@
     };
     const GENERIC_ERROR = "Something went wrong. Please try again.";
     const NETWORK_ERROR = "We could not reach the server. Check your connection and try again.";
+    // A capture whose answer was lost may still have gone through at PayPal, so this never says it failed.
+    const CAPTURE_UNCONFIRMED =
+        "We could not confirm your payment yet. Please do not pay again: tap Try again to check. You will not be charged twice.";
 
     const state = {
         slug: null,
@@ -452,13 +454,19 @@
             );
             return;
         }
-        if (response.status === 422 && (await problemCode(response)) === "INSTRUMENT_DECLINED") {
-            state.declined = true;
-            formError(ERROR_MESSAGES.INSTRUMENT_DECLINED);
-            return actions.restart();
-        }
         if (!response.ok) {
-            formError(messageFor(await problemCode(response)));
+            const code = await problemCode(response);
+            if (response.status === 422 && code === "INSTRUMENT_DECLINED") {
+                state.declined = true;
+                formError(ERROR_MESSAGES.INSTRUMENT_DECLINED);
+                return actions.restart();
+            }
+            if (response.status >= 500 && code !== "PAYPAL_ORDER_NOT_FOUND") {
+                // Capturing again is safe: the server sends PayPal the same request id.
+                formError(CAPTURE_UNCONFIRMED, () => onApprove(data, actions));
+                return;
+            }
+            formError(messageFor(code));
             return;
         }
         const body = await response.json();
