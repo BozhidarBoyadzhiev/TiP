@@ -3,6 +3,7 @@
 // Tip page. Every piece of text that comes from the server or the user is set with textContent.
 (function () {
     const MESSAGE_MAX = 280;
+    const OPENING_MS = 5000;
     const MESSAGE_NEAR = 250;
     // The server puts a per request CSP nonce on this script tag. The PayPal SDK needs it too.
     const CSP_NONCE = document.currentScript ? document.currentScript.nonce : "";
@@ -45,6 +46,8 @@
         unit: 100,
         whole: null,
         exact: null,
+        // The "Opening PayPal…" line: its timer and the height of the buttons when it was shown.
+        opening: { timer: null, height: 0 },
     };
 
     const el = (id) => document.getElementById(id);
@@ -249,6 +252,32 @@
                 state.buttons.disable();
             }
         }
+    }
+
+    // ---------- opening PayPal ----------
+
+    // PayPal takes a moment to open its card form or window and shows nothing meanwhile, so a short line says it
+    // is on its way. It goes when the buttons change height (the card form opened), when the flow comes back,
+    // or after OPENING_MS, whichever is first.
+    function showOpening() {
+        clearOpening();
+        state.opening.height = el("paypal-buttons").offsetHeight;
+        el("paypal-opening").textContent = "Opening PayPal…";
+        state.opening.timer = setTimeout(clearOpening, OPENING_MS);
+    }
+
+    function clearOpening() {
+        clearTimeout(state.opening.timer);
+        state.opening.timer = null;
+        el("paypal-opening").textContent = "";
+    }
+
+    function watchButtonsHeight() {
+        new ResizeObserver(() => {
+            if (state.opening.timer !== null && el("paypal-buttons").offsetHeight !== state.opening.height) {
+                clearOpening();
+            }
+        }).observe(el("paypal-buttons"));
     }
 
     // ---------- rendering ----------
@@ -459,17 +488,25 @@
                         return actions.reject();
                     }
                     formError(null);
-                    return actions.resolve();
+                    const resolved = actions.resolve();
+                    showOpening();
+                    return resolved;
                 },
                 createOrder: createOrder,
-                onApprove: onApprove,
-                onCancel: () =>
+                onApprove: (data, actions) => {
+                    clearOpening();
+                    return onApprove(data, actions);
+                },
+                onCancel: () => {
+                    clearOpening();
                     formError(
                         state.declined
                             ? ERROR_MESSAGES.INSTRUMENT_DECLINED
                             : "Payment cancelled. You have not been charged.",
-                    ),
+                    );
+                },
                 onError: () => {
+                    clearOpening();
                     if (el("form-error").hidden) {
                         formError(GENERIC_ERROR);
                     }
@@ -503,6 +540,7 @@
         renderForm(config);
         try {
             await loadPayPal(config);
+            watchButtonsHeight();
             renderButtons();
         } catch (e) {
             formError("PayPal could not be loaded. Please try again.", () => window.location.reload());

@@ -398,6 +398,15 @@ section {
     opacity: 0.45;
 }
 
+/* "Opening PayPal…" after a click, while PayPal loads its card form or window; empty otherwise. */
+.opening {
+    margin: 8px 0 0;
+    min-height: 1.4em;
+    text-align: center;
+    font-size: 13px;
+    color: var(--faint);
+}
+
 /* Under the buttons: a way to see the owner's side, the public sample dashboard. */
 .foot {
     margin: 18px 0 0;
