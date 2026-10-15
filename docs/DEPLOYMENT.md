@@ -134,7 +134,7 @@ Set the service's **Health Check Path** to:
 /actuator/health
 ```
 
-It answers `200 {"status":"UP"}` and nothing else: no component names or details. It checks the database connection and local disk space only. It never calls PayPal or Anthropic, so an outage there cannot make Render restart a healthy app. If the database is unreachable it answers 503.
+It answers `200 {"status":"UP"}` and nothing else: no component names or details. It checks the database connection and local disk space, beside Spring's own ping and SSL certificate indicators, which need nothing outside the app. It never calls PayPal or Anthropic, so an outage there cannot make Render restart a healthy app. If the database is unreachable it answers 503.
 
 ## Access log lines
 
