@@ -102,6 +102,8 @@ Zero rows means another worker has the tip or it is finished. The final write is
 
 **Refund response and webhook race.** An owner's refund calls PayPal with `PayPal-Request-Id: refund-<tipId>`. A `COMPLETED` answer and the `PAYMENT.CAPTURE.REFUNDED` webhook both try the conditional `CAPTURED` to `REFUNDED` update, so exactly one makes the transition. A `PENDING` answer leaves the tip `CAPTURED` and the webhook finishes it.
 
+**Refunds made outside TiP.** TiP only ever refunds a tip in full. A refund made in the PayPal dashboard instead moves the tip to `REFUNDED` whatever its amount, so after a partial refund there the tip leaves the owner's totals although part of it was kept. Accepted: the owner refunds through TiP, and the dashboard is not the place to keep partial accounts.
+
 **Device offline.** Every reaction gets a `reaction_delivery` row. When a device reconnects, it receives reactions from the last 60 seconds that it has not acknowledged, oldest first. Older ones are dropped, because a light reacting to a tip from an hour ago means nothing to anyone standing there.
 
 **Duplicate reactions.** `reaction_delivery` has the tip id as its primary key and the dispatcher inserts with `ON CONFLICT (tip_id) DO NOTHING`. Only the insert that creates the row sends, so a repeated `TipReacted` neither stores nor sends twice.
