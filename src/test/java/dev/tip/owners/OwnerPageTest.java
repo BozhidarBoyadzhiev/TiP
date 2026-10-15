@@ -194,6 +194,16 @@ class OwnerPageTest extends IntegrationTest {
     }
 
     @Test
+    void theRestingStripIsReadAgainWithTodaysNumbers() throws Exception {
+        String script = body("/js/owner.js");
+
+        assertThat(script)
+                .contains("const refreshToday = coalesced(async () => {\n        quietly(refreshResting());")
+                .contains("async function refreshResting() {\n        const me = await getJson(\"/api/owner/me\");\n"
+                        + "        el(\"resting\").hidden = me.aiResting !== true;");
+    }
+
+    @Test
     void testPaymentDetailsAreASandboxDialogWithCopyButtons() throws Exception {
         String html = page(get("/owner").with(user(owner()))).getContentAsString();
         String script = body("/js/owner.js");

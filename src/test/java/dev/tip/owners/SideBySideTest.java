@@ -142,6 +142,8 @@ class SideBySideTest extends IntegrationTest {
                 .contains("encodeURIComponent(device.slug)")
                 .contains("matchMedia(\"(min-width: 1100px)\")", "addEventListener(\"change\"")
                 .contains("window.location.replace(\"/owner\")", "\"/judges?sandboxExpired\"")
+                .contains("devices = await response.json();\n        } catch (e) {\n"
+                        + "            el(\"load-error\").hidden = false;")
                 .doesNotContain("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "postMessage");
     }
 

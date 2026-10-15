@@ -361,13 +361,20 @@
         }
     }
 
+    // The resting strip is read again with today's numbers, so it comes and goes without a reload.
     const refreshToday = coalesced(async () => {
+        quietly(refreshResting());
         const today = await getJson("/api/owner/today");
         if (today.totals.length === 0) {
             await learnCurrency().catch(() => {});
         }
         renderToday(today);
     });
+
+    async function refreshResting() {
+        const me = await getJson("/api/owner/me");
+        el("resting").hidden = me.aiResting !== true;
+    }
 
     // ---------- the panda's notes ----------
 

@@ -192,6 +192,19 @@ class PandaPageTest extends IntegrationTest {
     }
 
     @Test
+    void pandaRunsOnSafariBefore15Point4AndStopsOnceItsDeviceIsGone() throws Exception {
+        String script =
+                mvc.perform(get("/js/panda.js")).andReturn().getResponse().getContentAsString();
+
+        assertThat(script)
+                .contains("Object.prototype.hasOwnProperty.call(REACTIONS, message.reaction)")
+                .doesNotContain("Object.hasOwn(")
+                .contains(
+                        "if (!opened && (await deviceGone())) {\n                fail(\"This panda does not exist.\");")
+                .contains("return response.status === 404;");
+    }
+
+    @Test
     void tipSuccessScreenLinksToThePanda() throws Exception {
         mvc.perform(get("/t/demo-panda")).andExpect(content().string(containsString("Watch the panda react")));
         mvc.perform(get("/js/tip.js")).andExpect(content().string(containsString("\"/p/\" + encodeURIComponent")));

@@ -213,7 +213,7 @@
         } catch (e) {
             return;
         }
-        if (message && message.type === "reaction" && Object.hasOwn(REACTIONS, message.reaction)) {
+        if (message && message.type === "reaction" && Object.prototype.hasOwnProperty.call(REACTIONS, message.reaction)) {
             enqueue({ name: message.reaction, repeats: repeatsOf(message.repeats) });
         }
     }
@@ -230,17 +230,32 @@
             ensureLoop();
         });
         socket.addEventListener("message", onMessage);
-        socket.addEventListener("close", () => {
+        socket.addEventListener("close", async () => {
             state.connected = false;
+            const opened = state.openedAt !== null;
             // The backoff starts over only after a connection that stayed up a minute.
-            if (state.openedAt !== null && performance.now() - state.openedAt >= STABLE_MS) {
+            if (opened && performance.now() - state.openedAt >= STABLE_MS) {
                 state.attempt = 0;
             }
             state.openedAt = null;
             setStatus("reconnecting", "Reconnecting");
             ensureLoop();
+            // A refused handshake gives no status, so the device is looked up: an expired sandbox's panda is gone.
+            if (!opened && (await deviceGone())) {
+                fail("This panda does not exist.");
+                return;
+            }
             window.setTimeout(connect, nextDelayMillis());
         });
+    }
+
+    async function deviceGone() {
+        try {
+            const response = await fetch("/api/public/devices/" + encodeURIComponent(state.slug));
+            return response.status === 404;
+        } catch (e) {
+            return false;
+        }
     }
 
     // 1, 2, 4, 8, 16, 32, then 60 seconds, each shortened by up to 20 percent at random.

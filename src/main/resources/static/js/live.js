@@ -52,7 +52,13 @@
             el("load-error").hidden = false;
             return;
         }
-        const devices = await response.json();
+        let devices;
+        try {
+            devices = await response.json();
+        } catch (e) {
+            el("load-error").hidden = false;
+            return;
+        }
         const device = Array.isArray(devices) ? devices[0] : null;
         if (!device || typeof device.slug !== "string") {
             toDashboard();
