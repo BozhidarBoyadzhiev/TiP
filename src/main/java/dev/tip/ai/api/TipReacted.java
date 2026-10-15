@@ -6,8 +6,9 @@ import java.util.UUID;
 /**
  * Published exactly once per captured tip, when its reaction is final: classified, skipped (no message
  * or AI disabled) or failed, both PLAIN. {@code repeats} (1 to 5) scales the pattern with the amount
- * charged and is always 1 for a flagged message. {@code playOnDevice} is false for a tip PayPal confirmed
- * after it was marked failed or abandoned: it is recorded, but no device or observer plays it. Listeners
+ * charged and is always 1 for a flagged message. {@code playOnDevice} is false for a tip whose capture landed
+ * more than the playback window ({@code tip.ai.playback.window}, 10 minutes) after TiP first tried to capture it, or
+ * that TiP never tried to capture: it is recorded, but no device or observer plays it. Listeners
  * should use {@code @TransactionalEventListener(phase = AFTER_COMMIT)} so they only see stored reactions.
  * Carries no message text.
  */

@@ -48,7 +48,9 @@ CREATED ──▶ CAPTURED ──▶ REFUNDED
  FAILED (no order)   CREATED older than 6h ──▶ ABANDONED (scheduled job)
 ```
 
-`PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.DECLINED` move only `PENDING` to `FAILED`: a pending capture that PayPal refused in the end. For a `CREATED` tip they change nothing: the tipper's capture already answered `INSTRUMENT_DECLINED`, the page let them pick another payment method, and failing the tip would turn their retry into 409 `TIP_CLOSED`. A `CREATED` tip fails only when PayPal cannot create its order or no longer knows it. `PAYMENT.CAPTURE.REVERSED` moves `CAPTURED` to `REVERSED`. A capture request for a `FAILED` or `ABANDONED` tip gets 409 `TIP_CLOSED`. A capture PayPal confirms (the capture answer, an order lookup or a verified webhook) also moves a `FAILED` or `ABANDONED` tip to `CAPTURED`: the money moved, for example after a lost capture answer whose webhook came after the 6 hours, so it is recorded. Such a tip is marked `revived` in the same update and is classified like any other, but the panda never plays it: the tipper left hours ago, so `TipReacted` says not to, and no delivery row, device message or observer broadcast is made.
+`PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.DECLINED` move only `PENDING` to `FAILED`: a pending capture that PayPal refused in the end. For a `CREATED` tip they change nothing: the tipper's capture already answered `INSTRUMENT_DECLINED`, the page let them pick another payment method, and failing the tip would turn their retry into 409 `TIP_CLOSED`. A `CREATED` tip fails only when PayPal cannot create its order or no longer knows it. `PAYMENT.CAPTURE.REVERSED` moves `CAPTURED` to `REVERSED`. A capture request for a `FAILED` or `ABANDONED` tip gets 409 `TIP_CLOSED`. A capture PayPal confirms (the capture answer, an order lookup or a verified webhook) also moves a `FAILED` or `ABANDONED` tip to `CAPTURED`: the money moved, for example after a lost capture answer whose webhook came after the 6 hours, so it is recorded. Such a tip is marked `revived` in the same update, as a record, and is classified like any other.
+
+A tip plays on the device only when its capture landed within 10 minutes (`tip.ai.playback.window`) of `capture_attempted_at`, the first time TiP asked PayPal to capture it: after that the tipper has most likely walked away, and a reaction would greet whoever stands there now. So a capture settled late, by a delayed webhook, `PendingTipsJob`, `AbandonedTipsJob` or as a revived tip, and one TiP never attempted, is recorded and classified as usual, but its `TipReacted` says not to play it, and no delivery row, device message or observer broadcast is made.
 
 Every transition is a conditional update:
 
@@ -134,7 +136,7 @@ WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
 | Table | Key columns |
 |---|---|
 | `device` | `id` uuid, `slug` unique, `display_name`, `owner_id`, `secret_hash`, `created_at`, `last_seen_at` null |
-| `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `capture_attempted_at` null, `revived` (captured after it was failed or abandoned, never played), `message_kind` null (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reaction` null (same values, `PLAIN` when flagged), `flagged` bool, `flag_reason` null, `owner_note` varchar(100) null (requests only), `message_language` varchar(2) null, `message_english` varchar(280) null, `requested_song` varchar(80) null, `requested_song_key` varchar(80) null (partial index), `owner_verdict` null or `NOT_ABUSIVE`, `owner_verdict_at` null, `ai_status`, `demo` (a sample tip), `created_at`, `captured_at` |
+| `tip` | `id` uuid, `device_id`, `amount_minor` bigint, `currency` char(3), `message` varchar(280) null, `status`, `paypal_order_id` unique, `paypal_capture_id` unique null, `capture_attempted_at` null, `revived` (captured after it was failed or abandoned, a record), `message_kind` null (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `reaction` null (same values, `PLAIN` when flagged), `flagged` bool, `flag_reason` null, `owner_note` varchar(100) null (requests only), `message_language` varchar(2) null, `message_english` varchar(280) null, `requested_song` varchar(80) null, `requested_song_key` varchar(80) null (partial index), `owner_verdict` null or `NOT_ABUSIVE`, `owner_verdict_at` null, `ai_status`, `demo` (a sample tip), `created_at`, `captured_at` |
 | `paypal_webhook_event` | `event_id` unique, `event_type`, `resource_id`, `received_at` |
 | `owner` | `id`, `email` unique and lowercase (null for a sandbox and the public demo), `password_hash` (likewise null), `display_name`, `created_at`, `time_zone` (default `Europe/London`), `kind` (`REAL`, `SANDBOX`, `PUBLIC_DEMO`), `code_label` and `expires_at` (sandboxes) |
 | `resume_token` | `token_hash` (SHA-256 of a 128 bit token) primary key, `owner_id` (cascade), `created_at`, `expires_at`, `used_at` null |
@@ -150,7 +152,7 @@ Webhook events and unpaid tips (`ABANDONED`, `FAILED`) are deleted after 30 days
 
 ```
 TipReacted (after commit) ──▶ ReactionDispatcher (delivery executor)
-                                 0. a revived tip (playOnDevice false): nothing more
+                                 0. captured outside the playback window (playOnDevice false): nothing more
                                  1. INSERT reaction_delivery ON CONFLICT DO NOTHING ── no row: duplicate, stop
                                  2. device connected? send reaction, sent_count + 1
                                  3. broadcast {type, reaction, repeats, at} to the device's observers

@@ -47,7 +47,7 @@ class ReactionDispatcher {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void on(TipReacted event) {
         if (!event.playOnDevice()) {
-            log.info("Tip {} was confirmed after it was closed, not played on the device", event.tipId());
+            log.info("Tip {} was captured outside the playback window, not played on the device", event.tipId());
             return;
         }
         PendingReaction reaction = new PendingReaction(

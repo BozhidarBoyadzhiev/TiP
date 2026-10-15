@@ -26,7 +26,8 @@ interface TipRepository extends JpaRepository<Tip, UUID> {
     /**
      * PayPal confirmed the capture, so the money moved: recorded even when the tip was marked failed or abandoned
      * meanwhile, for example after a lost capture answer and a webhook that came hours later. Such a tip is marked
-     * {@code revived} (the SET reads the status before the update), so the panda never plays it.
+     * {@code revived} (the SET reads the status before the update) as a record; whether the panda plays a tip is
+     * decided by the playback window instead.
      */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)

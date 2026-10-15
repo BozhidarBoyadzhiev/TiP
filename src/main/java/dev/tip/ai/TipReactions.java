@@ -38,7 +38,12 @@ class TipReactions {
                 .map(tip -> {
                     Outcome outcome = Outcome.failed(tip.amountMinor(), tip.currency());
                     events.publishEvent(new TipReacted(
-                            tipId, tip.deviceId(), outcome.reaction(), outcome.repeats(), reactedAt, !tip.revived()));
+                            tipId,
+                            tip.deviceId(),
+                            outcome.reaction(),
+                            outcome.repeats(),
+                            reactedAt,
+                            tip.playOnDevice()));
                     return true;
                 })
                 .orElse(false);

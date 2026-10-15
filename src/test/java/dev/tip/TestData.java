@@ -163,7 +163,8 @@ public class TestData {
     /** A CAPTURED tip whose classification has not started, as if the process died right after capture. */
     public UUID capturedTip(UUID deviceId, String message) {
         UUID id = tip(deviceId, "CAPTURED", uniqueId("ORDER"), Instant.now());
-        jdbc.sql("UPDATE tip SET message = ?, paypal_capture_id = ?, captured_at = now() WHERE id = ?")
+        jdbc.sql("UPDATE tip SET message = ?, paypal_capture_id = ?, capture_attempted_at = now(), captured_at = now()"
+                        + " WHERE id = ?")
                 .params(message, uniqueId("CAPTURE"), id)
                 .update();
         return id;

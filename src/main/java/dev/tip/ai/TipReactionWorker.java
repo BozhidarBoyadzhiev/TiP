@@ -82,7 +82,7 @@ class TipReactionWorker {
                 outcome = TipReactions.Outcome.failed(work.amountMinor(), work.currency());
             }
         }
-        if (reactions.finish(tipId, work.deviceId(), claimedAt, outcome, now(), !work.revived())) {
+        if (reactions.finish(tipId, work.deviceId(), claimedAt, outcome, now(), work.playOnDevice())) {
             log.info(
                     "Tip {} reacts {} x{} (kind {}, ai {}, flagged {})",
                     tipId,
