@@ -1,0 +1,93 @@
+/* Proposed additions for side by side (would go into owner.css and tip.css). */
+
+/* The switch in the sandbox strip. Desktop only. */
+.split-switch {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--cream);
+    font: 500 14px var(--font);
+    white-space: nowrap;
+    user-select: none;
+}
+@media (min-width: 1100px) {
+    .split-switch { display: inline-flex; }
+}
+.split-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+.split-switch .track {
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(243, 227, 200, 0.14);
+    border: 1px solid var(--card-edge);
+    position: relative;
+    transition: background 0.2s;
+}
+.split-switch .track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--cream);
+    transition: transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.split-switch input:checked + .track { background: var(--gold); }
+.split-switch input:checked + .track::after { transform: translateX(16px); background: var(--ink); }
+.split-switch input:focus-visible + .track { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+/* Inside side by side the neighbours are on screen, so their links go. */
+html.embedded #sandbox-tip,
+html.embedded #watch { display: none !important; }
+html.embedded .split-switch { display: inline-flex; }
+
+/* Tip page: "Tip again" replaces "Watch the panda react" inside side by side. */
+.tip-again {
+    display: none;
+    margin-left: auto;
+    margin-right: auto;
+    border: 0;
+    cursor: pointer;
+    font-family: var(--font);
+}
+html.embedded .tip-again { display: block; }
+html.embedded #watch-panda,
+html.embedded .foot { display: none; }
+
+/* PREVIEW ONLY: stand ins for PayPal's buttons. */
+.pp-fake {
+    display: block;
+    width: 100%;
+    height: 48px;
+    border-radius: 26px;
+    border: 0;
+    margin: 0 0 10px;
+    font: 700 17px system-ui, sans-serif;
+    cursor: pointer;
+}
+.pp-fake[disabled] { opacity: 0.5; cursor: not-allowed; }
+.pp-gold { background: #ffc439; color: #003087; font-style: italic; }
+.pp-dark { background: #2c2e2f; color: #fff; font-weight: 500; font-size: 15px; }
+.pp-veil {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(18, 12, 9, 0.82);
+    color: var(--cream);
+    font: 500 15px var(--font);
+    z-index: 99;
+}
+
+/* Panda page: its hint points at the tip column inside side by side. */
+.embedded-only { display: none; }
+html.embedded .embedded-only { display: block; }
+html.embedded .not-embedded { display: none; }
