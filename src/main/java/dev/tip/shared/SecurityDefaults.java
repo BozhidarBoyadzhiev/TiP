@@ -1,6 +1,5 @@
 package dev.tip.shared;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -63,16 +62,21 @@ public final class SecurityDefaults {
                 "frame-ancestors " + (frameable ? "'self'" : "'none'"));
     }
 
-    /** The WebSocket origin of the request's own origin, after forwarded headers are applied. */
-    static String webSocketOrigin(HttpServletRequest request) {
-        boolean secure = "https".equalsIgnoreCase(request.getScheme());
-        int port = request.getServerPort();
-        boolean defaultPort = port == (secure ? 443 : 80) || port <= 0;
-        return (secure ? "wss://" : "ws://") + request.getServerName() + (defaultPort ? "" : ":" + port);
+    /**
+     * The WebSocket origin of {@code TIP_PUBLIC_BASE_URL}, where the pages are served. Never the request's {@code
+     * Host}, which the client chooses.
+     */
+    static String webSocketOrigin(TipProperties properties) {
+        String origin = properties.publicOrigin();
+        return origin.startsWith("https://")
+                ? "wss://" + origin.substring("https://".length())
+                : "ws://" + origin.substring("http://".length());
     }
 
     /** Applies the shared headers and the problem details access denied handler. */
-    public static HttpSecurity apply(HttpSecurity http, ProblemWriter problems) throws Exception {
+    public static HttpSecurity apply(HttpSecurity http, ProblemWriter problems, TipProperties properties)
+            throws Exception {
+        String webSocketOrigin = webSocketOrigin(properties);
         return http.addFilterBefore(new CspNonce(), HeaderWriterFilter.class)
                 .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable())
                         .addHeaderWriter((request, response) -> {
@@ -81,7 +85,7 @@ public final class SecurityDefaults {
                                     "Content-Security-Policy",
                                     contentSecurityPolicy(
                                             CspNonce.of(request),
-                                            webSocketOrigin(request),
+                                            webSocketOrigin,
                                             frameable,
                                             FRAMES_OWN_PAGES.matches(request)));
                             // For browsers that predate frame-ancestors.

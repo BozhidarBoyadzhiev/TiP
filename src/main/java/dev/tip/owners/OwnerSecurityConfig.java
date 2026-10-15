@@ -4,6 +4,7 @@ import dev.tip.owners.api.OwnerPrincipal;
 import dev.tip.owners.api.OwnerSignedOut;
 import dev.tip.shared.ProblemWriter;
 import dev.tip.shared.SecurityDefaults;
+import dev.tip.shared.TipProperties;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -52,6 +53,7 @@ class OwnerSecurityConfig {
     SecurityFilterChain ownerSecurityFilterChain(
             HttpSecurity http,
             ProblemWriter problems,
+            TipProperties properties,
             LoginRateLimiter limiter,
             ApplicationEventPublisher events,
             Clock clock,
@@ -60,7 +62,7 @@ class OwnerSecurityConfig {
         SimpleUrlAuthenticationSuccessHandler toHome = new SimpleUrlAuthenticationSuccessHandler(HOME_PATH);
         toHome.setAlwaysUseDefaultTargetUrl(true);
 
-        SecurityDefaults.apply(http, problems)
+        SecurityDefaults.apply(http, problems, properties)
                 .securityMatcher("/owner", "/owner/**", "/api/owner/**", CHANNEL_PATH, "/judges/**", "/demo/**")
                 .authorizeHttpRequests(auth -> auth.requestMatchers(
                                 HttpMethod.GET, LOGIN_PATH, JUDGES_PATH, DEMO_PAGE_PATH)

@@ -36,14 +36,15 @@ class PandaPageTest extends IntegrationTest {
     }
 
     @Test
-    void securityPolicyLetsThePageOpenItsOwnWebSocket() throws Exception {
+    void securityPolicyLetsThePageOpenThePublicWebSocketWhateverTheHost() throws Exception {
         mvc.perform(get("/p/demo-panda"))
                 .andExpect(header().string(
-                                "Content-Security-Policy", containsString("connect-src 'self' ws://localhost ")));
+                                "Content-Security-Policy", containsString("connect-src 'self' ws://localhost:8080 ")));
 
-        mvc.perform(get("/p/demo-panda").header("Host", "localhost:8081"))
+        mvc.perform(get("/p/demo-panda").header("Host", "evil.example:8081"))
                 .andExpect(header().string(
-                                "Content-Security-Policy", containsString("connect-src 'self' ws://localhost:8081 ")));
+                                "Content-Security-Policy", containsString("connect-src 'self' ws://localhost:8080 ")))
+                .andExpect(header().string("Content-Security-Policy", not(containsString("evil.example"))));
     }
 
     @Test

@@ -146,7 +146,7 @@ class BehindProxyTest extends IntegrationTest {
     }
 
     @Test
-    void pageOverForwardedHttpsAllowsItsOwnSecureWebSocket() throws Exception {
+    void pageOverForwardedHttpsNamesThePublicWebSocketOriginNotTheForwardedHost() throws Exception {
         HttpResponse<String> response = http.send(
                 forwarded(HttpRequest.newBuilder(uri("/p/demo-panda")), TestData.uniquePublicIp())
                         .GET()
@@ -154,7 +154,9 @@ class BehindProxyTest extends IntegrationTest {
                 HttpResponse.BodyHandlers.ofString());
 
         assertThat(response.headers().firstValue("Content-Security-Policy"))
-                .hasValueSatisfying(policy -> assertThat(policy).contains("connect-src 'self' wss://tip.example.com "));
+                .hasValueSatisfying(policy -> assertThat(policy)
+                        .contains("connect-src 'self' ws://localhost:8080 ")
+                        .doesNotContain("tip.example.com"));
     }
 
     @Test

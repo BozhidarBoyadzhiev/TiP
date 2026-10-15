@@ -21,9 +21,10 @@ class SecurityConfig {
 
     @Bean
     @Order(Ordered.LOWEST_PRECEDENCE)
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ProblemWriter problems, NotFoundPage notFoundPage)
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http, ProblemWriter problems, TipProperties properties, NotFoundPage notFoundPage)
             throws Exception {
-        SecurityDefaults.apply(http, problems)
+        SecurityDefaults.apply(http, problems, properties)
                 .authorizeHttpRequests(auth -> auth.dispatcherTypeMatchers(DispatcherType.ERROR)
                         .permitAll()
                         .requestMatchers(

@@ -37,6 +37,12 @@ class HttpsBaseUrlTest extends IntegrationTest {
     }
 
     @Test
+    void pagesMayOpenTheSecureWebSocketOfTheBaseUrl() throws Exception {
+        assertThat(mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getHeader("Content-Security-Policy"))
+                .contains("connect-src 'self' wss://tip-demo.onrender.com ");
+    }
+
+    @Test
     void observerAcceptsTheHttpsOriginOfTheBaseUrl() throws Exception {
         String slug = TestData.uniqueSlug();
         data.device(slug, "Panda");
