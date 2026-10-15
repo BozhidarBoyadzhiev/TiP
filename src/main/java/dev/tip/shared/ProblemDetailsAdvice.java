@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.web.firewall.RequestRejectedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -48,6 +49,19 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
                 .map(v -> Map.of("field", v.getPropertyPath().toString(), "message", v.getMessage()))
                 .toList();
         return ResponseEntity.badRequest().body(validationProblem(errors));
+    }
+
+    /**
+     * Spring Security's firewall checks a header value only when something reads it, so a value with a character it
+     * refuses (a control character, or a UTF-8 byte that reads as one) is thrown here. The client sent it, so it is a
+     * 400, and the message, which repeats the value, is not logged.
+     */
+    @ExceptionHandler(RequestRejectedException.class)
+    ResponseEntity<ProblemDetail> handleRejected(RequestRejectedException e) {
+        log.warn("Rejected a request with a header or parameter the firewall refuses");
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "The request is not valid.");
+        problem.setProperty("code", "BAD_REQUEST");
+        return ResponseEntity.badRequest().body(problem);
     }
 
     @ExceptionHandler(Exception.class)

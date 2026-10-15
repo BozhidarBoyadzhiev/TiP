@@ -53,6 +53,25 @@ class UnexpectedErrorLogTest extends IntegrationTest {
         assertThat(output.getOut()).contains("Unexpected database error: ").doesNotContain("Key (", captureId);
     }
 
+    /** U+0082 is how the middle byte of a UTF-8 euro sign reads in a header, which Tomcat passes through. */
+    @Test
+    void aHeaderValueTheFirewallRefusesIs400AndNotLogged(CapturedOutput output) throws Exception {
+        String value = "transmission-" + (char) 0x82 + "-" + UUID.randomUUID();
+
+        mvc.perform(post("/webhooks/paypal")
+                        .headers(WebhookEvents.transmissionHeaders())
+                        .header("PAYPAL-TRANSMISSION-ID", value)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .with(TestData.newClient()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+
+        assertThat(output.getOut())
+                .contains("Rejected a request with a header or parameter the firewall refuses")
+                .doesNotContain(value.substring(value.lastIndexOf('-') + 1));
+    }
+
     @Test
     void describeNamesTheClassesAndTheFirstFrameInTipsCode() {
         DataIntegrityViolationException error =
