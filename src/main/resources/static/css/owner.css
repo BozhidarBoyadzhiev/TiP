@@ -483,7 +483,8 @@ html.embedded .split-switch {
 
 /* Inside the side by side view the tip page and the panda are on screen, so their links go. */
 html.embedded #sandbox-tip,
-html.embedded #watch {
+html.embedded #watch,
+html.embedded .demo-tip {
     display: none;
 }
 

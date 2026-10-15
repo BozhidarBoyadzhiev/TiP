@@ -739,7 +739,7 @@
     // A sample tip was never paid, so it cannot be refunded; a real one sent to the panda can.
     function demoNote(view) {
         const note = make("div", "owner-note demo-note");
-        const link = make("a", "ghost", "Tip your panda");
+        const link = make("a", "ghost demo-tip", "Tip your panda");
         link.href = tipPagePath(view.deviceSlug);
         note.append(make("span", null, "Demo tip. Send a real tip to try refunds."), link);
         return note;

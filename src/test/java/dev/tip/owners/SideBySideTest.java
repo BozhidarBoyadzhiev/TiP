@@ -166,7 +166,11 @@ class SideBySideTest extends IntegrationTest {
                 .contains("el(\"split-toggle\").checked = EMBEDDED;");
         assertThat(ownerStyles)
                 .contains("@media (min-width: 1100px) {\n    .split-switch {\n        display: inline-flex;")
-                .contains("html.embedded #sandbox-tip,\nhtml.embedded #watch {\n    display: none;");
+                .contains(
+                        "html.embedded #sandbox-tip,\nhtml.embedded #watch,\nhtml.embedded .demo-tip {\n    display: none;");
+        assertThat(owner)
+                .contains("make(\"a\", \"ghost demo-tip\", \"Tip your panda\")")
+                .contains("make(\"span\", null, \"Demo tip. Send a real tip to try refunds.\"), link");
 
         assertThat(body("/js/tip.js"))
                 .contains("el(\"tip-again\").addEventListener(\"click\", () => window.location.reload());");
