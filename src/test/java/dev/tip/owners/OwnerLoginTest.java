@@ -110,6 +110,20 @@ class OwnerLoginTest extends IntegrationTest {
     }
 
     @Test
+    void emailsLongerThanAnyOwnersShareOneBucket() throws Exception {
+        String padding = "x".repeat(LoginRateLimiter.MAX_EMAIL_LENGTH);
+        for (int i = 0; i < 5; i++) {
+            login(padding + TestData.uniqueEmail(), "wrong-password", randomIp(), new MockHttpSession())
+                    .andExpect(status().isUnauthorized());
+        }
+
+        login(padding + TestData.uniqueEmail(), "wrong-password", randomIp(), new MockHttpSession())
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+        login(email, TestData.OWNER_PASSWORD, randomIp(), new MockHttpSession()).andExpect(status().isFound());
+    }
+
+    @Test
     void loginWithoutCsrfTokenIs403() throws Exception {
         mvc.perform(post("/owner/login")
                         .param("email", email)

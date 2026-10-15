@@ -9,12 +9,18 @@ import org.springframework.stereotype.Component;
 
 /**
  * In memory token buckets for sign in attempts: 5 per minute per client IP and 5 per minute per email,
- * counting every attempt, successful or not. Idle buckets expire. Single instance only.
+ * counting every attempt, successful or not. Idle buckets expire. Single instance only. An email longer
+ * than any owner's can be shares one bucket, so the cache never holds what a sender typed beyond that length.
  */
 @Component
 class LoginRateLimiter {
 
     static final int ATTEMPTS_PER_MINUTE = 5;
+
+    /** The longest email the {@code owner} table holds. */
+    static final int MAX_EMAIL_LENGTH = 254;
+
+    private static final String TOO_LONG = " too long";
 
     private final Cache<String, Bucket> byIp = newCache();
     private final Cache<String, Bucket> byEmail = newCache();
@@ -22,8 +28,9 @@ class LoginRateLimiter {
     /** Takes one attempt from both buckets. False when either is empty. */
     boolean tryAcquire(String clientIp, String email) {
         boolean ipAllowed = byIp.get(clientIp, key -> newBucket()).tryConsume(1);
-        boolean emailAllowed =
-                byEmail.get(OwnerEmails.normalize(email), key -> newBucket()).tryConsume(1);
+        String normalized = OwnerEmails.normalize(email);
+        String emailKey = normalized.length() > MAX_EMAIL_LENGTH ? TOO_LONG : normalized;
+        boolean emailAllowed = byEmail.get(emailKey, key -> newBucket()).tryConsume(1);
         return ipAllowed && emailAllowed;
     }
 
