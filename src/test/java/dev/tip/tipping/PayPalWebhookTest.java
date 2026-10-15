@@ -8,17 +8,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.http.Fault;
 import dev.tip.CapturedEvents;
 import dev.tip.IntegrationTest;
 import dev.tip.PayPalStubs;
 import dev.tip.TestData;
 import dev.tip.WebhookEvents;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -277,14 +281,79 @@ class PayPalWebhookTest extends IntegrationTest {
         }
     }
 
-    @Test
-    void aVerificationOutageDoesNotCountAsARejection() throws Exception {
-        PAYPAL.stubFor(post(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH))
-                .willReturn(aResponse().withStatus(503)));
+    @ParameterizedTest
+    @EnumSource(VerifyFailure.class)
+    void aFailedVerificationCallAnswers503AndDoesNotCountAsARejection(VerifyFailure failure) throws Exception {
+        PAYPAL.stubFor(post(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH)).willReturn(failure.response()));
         String body = WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId);
         for (int i = 0; i <= WebhookFailureLimiter.REJECTED_PER_MINUTE; i++) {
             webhook(body).andExpect(status().isServiceUnavailable());
         }
+
+        assertTheFullRejectionAllowanceIsLeft(body);
+    }
+
+    @Test
+    void aTimedOutVerificationCallAnswers503AndDoesNotCountAsARejection() throws Exception {
+        PAYPAL.stubFor(post(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH))
+                .willReturn(PayPalStubs.json(200, "{\"verification_status\":\"FAILURE\"}")
+                        .withFixedDelay((int) Duration.ofSeconds(20).toMillis())));
+        String body = WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId);
+
+        webhook(body).andExpect(status().isServiceUnavailable());
+
+        assertTheFullRejectionAllowanceIsLeft(body);
+    }
+
+    /** Every one of the client's rejections is still available: none of the earlier failures was counted. */
+    private void assertTheFullRejectionAllowanceIsLeft(String body) throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "FAILURE");
+        for (int i = 1; i <= WebhookFailureLimiter.REJECTED_PER_MINUTE; i++) {
+            webhook(body).andExpect(status().isBadRequest());
+        }
+        webhook(body).andExpect(status().isTooManyRequests());
+    }
+
+    enum VerifyFailure {
+        SERVER_ERROR,
+        UNAVAILABLE,
+        THROTTLED,
+        TOKEN_REJECTED,
+        FORBIDDEN,
+        NOT_FOUND,
+        CONNECTION_RESET,
+        EMPTY_RESPONSE,
+        UNREADABLE_BODY,
+        NO_STATUS;
+
+        ResponseDefinitionBuilder response() {
+            return switch (this) {
+                case SERVER_ERROR -> aResponse().withStatus(500);
+                case UNAVAILABLE -> aResponse().withStatus(503);
+                case THROTTLED -> aResponse().withStatus(429);
+                case TOKEN_REJECTED -> aResponse().withStatus(401);
+                case FORBIDDEN -> aResponse().withStatus(403);
+                case NOT_FOUND -> aResponse().withStatus(404);
+                case CONNECTION_RESET -> aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER);
+                case EMPTY_RESPONSE -> aResponse().withFault(Fault.EMPTY_RESPONSE);
+                case UNREADABLE_BODY -> PayPalStubs.json(200, "not json");
+                case NO_STATUS -> PayPalStubs.json(200, "{}");
+            };
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {400, 422})
+    void payPalRefusingTheTransmissionCountsAsARejection(int status) throws Exception {
+        PAYPAL.stubFor(post(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH))
+                .willReturn(
+                        PayPalStubs.json(status, PayPalStubs.error("INVALID_REQUEST", "INVALID_PARAMETER_SYNTAX"))));
+        String body = WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId);
+        for (int i = 1; i <= WebhookFailureLimiter.REJECTED_PER_MINUTE; i++) {
+            webhook(body).andExpect(status().isBadRequest());
+        }
+
+        webhook(body).andExpect(status().isTooManyRequests());
     }
 
     @Test

@@ -27,6 +27,11 @@ import tools.jackson.databind.node.ObjectNode;
  * Calls {@code POST /v1/notifications/verify-webhook-signature}, which the SDK does not cover. The raw
  * body is embedded verbatim as {@code webhook_event}, so PayPal checks the exact bytes it signed. A transmission whose
  * certificate URL is not an https URL on a PayPal host is rejected without a call.
+ *
+ * <p>Only a definite answer about the transmission is {@code REJECTED}: our own checks before the call, PayPal's
+ * {@code FAILURE}, or PayPal refusing the transmission's fields (400, 422). Anything else, a timeout, a lost connection,
+ * a 5xx, a 429, an auth or configuration error on our side or an answer we cannot read, is {@code UNAVAILABLE}: the
+ * sender gets 503 and the failure limiter never counts it, so PayPal's own deliveries are never limited.
  */
 @Component
 class WebhookSignatureVerifier {
@@ -88,9 +93,13 @@ class WebhookSignatureVerifier {
                             log.warn("PayPal webhook verification unavailable: status={}", status);
                             return WebhookVerification.UNAVAILABLE;
                         }
-                        if (!response.getStatusCode().is2xxSuccessful()) {
+                        if (status == 400 || status == 422) {
                             log.warn("PayPal webhook verification refused: status={}", status);
                             return WebhookVerification.REJECTED;
+                        }
+                        if (!response.getStatusCode().is2xxSuccessful()) {
+                            log.warn("PayPal webhook verification unavailable: status={}", status);
+                            return WebhookVerification.UNAVAILABLE;
                         }
                         return verificationStatus(
                                 new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8));
@@ -156,7 +165,14 @@ class WebhookSignatureVerifier {
         try {
             String status =
                     jsonMapper.readTree(body).path("verification_status").asString("");
-            return "SUCCESS".equals(status) ? WebhookVerification.VERIFIED : WebhookVerification.REJECTED;
+            return switch (status) {
+                case "SUCCESS" -> WebhookVerification.VERIFIED;
+                case "FAILURE" -> WebhookVerification.REJECTED;
+                default -> {
+                    log.warn("PayPal webhook verification returned no verification status");
+                    yield WebhookVerification.UNAVAILABLE;
+                }
+            };
         } catch (JacksonException e) {
             log.warn("PayPal webhook verification returned an unreadable body");
             return WebhookVerification.UNAVAILABLE;

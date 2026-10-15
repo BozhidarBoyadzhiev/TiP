@@ -150,7 +150,7 @@ public final class PayPalStubs {
                 """.formatted(orderId, orderStatus, captureId, captureStatus, currency, amountValue);
     }
 
-    private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder json(int status, String body) {
+    public static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder json(int status, String body) {
         return aResponse()
                 .withStatus(status)
                 .withHeader("Content-Type", "application/json")
