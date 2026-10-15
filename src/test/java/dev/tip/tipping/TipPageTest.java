@@ -26,7 +26,7 @@ class TipPageTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
                 .andExpect(content().string(containsString("/js/tip.js")))
-                .andExpect(header().string("Content-Security-Policy", containsString("frame-ancestors 'none'")))
+                .andExpect(header().string("Content-Security-Policy", containsString("frame-ancestors 'self'")))
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
                 .andExpect(result -> {
                     String policy = result.getResponse().getHeader("Content-Security-Policy");

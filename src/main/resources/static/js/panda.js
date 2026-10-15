@@ -281,5 +281,9 @@
         connect();
     }
 
+    // ?embed: the page sits in the side by side view, beside the tip page. It only changes the hint.
+    if (new URLSearchParams(window.location.search).has("embed")) {
+        el("hint").textContent = "Send a tip on the left and watch this one react.";
+    }
     start();
 })();

@@ -8,6 +8,9 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * Settings every security filter chain shares: the CSP nonce, security headers, and problem details
@@ -17,16 +20,34 @@ public final class SecurityDefaults {
 
     private static final String PAYPAL_SOURCES = "https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com";
 
+    /** The side by side view's page, the only one that frames our own pages. */
+    public static final String LIVE_PATH = "/owner/live";
+
+    /**
+     * The pages the side by side view frames: the tip page, the panda page and the dashboard. Only these may be
+     * framed, and only by our own origin; every other response keeps {@code frame-ancestors 'none'}.
+     */
+    private static final RequestMatcher FRAMEABLE = new OrRequestMatcher(
+            PathPatternRequestMatcher.withDefaults().matcher("/t/**"),
+            PathPatternRequestMatcher.withDefaults().matcher("/p/**"),
+            PathPatternRequestMatcher.withDefaults().matcher("/owner"));
+
+    private static final RequestMatcher FRAMES_OWN_PAGES =
+            PathPatternRequestMatcher.withDefaults().matcher(LIVE_PATH);
+
     private SecurityDefaults() {}
 
     /**
      * Our origin plus the domains PayPal lists for its JS SDK. Inline scripts and styles run only with
      * the per request nonce, which the SDK applies to what it injects. {@code connect-src} also names our
      * own WebSocket origin, because older Safari does not count {@code ws:} or {@code wss:} as {@code
-     * 'self'}.
+     * 'self'}. {@code frameable} lets our own origin frame the page; {@code framesOwnPages} lets the page frame
+     * our own origin.
      */
-    static String contentSecurityPolicy(String nonce, String webSocketOrigin) {
+    static String contentSecurityPolicy(
+            String nonce, String webSocketOrigin, boolean frameable, boolean framesOwnPages) {
         String nonceSource = "'nonce-" + nonce + "'";
+        String frameSources = (framesOwnPages ? "'self' " : "") + PAYPAL_SOURCES;
         return String.join(
                 "; ",
                 "default-src 'self'",
@@ -34,12 +55,12 @@ public final class SecurityDefaults {
                 "style-src 'self' " + nonceSource + " " + PAYPAL_SOURCES,
                 "img-src 'self' data: " + PAYPAL_SOURCES,
                 "connect-src 'self' " + webSocketOrigin + " " + PAYPAL_SOURCES,
-                "frame-src " + PAYPAL_SOURCES,
+                "frame-src " + frameSources,
                 "child-src " + PAYPAL_SOURCES,
                 "object-src 'none'",
                 "base-uri 'self'",
                 "form-action 'self'",
-                "frame-ancestors 'none'");
+                "frame-ancestors " + (frameable ? "'self'" : "'none'"));
     }
 
     /** The WebSocket origin of the request's own origin, after forwarded headers are applied. */
@@ -53,9 +74,19 @@ public final class SecurityDefaults {
     /** Applies the shared headers and the problem details access denied handler. */
     public static HttpSecurity apply(HttpSecurity http, ProblemWriter problems) throws Exception {
         return http.addFilterBefore(new CspNonce(), HeaderWriterFilter.class)
-                .headers(headers -> headers.addHeaderWriter((request, response) -> response.setHeader(
-                                "Content-Security-Policy",
-                                contentSecurityPolicy(CspNonce.of(request), webSocketOrigin(request))))
+                .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable())
+                        .addHeaderWriter((request, response) -> {
+                            boolean frameable = FRAMEABLE.matches(request);
+                            response.setHeader(
+                                    "Content-Security-Policy",
+                                    contentSecurityPolicy(
+                                            CspNonce.of(request),
+                                            webSocketOrigin(request),
+                                            frameable,
+                                            FRAMES_OWN_PAGES.matches(request)));
+                            // For browsers that predate frame-ancestors.
+                            response.setHeader("X-Frame-Options", frameable ? "SAMEORIGIN" : "DENY");
+                        })
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                         .httpStrictTransportSecurity(
                                 hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000)))

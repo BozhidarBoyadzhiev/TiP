@@ -98,6 +98,14 @@
 
     // ---------- HTTP ----------
 
+    // ?embed: the dashboard sits in the side by side view's frame (/owner/live). It only changes what is
+    // shown, and leaving the dashboard leaves the whole view, not just the frame.
+    const EMBEDDED = new URLSearchParams(window.location.search).has("embed");
+    if (EMBEDDED) {
+        document.documentElement.classList.add("embedded");
+    }
+    const LEAVE = EMBEDDED ? window.top.location : window.location;
+
     class SignedOut extends Error {}
 
     class HttpError extends Error {
@@ -114,13 +122,13 @@
         }
         state.leaving = true;
         if (sandboxExpired) {
-            window.location.assign("/judges?sandboxExpired");
+            LEAVE.assign("/judges?sandboxExpired");
         } else if (state.kind === "SANDBOX") {
-            window.location.assign("/judges");
+            LEAVE.assign("/judges");
         } else if (state.readOnly) {
-            window.location.assign("/demo");
+            LEAVE.assign("/demo");
         } else {
-            window.location.assign("/owner/login");
+            LEAVE.assign("/owner/login");
         }
     }
 
@@ -1764,6 +1772,17 @@
         el("tips-retry").addEventListener("click", () => quietly(loadTips()));
         el("more").addEventListener("click", loadOlder);
         el("open-sheet").addEventListener("click", openSheet);
+        el("split-toggle").checked = EMBEDDED;
+        el("split-toggle").addEventListener("change", () => {
+            if (el("split-toggle").checked) {
+                window.location.assign("/owner/live");
+            } else {
+                window.top.location.assign("/owner");
+            }
+        });
+        if (EMBEDDED) {
+            el("sign-out").target = "_top";
+        }
         el("close-sheet").addEventListener("click", closeSheet);
         el("copy-link").addEventListener("click", copyLink);
         el("scrim").addEventListener("click", (event) => {

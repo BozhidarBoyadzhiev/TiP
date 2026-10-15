@@ -6,6 +6,10 @@
     const MESSAGE_NEAR = 250;
     // The server puts a per request CSP nonce on this script tag. The PayPal SDK needs it too.
     const CSP_NONCE = document.currentScript ? document.currentScript.nonce : "";
+    // ?embed: the page sits in the side by side view beside the panda. It only changes what is shown.
+    if (new URLSearchParams(window.location.search).has("embed")) {
+        document.documentElement.classList.add("embedded");
+    }
 
     const ERROR_MESSAGES = {
         DEVICE_NOT_FOUND: "This panda could not be found. Check the tag and try again.",
@@ -481,6 +485,7 @@
             return;
         }
         el("watch-panda").href = "/p/" + encodeURIComponent(state.slug);
+        el("tip-again").addEventListener("click", () => window.location.reload());
         el("fatal-retry").addEventListener("click", () => window.location.reload());
         let response;
         try {

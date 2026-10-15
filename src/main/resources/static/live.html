@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>TiP | Side by side</title>
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" href="/icons/favicon-panda.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-panda.png">
+    <meta name="theme-color" content="#120c09">
+    <link rel="stylesheet" href="/fonts/fonts.css">
+    <link rel="stylesheet" href="/css/brand.css">
+    <link rel="stylesheet" href="/css/live.css">
+    <script src="/js/live.js" defer nonce="{{CSP_NONCE}}"></script>
+</head>
+<body>
+<main class="stage">
+  <section class="col tip" aria-labelledby="cap-tip">
+    <h2 class="cap" id="cap-tip"><b aria-hidden="true">1</b>Leave a tip</h2>
+    <div class="frame"><iframe id="frame-tip" title="Tip page"></iframe></div>
+  </section>
+  <section class="col panda" aria-labelledby="cap-panda">
+    <h2 class="cap" id="cap-panda"><b aria-hidden="true">2</b>Watch the panda react</h2>
+    <div class="frame"><iframe id="frame-panda" title="Your panda"></iframe></div>
+  </section>
+  <section class="col dash" aria-labelledby="cap-dash">
+    <h2 class="cap" id="cap-dash"><b aria-hidden="true">3</b>See it on your dashboard</h2>
+    <div class="frame"><iframe id="frame-dash" title="Dashboard"></iframe></div>
+  </section>
+</main>
+<p class="note" id="load-error" role="alert" hidden>Your sandbox could not be loaded. <a href="/owner">Open the dashboard</a></p>
+</body>
+</html>

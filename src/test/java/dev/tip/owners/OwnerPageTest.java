@@ -184,9 +184,8 @@ class OwnerPageTest extends IntegrationTest {
         String script = body("/js/owner.js");
 
         assertThat(script)
-                .contains(
-                        "closing.reason === \"sandbox_expired\"", "window.location.assign(\"/judges?sandboxExpired\")")
-                .contains("=== \"SANDBOX_EXPIRED\"", "window.location.assign(\"/judges\")")
+                .contains("closing.reason === \"sandbox_expired\"", "LEAVE.assign(\"/judges?sandboxExpired\")")
+                .contains("=== \"SANDBOX_EXPIRED\"", "LEAVE.assign(\"/judges\")")
                 .contains("if (!state.readOnly && !state.leaving && state.socket === null")
                 .contains("request(\"/api/owner/resume-link\", { method: \"POST\", headers })")
                 .contains("view.aiStatus === \"UNAVAILABLE\"", "\"Not read\"", "\"Demo\"")
@@ -249,7 +248,7 @@ class OwnerPageTest extends IntegrationTest {
                 .contains("window.location.protocol === \"https:\" ? \"wss:\" : \"ws:\"")
                 .contains("credentials: \"same-origin\"")
                 .contains("headers[csrf.header] = csrf.token;")
-                .contains("response.status === 401", "window.location.assign(\"/owner/login\")")
+                .contains("response.status === 401", "LEAVE.assign(\"/owner/login\")")
                 .doesNotContain("document.title", "localhost", "XMLHttpRequest");
         Matcher fetches =
                 Pattern.compile("(?:request|getJson)\\(\\s*\"([^\"]*)\"").matcher(script);

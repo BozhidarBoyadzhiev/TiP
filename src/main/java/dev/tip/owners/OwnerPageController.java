@@ -1,7 +1,9 @@
 package dev.tip.owners;
 
+import dev.tip.owners.api.OwnerKind;
 import dev.tip.owners.api.OwnerPrincipal;
 import dev.tip.shared.CspNonce;
+import dev.tip.shared.SecurityDefaults;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -11,12 +13,14 @@ import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.util.HtmlUtils;
 import org.springframework.web.util.UriUtils;
 
@@ -32,6 +36,7 @@ class OwnerPageController {
     private final String judgesTemplate;
     private final String demoTemplate;
     private final String resumeTemplate;
+    private final String liveTemplate;
     private final String realPandaPath;
     private final Clock clock;
 
@@ -45,6 +50,7 @@ class OwnerPageController {
         judgesTemplate = load("static/judges.html");
         demoTemplate = load("static/demo.html");
         resumeTemplate = load("static/resume.html");
+        liveTemplate = load("static/live.html");
         realPandaPath = realPandaSlug.isBlank()
                 ? ""
                 : "/t/" + UriUtils.encodePathSegment(realPandaSlug.strip(), StandardCharsets.UTF_8);
@@ -60,6 +66,21 @@ class OwnerPageController {
     @GetMapping(OwnerSecurityConfig.HOME_PATH)
     ResponseEntity<String> home(HttpServletRequest request, CsrfToken csrf) {
         return page(fill(homeTemplate, request, csrf));
+    }
+
+    /**
+     * The side by side view of a judge's sandbox: the tip page, the panda and the dashboard in frames, which
+     * {@code live.js} points at the sandbox's panda. Nothing about the owner goes into it. Any other owner gets
+     * the answer of a path that does not exist.
+     */
+    @GetMapping(SecurityDefaults.LIVE_PATH)
+    ResponseEntity<String> live(
+            @AuthenticationPrincipal OwnerPrincipal owner, HttpServletRequest request, CsrfToken csrf)
+            throws NoResourceFoundException {
+        if (owner.kind() != OwnerKind.SANDBOX) {
+            throw new NoResourceFoundException(HttpMethod.GET, request.getRequestURI(), SecurityDefaults.LIVE_PATH);
+        }
+        return page(fill(liveTemplate, request, csrf));
     }
 
     /** The access code page; {@code ?sandboxExpired} is read by its script. */
