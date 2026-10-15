@@ -58,7 +58,7 @@ class PayPalWebhookProcessor {
             case PayPalWebhookEvent.CAPTURE_COMPLETED -> transitions.capture(tipId.get(), event.resourceId());
             case PayPalWebhookEvent.CAPTURE_PENDING -> transitions.pending(tipId.get(), event.resourceId());
             case PayPalWebhookEvent.CAPTURE_DENIED, PayPalWebhookEvent.CAPTURE_DECLINED ->
-                transitions.fail(tipId.get());
+                transitions.failPending(tipId.get());
             case PayPalWebhookEvent.CAPTURE_REFUNDED -> transitions.refund(tipId.get());
             case PayPalWebhookEvent.CAPTURE_REVERSED -> transitions.reverse(tipId.get());
             default -> false;

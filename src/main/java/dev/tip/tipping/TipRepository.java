@@ -49,6 +49,12 @@ interface TipRepository extends JpaRepository<Tip, UUID> {
             nativeQuery = true)
     int markFailed(UUID id);
 
+    /** A pending capture PayPal refused in the end. */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE tip SET status = 'FAILED' WHERE id = :id AND status = 'PENDING'", nativeQuery = true)
+    int markPendingFailed(UUID id);
+
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE tip SET status = 'REFUNDED' WHERE id = :id AND status = 'CAPTURED'", nativeQuery = true)

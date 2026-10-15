@@ -307,24 +307,44 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
-    void declinedWebhookFailsTheTipLikeDenied() throws Exception {
+    void deniedAndDeclinedWebhooksFailAPendingTip() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
         String deniedOrder = TestData.uniqueId("ORDER");
         UUID denied = data.tip(deviceId, "PENDING", deniedOrder, Instant.now());
+        String declinedOrder = TestData.uniqueId("ORDER");
+        UUID declined = data.tip(deviceId, "PENDING", declinedOrder, Instant.now());
 
-        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.DECLINED", captureId, tipId.toString(), orderId))
+        webhook(WebhookEvents.capture(
+                        eventId, "PAYMENT.CAPTURE.DENIED", TestData.uniqueId("CAPTURE"), null, deniedOrder))
                 .andExpect(status().isOk());
         webhook(WebhookEvents.capture(
                         TestData.uniqueId("WH"),
-                        "PAYMENT.CAPTURE.DENIED",
+                        "PAYMENT.CAPTURE.DECLINED",
                         TestData.uniqueId("CAPTURE"),
-                        denied.toString(),
-                        deniedOrder))
+                        null,
+                        declinedOrder))
                 .andExpect(status().isOk());
 
-        assertThat(data.tipStatus(tipId)).isEqualTo("FAILED");
         assertThat(data.tipStatus(denied)).isEqualTo("FAILED");
-        assertThat(events.forTip(tipId)).isEmpty();
+        assertThat(data.tipStatus(declined)).isEqualTo("FAILED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PAYMENT.CAPTURE.DECLINED", "PAYMENT.CAPTURE.DENIED"})
+    void aDeclineOfACreatedTipLeavesItOpenForTheTippersRetry(String eventType) throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        PayPalStubs.captureCompleted(PAYPAL, orderId, captureId);
+
+        webhook(WebhookEvents.capture(eventId, eventType, TestData.uniqueId("CAPTURE"), null, orderId))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+        assertThat(data.webhookEvents(eventId)).isEqualTo(1);
+        mvc.perform(MockMvcRequestBuilders.post("/api/public/tips/" + tipId + "/capture")
+                        .with(TestData.newClient()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CAPTURED"));
+        assertThat(events.forTip(tipId)).hasSize(1);
     }
 
     @Test

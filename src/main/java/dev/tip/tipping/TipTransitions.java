@@ -49,6 +49,15 @@ class TipTransitions {
         return tips.markFailed(tipId) == 1;
     }
 
+    /**
+     * Moves PENDING to FAILED: a pending capture that PayPal later denied or declined. A CREATED tip's decline was
+     * already answered to the tipper, who may pick another payment method and capture again.
+     */
+    @Transactional
+    public boolean failPending(UUID tipId) {
+        return tips.markPendingFailed(tipId) == 1;
+    }
+
     /** Moves CAPTURED to REFUNDED. Only the caller that wins publishes {@link TipRefunded}. */
     @Transactional
     public boolean refund(UUID tipId) {

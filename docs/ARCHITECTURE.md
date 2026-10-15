@@ -43,12 +43,12 @@ One deployable with feature packages. Features talk through `api` subpackages an
 CREATED ──▶ CAPTURED ──▶ REFUNDED
    │  ╲         │
    │   ╲        └──────▶ REVERSED (chargeback)
-   │    ╲──▶ PENDING ──▶ CAPTURED | FAILED
+   │    ╲──▶ PENDING ──▶ CAPTURED | FAILED (denied or declined)
    ▼
- FAILED          CREATED older than 6h ──▶ ABANDONED (scheduled job)
+ FAILED (no order)   CREATED older than 6h ──▶ ABANDONED (scheduled job)
 ```
 
-`PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.DECLINED` move `CREATED` or `PENDING` to `FAILED`. `PAYMENT.CAPTURE.REVERSED` moves `CAPTURED` to `REVERSED`. A capture request for a `FAILED` or `ABANDONED` tip gets 409 `TIP_CLOSED`. A capture PayPal confirms (the capture answer, an order lookup or a verified webhook) also moves a `FAILED` or `ABANDONED` tip to `CAPTURED`: the money moved, for example after a lost capture answer whose webhook came after the 6 hours, so it is recorded.
+`PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.DECLINED` move only `PENDING` to `FAILED`: a pending capture that PayPal refused in the end. For a `CREATED` tip they change nothing: the tipper's capture already answered `INSTRUMENT_DECLINED`, the page let them pick another payment method, and failing the tip would turn their retry into 409 `TIP_CLOSED`. A `CREATED` tip fails only when PayPal cannot create its order or no longer knows it. `PAYMENT.CAPTURE.REVERSED` moves `CAPTURED` to `REVERSED`. A capture request for a `FAILED` or `ABANDONED` tip gets 409 `TIP_CLOSED`. A capture PayPal confirms (the capture answer, an order lookup or a verified webhook) also moves a `FAILED` or `ABANDONED` tip to `CAPTURED`: the money moved, for example after a lost capture answer whose webhook came after the 6 hours, so it is recorded.
 
 Every transition is a conditional update:
 
