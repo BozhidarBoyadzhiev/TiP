@@ -1,6 +1,7 @@
 package dev.tip.devices;
 
 import dev.tip.ai.api.TipReacted;
+import dev.tip.shared.LogSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -57,7 +58,7 @@ class ReactionDispatcher {
                 return;
             }
         } catch (RuntimeException e) {
-            log.error("Could not store the reaction for tip {}", event.tipId(), e);
+            log.error("Could not store the reaction for tip {}: {}", event.tipId(), LogSafe.describe(e));
             return;
         }
         sessions.find(event.deviceId()).ifPresent(session -> sender.send(session, reaction));

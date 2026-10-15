@@ -52,7 +52,11 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> handleUnexpected(Exception e) {
-        log.error("Unexpected error", e);
+        if (LogSafe.isDataError(e)) {
+            log.error("Unexpected database error: {}", LogSafe.describe(e));
+        } else {
+            log.error("Unexpected error", e);
+        }
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong. Please try again.");
         problem.setProperty("code", "INTERNAL_ERROR");
