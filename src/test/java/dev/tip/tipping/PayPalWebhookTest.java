@@ -75,6 +75,92 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
+    void anOrderSomeoneElseCreatedNeverCapturesTheTipItsCustomIdNames() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+
+        webhook(WebhookEvents.capture(
+                        eventId,
+                        "PAYMENT.CAPTURE.COMPLETED",
+                        captureId,
+                        tipId.toString(),
+                        TestData.uniqueId("THEIR-ORDER"),
+                        "0.01",
+                        "GBP"))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipRow(tipId)).containsEntry("status", "CREATED").containsEntry("paypal_capture_id", null);
+        assertThat(events.forTip(tipId)).isEmpty();
+        assertThat(data.webhookEvents(eventId)).isEqualTo(1);
+    }
+
+    @Test
+    void aCustomIdAloneMatchesNoTip() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, tipId.toString(), null))
+                .andExpect(status().isOk());
+        webhook(WebhookEvents.capture(
+                        TestData.uniqueId("WH"), "PAYMENT.CAPTURE.DENIED", captureId, tipId.toString(), null))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+        assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    @Test
+    void aCaptureOfAnotherAmountLeavesTheTipUnchanged() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+
+        webhook(WebhookEvents.capture(
+                        eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, tipId.toString(), orderId, "0.01", "GBP"))
+                .andExpect(status().isOk());
+        webhook(WebhookEvents.capture(
+                        TestData.uniqueId("WH"),
+                        "PAYMENT.CAPTURE.PENDING",
+                        captureId,
+                        tipId.toString(),
+                        orderId,
+                        "20.00",
+                        "GBP"))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipRow(tipId)).containsEntry("status", "CREATED").containsEntry("paypal_capture_id", null);
+        assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    @Test
+    void aCaptureInAnotherCurrencyOrWithoutAnAmountLeavesTheTipUnchanged() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+
+        webhook(WebhookEvents.capture(
+                        eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, tipId.toString(), orderId, "2.00", "USD"))
+                .andExpect(status().isOk());
+        webhook(WebhookEvents.capture(
+                        TestData.uniqueId("WH"),
+                        "PAYMENT.CAPTURE.COMPLETED",
+                        captureId,
+                        tipId.toString(),
+                        orderId,
+                        "two",
+                        "GBP"))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+        assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    @Test
+    void theAmountMayBeWrittenWithAnyScale() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId, "2.0", "GBP"))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("CAPTURED");
+        assertThat(events.forTip(tipId)).hasSize(1);
+    }
+
+    @Test
     void failedVerificationReturns400AndStoresNothing() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "FAILURE");
 
@@ -141,7 +227,8 @@ class PayPalWebhookTest extends IntegrationTest {
     @Test
     void declinedWebhookFailsTheTipLikeDenied() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
-        UUID denied = data.tip(deviceId, "PENDING", TestData.uniqueId("ORDER"), Instant.now());
+        String deniedOrder = TestData.uniqueId("ORDER");
+        UUID denied = data.tip(deviceId, "PENDING", deniedOrder, Instant.now());
 
         webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.DECLINED", captureId, tipId.toString(), orderId))
                 .andExpect(status().isOk());
@@ -150,7 +237,7 @@ class PayPalWebhookTest extends IntegrationTest {
                         "PAYMENT.CAPTURE.DENIED",
                         TestData.uniqueId("CAPTURE"),
                         denied.toString(),
-                        null))
+                        deniedOrder))
                 .andExpect(status().isOk());
 
         assertThat(data.tipStatus(tipId)).isEqualTo("FAILED");

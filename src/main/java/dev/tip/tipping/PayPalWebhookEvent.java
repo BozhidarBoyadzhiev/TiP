@@ -1,22 +1,26 @@
 package dev.tip.tipping;
 
+import java.math.BigDecimal;
+import java.util.Currency;
 import java.util.Optional;
-import java.util.UUID;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The parts of a verified PayPal webhook that TiP uses. For capture events the resource is the capture;
- * for {@code PAYMENT.CAPTURE.REFUNDED} it is the refund, whose {@code up} link points at the capture.
+ * for {@code PAYMENT.CAPTURE.REFUNDED} it is the refund, whose {@code up} link points at the capture. The
+ * resource's {@code custom_id} is not read: whoever creates an order chooses it, and anyone can create an
+ * order on our merchant account with our public client id.
  */
 record PayPalWebhookEvent(
         String eventId,
         String eventType,
         String resourceId,
-        String customId,
         String relatedOrderId,
-        String refundedCaptureId) {
+        String refundedCaptureId,
+        String amountValue,
+        String amountCurrency) {
 
     static final String CAPTURE_COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
     static final String CAPTURE_PENDING = "PAYMENT.CAPTURE.PENDING";
@@ -46,19 +50,25 @@ record PayPalWebhookEvent(
                 eventId,
                 eventType,
                 resourceId != null && resourceId.length() <= 64 ? resourceId : null,
-                text(resource, "custom_id"),
                 text(resource.path("supplementary_data").path("related_ids"), "order_id"),
-                refundedCaptureId(resource)));
+                refundedCaptureId(resource),
+                text(resource.path("amount"), "value"),
+                text(resource.path("amount"), "currency_code")));
     }
 
-    Optional<UUID> customTipId() {
-        if (customId == null) {
-            return Optional.empty();
+    /**
+     * True when the resource's amount is exactly {@code amountMinor} of {@code currency}. PayPal gives the
+     * amount as a decimal string in major units, for example "2.50" for 250 GBP minor units.
+     */
+    boolean amountEquals(long amountMinor, String currency) {
+        if (amountValue == null || !currency.equals(amountCurrency)) {
+            return false;
         }
         try {
-            return Optional.of(UUID.fromString(customId));
-        } catch (IllegalArgumentException e) {
-            return Optional.empty();
+            int digits = Math.max(Currency.getInstance(currency).getDefaultFractionDigits(), 0);
+            return new BigDecimal(amountValue).compareTo(BigDecimal.valueOf(amountMinor, digits)) == 0;
+        } catch (NumberFormatException e) {
+            return false;
         }
     }
 

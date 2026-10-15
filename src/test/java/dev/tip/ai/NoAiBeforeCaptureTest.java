@@ -110,7 +110,7 @@ class NoAiBeforeCaptureTest extends IntegrationTest {
                         .headers(WebhookEvents.transmissionHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(WebhookEvents.capture(
-                                TestData.uniqueId("WH"), type, captureId, tipId.toString(), orderId)))
+                                TestData.uniqueId("WH"), type, captureId, tipId.toString(), orderId, "5.00", "GBP")))
                 .andExpect(status().isOk());
     }
 }

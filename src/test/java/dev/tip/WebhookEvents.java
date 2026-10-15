@@ -18,16 +18,28 @@ public final class WebhookEvents {
         return headers;
     }
 
-    /** A capture event. {@code customId} and {@code orderId} may be null to test the fallbacks. */
+    /** A capture event of 2.00 GBP, the amount of {@link TestData#tip}. {@code customId} and {@code orderId} may be null. */
     public static String capture(String eventId, String eventType, String captureId, String customId, String orderId) {
+        return capture(eventId, eventType, captureId, customId, orderId, "2.00", "GBP");
+    }
+
+    /** A capture event of {@code amountValue} (major units, as PayPal writes it) in {@code currency}. */
+    public static String capture(
+            String eventId,
+            String eventType,
+            String captureId,
+            String customId,
+            String orderId,
+            String amountValue,
+            String currency) {
         String custom = customId == null ? "" : ",\"custom_id\":\"" + customId + "\"";
         String related =
                 orderId == null ? "" : ",\"supplementary_data\":{\"related_ids\":{\"order_id\":\"" + orderId + "\"}}";
         return "{\"id\":\"" + eventId + "\",\"event_version\":\"1.0\",\"create_time\":\"2026-10-09T10:00:00Z\","
                 + "\"resource_type\":\"capture\",\"event_type\":\"" + eventType + "\","
                 + "\"summary\":\"Payment capture event\",\"resource\":{\"id\":\"" + captureId + "\","
-                + "\"status\":\"COMPLETED\",\"amount\":{\"currency_code\":\"GBP\",\"value\":\"2.00\"}"
-                + custom + related + "}}";
+                + "\"status\":\"COMPLETED\",\"amount\":{\"currency_code\":\"" + currency + "\",\"value\":\""
+                + amountValue + "\"}" + custom + related + "}}";
     }
 
     /** A refund event whose up link points at the refunded capture. */

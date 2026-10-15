@@ -76,6 +76,14 @@ class Tip {
         return deviceId;
     }
 
+    long amountMinor() {
+        return amountMinor;
+    }
+
+    String currency() {
+        return currency;
+    }
+
     TipStatus status() {
         return status;
     }

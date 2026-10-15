@@ -46,6 +46,14 @@ class PayPalWebhookProcessor {
             log.warn("PayPal webhook {} of type {} matches no tip", event.eventId(), event.eventType());
             return;
         }
+        if (!chargesTheTip(event, tipId.get())) {
+            log.warn(
+                    "PayPal webhook {} of type {} for tip {} does not charge the tip's amount, left the tip unchanged",
+                    event.eventId(),
+                    event.eventType(),
+                    tipId.get());
+            return;
+        }
         boolean changed = switch (event.eventType()) {
             case PayPalWebhookEvent.CAPTURE_COMPLETED -> transitions.capture(tipId.get(), event.resourceId());
             case PayPalWebhookEvent.CAPTURE_PENDING -> transitions.pending(tipId.get(), event.resourceId());
@@ -84,13 +92,13 @@ class PayPalWebhookProcessor {
     }
 
     /**
-     * By {@code custom_id} (our tip id), then the related order id, then the refunded capture id for a
-     * refund, or the resource id as our capture id for a capture event.
+     * Only through ids TiP stored itself, never the resource's {@code custom_id}: a refund by the capture it
+     * refunded; a capture event by its order, then by its own capture id, stored by an earlier pending
+     * capture. An order someone else created on our account matches no tip.
      */
     private Optional<UUID> findTip(PayPalWebhookEvent event) {
-        Optional<UUID> byCustomId = event.customTipId().filter(tips::existsById);
-        if (byCustomId.isPresent()) {
-            return byCustomId;
+        if (event.eventType().equals(PayPalWebhookEvent.CAPTURE_REFUNDED)) {
+            return Optional.ofNullable(event.refundedCaptureId()).flatMap(tips::findIdByPaypalCaptureId);
         }
         if (event.relatedOrderId() != null) {
             Optional<UUID> byOrder = tips.findIdByPaypalOrderId(event.relatedOrderId());
@@ -98,11 +106,17 @@ class PayPalWebhookProcessor {
                 return byOrder;
             }
         }
-        Optional<UUID> byRefundedCapture =
-                Optional.ofNullable(event.refundedCaptureId()).flatMap(tips::findIdByPaypalCaptureId);
-        if (byRefundedCapture.isPresent() || event.eventType().equals(PayPalWebhookEvent.CAPTURE_REFUNDED)) {
-            return byRefundedCapture;
-        }
         return Optional.ofNullable(event.resourceId()).flatMap(tips::findIdByPaypalCaptureId);
+    }
+
+    /** A completed or pending capture counts only for exactly the tip's amount and currency. */
+    private boolean chargesTheTip(PayPalWebhookEvent event, UUID tipId) {
+        if (!event.eventType().equals(PayPalWebhookEvent.CAPTURE_COMPLETED)
+                && !event.eventType().equals(PayPalWebhookEvent.CAPTURE_PENDING)) {
+            return true;
+        }
+        return tips.findById(tipId)
+                .map(tip -> event.amountEquals(tip.amountMinor(), tip.currency()))
+                .orElse(false);
     }
 }
