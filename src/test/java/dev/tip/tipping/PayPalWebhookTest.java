@@ -42,9 +42,11 @@ class PayPalWebhookTest extends IntegrationTest {
     String captureId;
     String eventId;
     UUID tipId;
+    String clientIp;
 
     @BeforeEach
     void createdTip() {
+        clientIp = TestData.uniquePublicIp();
         deviceId = data.device();
         orderId = TestData.uniqueId("ORDER");
         captureId = TestData.uniqueId("CAPTURE");
@@ -193,14 +195,76 @@ class PayPalWebhookTest extends IntegrationTest {
 
     @Test
     void missingTransmissionHeadersAreRejectedWithoutAskingPayPal() throws Exception {
-        mvc.perform(MockMvcRequestBuilders.post("/webhooks/paypal")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(WebhookEvents.capture(
-                                eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, tipId.toString(), orderId)))
+        webhook(
+                        WebhookEvents.capture(
+                                eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, tipId.toString(), orderId),
+                        new HttpHeaders())
                 .andExpect(status().isBadRequest());
 
         PAYPAL.verify(0, postRequestedFor(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH)));
         assertThat(data.webhookEvents(eventId)).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "https://attacker.example/v1/notifications/certs/CERT-1",
+                "https://api.sandbox.paypal.com.attacker.example/certs/CERT-1",
+                "https://attacker.example#.paypal.com",
+                "https://user@attacker.example/.paypal.com",
+                "http://api.sandbox.paypal.com/v1/notifications/certs/CERT-1",
+                "https://api.sandbox.paypal.com:8443/v1/notifications/certs/CERT-1",
+                "notaurl paypal.com"
+            })
+    void aCertificateUrlOffPayPalIsRejectedWithoutAskingPayPal(String certUrl) throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        HttpHeaders headers = WebhookEvents.transmissionHeaders();
+        headers.set("PAYPAL-CERT-URL", certUrl);
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId), headers)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WEBHOOK_NOT_VERIFIED"));
+
+        PAYPAL.verify(0, postRequestedFor(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH)));
+        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+    }
+
+    @Test
+    void aClientWhoseWebhooksPayPalKeepsRejectingIsLimitedBeforeAnotherCall() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "FAILURE");
+        String body = WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId);
+        for (int i = 1; i <= WebhookFailureLimiter.REJECTED_PER_MINUTE; i++) {
+            webhook(body).andExpect(status().isBadRequest());
+        }
+
+        webhook(body)
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+
+        PAYPAL.verify(
+                WebhookFailureLimiter.REJECTED_PER_MINUTE,
+                postRequestedFor(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH)));
+        clientIp = TestData.uniquePublicIp();
+        webhook(body).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void webhooksPayPalVerifiesAreNeverLimited() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        for (int i = 0; i < WebhookFailureLimiter.REJECTED_PER_MINUTE * 2; i++) {
+            webhook(WebhookEvents.capture(TestData.uniqueId("WH"), "CHECKOUT.ORDER.APPROVED", orderId, null, orderId))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void aVerificationOutageDoesNotCountAsARejection() throws Exception {
+        PAYPAL.stubFor(post(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH))
+                .willReturn(aResponse().withStatus(503)));
+        String body = WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId);
+        for (int i = 0; i <= WebhookFailureLimiter.REJECTED_PER_MINUTE; i++) {
+            webhook(body).andExpect(status().isServiceUnavailable());
+        }
     }
 
     @Test
@@ -359,10 +423,17 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     private ResultActions webhook(String body) throws Exception {
-        HttpHeaders headers = WebhookEvents.transmissionHeaders();
+        return webhook(body, WebhookEvents.transmissionHeaders());
+    }
+
+    private ResultActions webhook(String body, HttpHeaders headers) throws Exception {
         return mvc.perform(MockMvcRequestBuilders.post("/webhooks/paypal")
                 .headers(headers)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(body));
+                .content(body)
+                .with(request -> {
+                    request.setRemoteAddr(clientIp);
+                    return request;
+                }));
     }
 }

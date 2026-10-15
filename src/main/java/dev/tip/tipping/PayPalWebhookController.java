@@ -3,6 +3,7 @@ package dev.tip.tipping;
 import dev.tip.paypal.api.PayPalGateway;
 import dev.tip.paypal.api.WebhookTransmission;
 import dev.tip.paypal.api.WebhookVerification;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -20,14 +21,23 @@ class PayPalWebhookController {
     private final PayPalGateway payPal;
     private final PayPalWebhookProcessor processor;
     private final JsonMapper jsonMapper;
+    private final WebhookFailureLimiter failures;
 
-    PayPalWebhookController(PayPalGateway payPal, PayPalWebhookProcessor processor, JsonMapper jsonMapper) {
+    PayPalWebhookController(
+            PayPalGateway payPal,
+            PayPalWebhookProcessor processor,
+            JsonMapper jsonMapper,
+            WebhookFailureLimiter failures) {
         this.payPal = payPal;
         this.processor = processor;
         this.jsonMapper = jsonMapper;
+        this.failures = failures;
     }
 
-    /** The body is read as a raw string and verified as is. It is parsed only after PayPal confirms it. */
+    /**
+     * The body is read as a raw string and verified as is. It is parsed only after PayPal confirms it. A client whose
+     * webhooks PayPal keeps rejecting gets 429 before another verification call.
+     */
     @PostMapping("/webhooks/paypal")
     ResponseEntity<Void> receive(
             @RequestBody String rawBody,
@@ -35,13 +45,19 @@ class PayPalWebhookController {
             @RequestHeader(name = "PAYPAL-CERT-URL", required = false) String certUrl,
             @RequestHeader(name = "PAYPAL-TRANSMISSION-ID", required = false) String transmissionId,
             @RequestHeader(name = "PAYPAL-TRANSMISSION-SIG", required = false) String transmissionSig,
-            @RequestHeader(name = "PAYPAL-TRANSMISSION-TIME", required = false) String transmissionTime) {
+            @RequestHeader(name = "PAYPAL-TRANSMISSION-TIME", required = false) String transmissionTime,
+            HttpServletRequest request) {
+        String clientIp = request.getRemoteAddr();
+        if (failures.blocked(clientIp)) {
+            throw new TipExceptions.RateLimited();
+        }
         WebhookTransmission transmission =
                 new WebhookTransmission(authAlgo, certUrl, transmissionId, transmissionSig, transmissionTime);
         WebhookVerification verification = payPal.verifyWebhook(transmission, rawBody);
         switch (verification) {
             case VERIFIED -> {}
             case REJECTED -> {
+                failures.recordRejected(clientIp);
                 log.warn("Rejected PayPal webhook with transmission id {}", transmissionId);
                 throw new TipExceptions.WebhookNotVerified();
             }

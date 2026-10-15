@@ -190,7 +190,7 @@ Owners sign in with email and password through a session based form login. Passw
 |---|---|
 | Tipper changes the amount in the browser | Server creates the order from validated input. Capture uses the order id stored on the tip, never one sent by the client. |
 | Fake "payment done" from the browser | State only changes after PayPal confirms the capture, either in the capture response or a verified webhook. |
-| Forged webhook | Every webhook is verified with PayPal's signature verification API against our webhook id. Unverified requests get 400 and change nothing. |
+| Forged webhook | Every webhook is verified with PayPal's signature verification API against our webhook id. Unverified requests get 400 and change nothing. A certificate URL that is not https on a PayPal host is rejected without a call, and after 10 rejected webhooks a minute an IP gets 429 before the next verification call, so fake webhooks cannot spend our PayPal API quota; PayPal's own deliveries never fail verification. |
 | Replayed webhook | Unique event id. A replay is a no op. |
 | A genuine webhook for an order someone else made | Our client id is public, so anyone can create and pay an order on our merchant account with any `custom_id` and amount, and PayPal signs its webhooks. A webhook finds its tip only through the order or capture id TiP stored, never `custom_id`, and a completed or pending capture counts only for exactly the tip's amount and currency. |
 | Spamming tip creation | Rate limit per client IP. Creating a tip costs us one PayPal API call and no AI call. |

@@ -6,7 +6,10 @@ import dev.tip.paypal.api.WebhookTransmission;
 import dev.tip.paypal.api.WebhookVerification;
 import io.apimatic.core.exceptions.AuthValidationException;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -22,7 +25,8 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Calls {@code POST /v1/notifications/verify-webhook-signature}, which the SDK does not cover. The raw
- * body is embedded verbatim as {@code webhook_event}, so PayPal checks the exact bytes it signed.
+ * body is embedded verbatim as {@code webhook_event}, so PayPal checks the exact bytes it signed. A transmission whose
+ * certificate URL is not an https URL on a PayPal host is rejected without a call.
  */
 @Component
 class WebhookSignatureVerifier {
@@ -50,7 +54,10 @@ class WebhookSignatureVerifier {
     }
 
     WebhookVerification verify(WebhookTransmission transmission, String rawBody) {
-        if (transmission == null || !transmission.complete() || !isSingleJsonObject(rawBody)) {
+        if (transmission == null
+                || !transmission.complete()
+                || !isPayPalCertUrl(transmission.certUrl())
+                || !isSingleJsonObject(rawBody)) {
             return WebhookVerification.REJECTED;
         }
         String accessToken;
@@ -92,6 +99,25 @@ class WebhookSignatureVerifier {
             log.warn("PayPal webhook verification failed: {}", e.getClass().getSimpleName());
             return WebhookVerification.UNAVAILABLE;
         }
+    }
+
+    /** PayPal's certificates are served from {@code api.paypal.com} and {@code api.sandbox.paypal.com}. */
+    static boolean isPayPalCertUrl(String certUrl) {
+        URI uri;
+        try {
+            uri = new URI(certUrl);
+        } catch (URISyntaxException e) {
+            return false;
+        }
+        String host = uri.getHost();
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null || uri.getRawUserInfo() != null) {
+            return false;
+        }
+        if (uri.getPort() != -1 && uri.getPort() != 443) {
+            return false;
+        }
+        String lower = host.toLowerCase(Locale.ROOT);
+        return lower.equals("paypal.com") || lower.endsWith(".paypal.com");
     }
 
     /**
