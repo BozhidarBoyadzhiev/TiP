@@ -142,6 +142,8 @@ WHERE tip_id = :id AND device_id = :sessionDevice AND acked_at IS NULL
 | `owner_digest` | (`owner_id`, `local_day`) primary key, `bullets` jsonb null, `request_groups` jsonb null, `message_count`, `source_watermark` null, `generated_at` null, `stale`, `claimed_at` null |
 | `reaction_delivery` | `tip_id` primary key, `device_id`, `reaction` (`WARM`, `PLAYFUL`, `REQUEST`, `PLAIN`), `repeats` (1 to 5), `reacted_at`, `sent_count`, `last_sent_at` null, `acked_at` null; partial index on (`device_id`, `reacted_at`) where `acked_at` is null |
 
+Webhook events and unpaid tips (`ABANDONED`, `FAILED`) are deleted after 30 days by a nightly job: PayPal retries a webhook for three days at most, so neither a duplicate nor a late capture can come after that, and the database stays small until the end of 2026.
+
 `reaction_delivery` belongs to `devices`, so delivery state is a table of its own instead of more columns on `tip`. It has no foreign key to `tip`, because `devices` does not own that table. Deleting an owner cascades to their devices, and a device to its tips and deliveries, as well as to the owner's digests and resume tokens; only the sandbox cleanup job deletes owners.
 
 ## Device channels

@@ -150,6 +150,7 @@ One line each, without personal data: IPs only as an HMAC under a key made fresh
 | `ai_cap_reached window=<hour or day> limit=<n> since=<window start>` | WARN | the classification cap ran out; once per window |
 | `code_rejected ip=<hash>` | WARN | a wrong or expired access code |
 | `rate_limited endpoint=<name> ip=<hash>` | WARN | a per IP limit refused a request |
+| `retention webhookEvents=<n> unpaidTips=<n> before=<time>` | INFO | 00:20 London time, webhook events and unpaid tips older than 30 days deleted |
 | `daily_summary sandboxes=<label:n,…> tipsPaid=<kind:n,…> aiCalls=<n> aiFailures=<n>` | INFO | 00:10 London time, from the database, for the last 24 hours |
 
 ## Behind Render's proxy
