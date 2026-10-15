@@ -14,8 +14,9 @@ import org.springframework.stereotype.Component;
 /**
  * Runs the classification flow for one tip: claim, classify or skip, then finish. Safe to call from any
  * number of threads for the same tip; the conditional updates in {@link AiTipRepository} let exactly one
- * of them finish it. Claude is called outside any transaction. A failed or skipped call ends the tip at once as
- * {@code UNAVAILABLE}, PLAIN once; only an answer outside the schema is tried again, up to {@link #MAX_ATTEMPTS}.
+ * of them finish it. Claude is called outside any transaction. A failed or skipped call, or one past the {@link
+ * ClassificationCap}, ends the tip at once as {@code UNAVAILABLE}, PLAIN once; only an answer outside the schema is
+ * tried again, up to {@link #MAX_ATTEMPTS}.
  */
 @Component
 class TipReactionWorker {
@@ -30,13 +31,19 @@ class TipReactionWorker {
     private final AiTipRepository tips;
     private final TipReactions reactions;
     private final Optional<MessageClassifier> classifier;
+    private final ClassificationCap cap;
     private final Clock clock;
 
     TipReactionWorker(
-            AiTipRepository tips, TipReactions reactions, Optional<MessageClassifier> classifier, Clock clock) {
+            AiTipRepository tips,
+            TipReactions reactions,
+            Optional<MessageClassifier> classifier,
+            ClassificationCap cap,
+            Clock clock) {
         this.tips = tips;
         this.reactions = reactions;
         this.classifier = classifier;
+        this.cap = cap;
         this.clock = clock;
     }
 
@@ -50,6 +57,9 @@ class TipReactionWorker {
         TipReactions.Outcome outcome;
         if (classifier.isEmpty() || work.message() == null) {
             outcome = TipReactions.Outcome.skipped(work.amountMinor(), work.currency());
+        } else if (!cap.tryTake()) {
+            log.warn("Tip {} reacts PLAIN once, the classification cap is reached", tipId);
+            outcome = TipReactions.Outcome.unavailable();
         } else {
             try {
                 outcome = TipReactions.Outcome.classified(

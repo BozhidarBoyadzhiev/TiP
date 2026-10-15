@@ -111,7 +111,9 @@ Per client IP (the address from `TIP_CLIENT_IP_HEADER`), in memory. The defaults
 | `TIP_RATE_RESUMES_PER_MINUTE` | 20 | resume links used, `POST /judges/resume` |
 | `TIP_RATE_RESUME_LINKS_PER_TEN_MINUTES` | 5 | resume links made, `POST /api/owner/resume-link`, per sandbox rather than per IP |
 
-Owner sign in keeps its own fixed limit of 5 a minute per IP and per email. The one hard cost limit is the spend limit set in the Anthropic console ($10): when it is reached the app keeps taking tips, every tip reacts `PLAIN` once with `aiStatus` `UNAVAILABLE`, the notes stay as they were, and the model is tried again once every 10 minutes (`ai_breaker_opened` and `ai_breaker_closed` in the log).
+Every per IP limit counts an IPv6 client by its /64 prefix, since one connection usually holds a whole /64. Owner sign in keeps its own fixed limit of 5 a minute per IP and per email, and PayPal webhooks that PayPal rejects are limited to 10 a minute per IP (`rate_limited endpoint=paypal_webhook`), which PayPal's own deliveries never meet.
+
+The whole app classifies at most 200 tip messages a UTC hour and 1000 a UTC day (`tip.ai.cap.*` in `application.properties`), because sandbox payments cost nothing: past either, a tip reacts `PLAIN` once with `aiStatus` `UNAVAILABLE` and is never classified later, and the log shows one WARN `ai_cap_reached` for that window. The hard cost limit is the spend limit set in the Anthropic console ($10): when it is reached the app keeps taking tips, every tip reacts `PLAIN` once with `aiStatus` `UNAVAILABLE`, the notes stay as they were, and the model is tried again once every 10 minutes (`ai_breaker_opened` and `ai_breaker_closed` in the log).
 
 ### Client address
 
@@ -145,6 +147,7 @@ One line each, without personal data: IPs only as an HMAC under a key made fresh
 | `resume_link_used owner=<id>` | INFO | a resume link signed a browser in |
 | `demo_session ip=<hash>` | INFO | someone opened the public demo |
 | `ai_breaker_opened status=<status> type=<API error type> message=<API error message> until=<time>`, `ai_breaker_closed` | INFO | a 400, 401, 402, 403 or 404 from the model API (spend limit, credit, key, permission, model) rested the model, and it came back |
+| `ai_cap_reached window=<hour or day> limit=<n> since=<window start>` | WARN | the classification cap ran out; once per window |
 | `code_rejected ip=<hash>` | WARN | a wrong or expired access code |
 | `rate_limited endpoint=<name> ip=<hash>` | WARN | a per IP limit refused a request |
 | `daily_summary sandboxes=<label:n,…> tipsPaid=<kind:n,…> aiCalls=<n> aiFailures=<n>` | INFO | 00:10 London time, from the database, for the last 24 hours |
