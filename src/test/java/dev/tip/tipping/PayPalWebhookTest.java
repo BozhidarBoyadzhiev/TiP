@@ -372,13 +372,35 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
-    void reversalDoesNotTouchATipThatWasNeverCaptured() throws Exception {
+    void aReversalBeforeItsCaptureIsRetriedAndAppliedAfterIt() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        String reversal = WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, null, orderId);
 
-        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, tipId.toString(), orderId))
+        webhook(reversal)
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("WEBHOOK_BEFORE_CAPTURE"));
+        assertThat(data.webhookEvents(eventId)).isZero();
+        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+
+        webhook(WebhookEvents.capture(TestData.uniqueId("WH"), "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId))
+                .andExpect(status().isOk());
+        webhook(reversal).andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("REVERSED");
+        assertThat(data.webhookEvents(eventId)).isEqualTo(1);
+    }
+
+    @Test
+    void aReversalOfATipThatCanNoLongerBeCapturedChangesNothing() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        String failedOrder = TestData.uniqueId("ORDER");
+        UUID failed = data.tip(deviceId, "FAILED", failedOrder, Instant.now());
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, null, failedOrder))
                 .andExpect(status().isOk());
 
-        assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+        assertThat(data.tipStatus(failed)).isEqualTo("FAILED");
+        assertThat(data.webhookEvents(eventId)).isEqualTo(1);
     }
 
     @Test
@@ -406,13 +428,34 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
-    void refundDoesNotTouchATipThatWasNeverCaptured() throws Exception {
+    void aRefundOfACaptureNoTipStoredChangesNothing() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
 
         webhook(WebhookEvents.refund(eventId, TestData.uniqueId("REFUND"), captureId, tipId.toString()))
                 .andExpect(status().isOk());
 
         assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+        assertThat(data.webhookEvents(eventId)).isEqualTo(1);
+    }
+
+    @Test
+    void aRefundOfAPendingCaptureIsRetriedAndAppliedOnceTheCaptureCompleted() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        webhook(WebhookEvents.capture(TestData.uniqueId("WH"), "PAYMENT.CAPTURE.PENDING", captureId, null, orderId))
+                .andExpect(status().isOk());
+        String refund = WebhookEvents.refund(eventId, TestData.uniqueId("REFUND"), captureId, null);
+
+        webhook(refund)
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("WEBHOOK_BEFORE_CAPTURE"));
+        assertThat(data.webhookEvents(eventId)).isZero();
+        assertThat(data.tipStatus(tipId)).isEqualTo("PENDING");
+
+        webhook(WebhookEvents.capture(TestData.uniqueId("WH"), "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId))
+                .andExpect(status().isOk());
+        webhook(refund).andExpect(status().isOk());
+
+        assertThat(data.tipStatus(tipId)).isEqualTo("REFUNDED");
     }
 
     @Test

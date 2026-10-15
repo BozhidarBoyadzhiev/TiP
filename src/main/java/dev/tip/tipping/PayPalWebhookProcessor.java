@@ -12,7 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Records a verified webhook event and applies its transition in one transaction. A duplicate event id
- * does nothing. Any failure rolls back the event row too, so PayPal's retry gets a clean attempt.
+ * does nothing. Any failure rolls back the event row too, so PayPal's retry gets a clean attempt. A refund or
+ * reversal of a tip whose capture is not recorded yet is such a failure on purpose: its retry comes after the
+ * capture, and a late capture can no longer leave a refunded tip showing as captured.
  */
 @Component
 class PayPalWebhookProcessor {
@@ -45,6 +47,14 @@ class PayPalWebhookProcessor {
         if (tipId.isEmpty()) {
             log.warn("PayPal webhook {} of type {} matches no tip", event.eventId(), event.eventType());
             return;
+        }
+        if (undoesACaptureNotYetRecorded(event, tipId.get())) {
+            log.info(
+                    "PayPal webhook {} of type {} for tip {} came before its capture, PayPal will retry",
+                    event.eventId(),
+                    event.eventType(),
+                    tipId.get());
+            throw new TipExceptions.WebhookBeforeCapture();
         }
         if (!chargesTheTip(event, tipId.get())) {
             log.warn(
@@ -107,6 +117,14 @@ class PayPalWebhookProcessor {
             }
         }
         return Optional.ofNullable(event.resourceId()).flatMap(tips::findIdByPaypalCaptureId);
+    }
+
+    private boolean undoesACaptureNotYetRecorded(PayPalWebhookEvent event, UUID tipId) {
+        if (!event.eventType().equals(PayPalWebhookEvent.CAPTURE_REFUNDED)
+                && !event.eventType().equals(PayPalWebhookEvent.CAPTURE_REVERSED)) {
+            return false;
+        }
+        return tips.findStatus(tipId).map(TipStatus::capturable).orElse(false);
     }
 
     /** A completed or pending capture counts only for exactly the tip's amount and currency. */

@@ -81,6 +81,19 @@ final class TipExceptions {
         }
     }
 
+    /**
+     * A refund or reversal arrived before the capture it undoes was recorded. Answered 503 and not stored, so PayPal
+     * delivers it again once the capture has landed.
+     */
+    static final class WebhookBeforeCapture extends DomainException {
+        WebhookBeforeCapture() {
+            super(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "WEBHOOK_BEFORE_CAPTURE",
+                    "The payment this event undoes is not recorded yet. Please retry.");
+        }
+    }
+
     static final class RateLimited extends DomainException {
         RateLimited() {
             super(
