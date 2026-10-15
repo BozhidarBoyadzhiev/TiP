@@ -3,6 +3,7 @@ package dev.tip.tipping;
 import dev.tip.paypal.api.PayPalGateway;
 import dev.tip.paypal.api.WebhookTransmission;
 import dev.tip.paypal.api.WebhookVerification;
+import dev.tip.tipping.api.MessageSanitizer;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,9 @@ import tools.jackson.databind.json.JsonMapper;
 class PayPalWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(PayPalWebhookController.class);
+
+    /** PayPal's transmission ids are uuids; whatever an unverified sender put there is cut to this. */
+    static final int LOGGED_TRANSMISSION_ID = 36;
 
     private final PayPalGateway payPal;
     private final PayPalWebhookProcessor processor;
@@ -58,7 +62,7 @@ class PayPalWebhookController {
             case VERIFIED -> {}
             case REJECTED -> {
                 failures.recordRejected(clientIp);
-                log.warn("Rejected PayPal webhook with transmission id {}", transmissionId);
+                log.warn("Rejected PayPal webhook with transmission id {}", loggable(transmissionId));
                 throw new TipExceptions.WebhookNotVerified();
             }
             case UNAVAILABLE -> throw new TipExceptions.WebhookVerificationUnavailable();
@@ -67,5 +71,14 @@ class PayPalWebhookController {
                 PayPalWebhookEvent.parse(jsonMapper, rawBody).orElseThrow(TipExceptions.WebhookMalformed::new);
         processor.process(event);
         return ResponseEntity.ok().build();
+    }
+
+    /** The sender chose it: one line, at most {@link #LOGGED_TRANSMISSION_ID} characters. */
+    private static String loggable(String transmissionId) {
+        String clean = MessageSanitizer.sanitize(transmissionId);
+        if (clean == null) {
+            return "-";
+        }
+        return clean.length() > LOGGED_TRANSMISSION_ID ? clean.substring(0, LOGGED_TRANSMISSION_ID) : clean;
     }
 }

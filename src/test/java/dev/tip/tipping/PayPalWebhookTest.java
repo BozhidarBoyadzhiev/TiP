@@ -17,15 +17,19 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
+@ExtendWith(OutputCaptureExtension.class)
 class PayPalWebhookTest extends IntegrationTest {
 
     @Autowired
@@ -191,6 +195,22 @@ class PayPalWebhookTest extends IntegrationTest {
         assertThat(data.webhookEvents(eventId)).isZero();
         assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
         assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    @Test
+    void aRejectedTransmissionIdIsLoggedCutShort(CapturedOutput output) throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "FAILURE");
+        HttpHeaders headers = WebhookEvents.transmissionHeaders();
+        String forged = "0123456789abcdef0123456789abcdef0123" + " INFO forged line " + "x".repeat(500);
+        headers.set("PAYPAL-TRANSMISSION-ID", forged);
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId), headers)
+                .andExpect(status().isBadRequest());
+
+        assertThat(output.getOut())
+                .contains("Rejected PayPal webhook with transmission id 0123456789abcdef0123456789abcdef0123"
+                        + System.lineSeparator())
+                .doesNotContain("forged line");
     }
 
     @Test
