@@ -8,7 +8,8 @@ The thread between the passes of Brief 09. Every finding of the review, its seve
 - Pass 2 (High, then the lead's decisions, then Medium and Low): done. Every High fixed; the lead's decisions on 09-F009, 09-F011, 09-F012, 09-F013 and 09-F014 carried out; the new rule that a tip revived from `ABANDONED` or `FAILED` is recorded and classified but never played on the device is in (332f089). Mediums and Lows fixed as the lead listed; 09-F022 and 09-F024 accepted. Green after every commit (`./gradlew build`, 720 tests at the start of the pass, 754 at the end; `pio run` and `pio test -e native` for the firmware).
 - Deferred reads done in pass 2: `docs/DEPLOYMENT.md` (one fix, 09-F033), a line by line read of `owner.js`, `live.js` and `panda.js` (Low findings only, 09-F029 to 09-F032) and the README files, checked against the code, findings only, not edited (09-F034, 09-F035).
 - New in pass 2: 09-F028 (found while testing 09-F019) and 09-F029 to 09-F035.
-- Left: the open Lows below, the READMEs for the owner, and the open question under 09-F013. The firmware of 09-F014 needs flashing.
+- Pass 3 (the lead's decisions after pass 2): done. A tip plays on the device only when its capture landed within `tip.ai.playback.window` (10 minutes) of `capture_attempted_at`, replacing the revived rule for playback (877c439); 09-F006 checked and tightened (2b039bf); 09-F029 to 09-F032 fixed (d76eab7). Green after every commit (`./gradlew build`, 767 tests at the end).
+- Left: the READMEs for the owner (09-F034, 09-F035). The firmware of 09-F014 needs flashing.
 
 ## Counts
 
@@ -17,7 +18,7 @@ The thread between the passes of Brief 09. Every finding of the review, its seve
 | Critical | 4 | 4 | 0 | 0 |
 | High | 6 | 6 | 0 | 0 |
 | Medium | 10 | 9 | 1 | 0 |
-| Low | 15 | 7 | 2 | 6 |
+| Low | 15 | 11 | 2 | 2 |
 
 ## Critical
 
@@ -63,7 +64,7 @@ Where: dev.tip.tipping.PayPalWebhookController, paypal.WebhookSignatureVerifier
 What: `/webhooks/paypal` has no rate limit. Any post with the five `PAYPAL-*` headers and a JSON object body makes an outbound verify call to PayPal (and an OAuth token call when none is cached).
 Why it matters: A flood of fake webhooks spends our PayPal app's API quota; once PayPal throttles us (429), order creation and capture fail for real tippers and judges.
 Fix: A failure only limiter per client IP on webhooks PayPal rejects (as `HandshakeFailureLimiter` does for devices), so PayPal's own deliveries, which never fail verification, are never limited; and a `PAYPAL-CERT-URL` whose host is not PayPal's rejected before any call.
-Status: fixed in 0270690
+Status: fixed in 0270690. Pass 3 check (lead): only a definite rejection counts (our own checks, PayPal's `FAILURE`, or PayPal's 400 or 422 on the transmission); a verify call that fails (timeout, lost connection, 5xx, 429, 401, other 4xx, no status) answers 503 and is not counted. Before, a 403, 404 or a 200 without a status counted. Fixed in 2b039bf
 
 ### 09-F007 [High] The capture response is applied without checking what was captured
 Where: dev.tip.tipping.TipService.apply, paypal.PayPalOrders.fromOrder, paypal.api.CaptureResult
@@ -113,8 +114,8 @@ Status: won't fix (accepted by the lead), documented in bc675be
 Where: dev.tip.tipping (no reconciliation job)
 What: A `PENDING` tip waits for `COMPLETED`, `DENIED` or `DECLINED`. Nothing asks PayPal again if that webhook is lost.
 Why it matters: Today's numbers and requests count `PENDING`; a lost webhook leaves it there.
-Fix: lead decision, done: a job looks up, every hour, `PENDING` tips created more than an hour ago; the abandon job looks up the order before abandoning, only for tips whose capture was attempted (V9 adds `tip.capture_attempted_at`); orders never approved are never looked up. Decision made: an attempted tip whose lookup finds no capture, or fails, is abandoned as before; a capture PayPal confirms later still records it (09-F004). Open question: a `PENDING` tip settled hours later (by this job or a late webhook) still plays on the device; the lead's rule only keeps `ABANDONED` and `FAILED` revivals off it.
-Status: fixed in b4ea341
+Fix: lead decision, done: a job looks up, every hour, `PENDING` tips created more than an hour ago; the abandon job looks up the order before abandoning, only for tips whose capture was attempted (V9 adds `tip.capture_attempted_at`); orders never approved are never looked up. Decision made: an attempted tip whose lookup finds no capture, or fails, is abandoned as before; a capture PayPal confirms later still records it (09-F004). Open question answered by the lead in pass 3: a tip plays only when its capture landed within 10 minutes of `capture_attempted_at` (`tip.ai.playback.window`), whoever settled it; a capture TiP never attempted does not play; `tip.revived` stays as a record.
+Status: fixed in b4ea341; playback window in 877c439
 
 ### 09-F014 [Medium] The firmware has no task watchdog
 Where: firmware/src/main.cpp, network_task.cpp, nfc_task.cpp
@@ -217,25 +218,25 @@ Status: fixed in 0237ee9
 Where: static/js/panda.js `onMessage`
 What: `Object.hasOwn` arrived in Safari 15.4 (2022). On an older iPhone it throws on every message, so the page says Live and never plays.
 Fix: `Object.prototype.hasOwnProperty.call(REACTIONS, message.reaction)`, or accept.
-Status: open
+Status: fixed in d76eab7
 
 ### 09-F030 [Low] The virtual panda keeps reconnecting after its device is gone
 Where: static/js/panda.js `connect`
 What: When an expired sandbox is deleted, the observer handshake answers 404 and the page retries for ever with the backoff, once a minute at most.
 Fix: Accept (one handshake a minute per open tab), or stop after a 404 seen through a fresh `GET /api/public/devices/{slug}`.
-Status: open
+Status: fixed in d76eab7
 
 ### 09-F031 [Low] The dashboard's resting strip is read once per page load
 Where: static/js/owner.js `loadMe`
 What: `aiResting` comes from `/api/owner/me` only at start, so the strip neither appears when the model starts resting nor goes when it is back, until a reload. Each tip still says Not read.
 Fix: Read `/me` again with the `today` refresh, or accept.
-Status: open
+Status: fixed in d76eab7
 
 ### 09-F032 [Low] The side by side page stays blank on an unreadable devices answer
 Where: static/js/live.js `start`
 What: A 200 from `/api/owner/devices` whose body is not JSON rejects `response.json()` without a catch: no frames, no error note.
 Fix: Catch it and show `load-error`, or accept (the server always answers JSON).
-Status: open
+Status: fixed in d76eab7
 
 ### 09-F033 [Low] DEPLOYMENT said the health check looks at the database and disk only
 Where: docs/DEPLOYMENT.md, Health check
