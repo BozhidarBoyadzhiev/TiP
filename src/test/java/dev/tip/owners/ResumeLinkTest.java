@@ -15,6 +15,10 @@ import dev.tip.IntegrationTest;
 import dev.tip.TestData;
 import dev.tip.owners.api.OwnerPrincipal;
 import io.nayuki.qrcodegen.QrCode;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,9 +33,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -46,6 +53,15 @@ import tools.jackson.databind.node.ObjectNode;
 class ResumeLinkTest extends IntegrationTest {
 
     private static final Instant NOW = Instant.parse("2026-10-21T09:00:00Z");
+
+    private static final Pattern SESSION_COOKIE = Pattern.compile("JSESSIONID=[^;]+");
+
+    private static final Pattern CSRF_TOKEN = Pattern.compile("<meta name=\"csrf-token\" content=\"([^\"]+)\">");
+
+    private final HttpClient http = HttpClient.newHttpClient();
+
+    @LocalServerPort
+    int port;
 
     @Autowired
     MockMvc mvc;
@@ -100,6 +116,45 @@ class ResumeLinkTest extends IntegrationTest {
             assertFailed(failed);
             assertThat(withoutInstance(failed)).isEqualTo(withoutInstance(second));
         }
+    }
+
+    /**
+     * Over a real port, so the browser's old cookie can be sent again: the session the page made is never the one
+     * that gets signed in.
+     */
+    @Test
+    void signingInGivesTheBrowserANewSessionIdAndTheOldOneStaysSignedOut() throws Exception {
+        String token = Judges.token(link());
+        String ip = TestData.uniquePublicIp();
+
+        HttpResponse<String> page = http.send(
+                HttpRequest.newBuilder(uri("/judges/resume"))
+                        .header("X-Forwarded-For", ip)
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        String before = sessionCookie(page);
+        Matcher csrfToken = CSRF_TOKEN.matcher(page.body());
+        assertThat(csrfToken.find()).isTrue();
+
+        HttpResponse<String> resumed = http.send(
+                HttpRequest.newBuilder(uri("/judges/resume"))
+                        .header("X-Forwarded-For", ip)
+                        .header("Cookie", before)
+                        .header("X-CSRF-TOKEN", csrfToken.group(1))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString("{\"token\":\"" + token + "\"}"))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(resumed.statusCode()).isEqualTo(204);
+        String after = sessionCookie(resumed);
+
+        assertThat(after).isNotEqualTo(before);
+        assertThat(me(before).statusCode()).isEqualTo(401);
+        HttpResponse<String> signedIn = me(after);
+        assertThat(signedIn.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(signedIn.body()).path("displayName").asString())
+                .isEqualTo("Judge");
     }
 
     @Test
@@ -293,6 +348,30 @@ class ResumeLinkTest extends IntegrationTest {
                 .getResponse()
                 .getContentAsString();
         return json.readTree(body).path("url").asString();
+    }
+
+    private HttpResponse<String> me(String cookie) throws Exception {
+        return http.send(
+                HttpRequest.newBuilder(uri("/api/owner/me"))
+                        .header("X-Forwarded-For", TestData.uniquePublicIp())
+                        .header("Cookie", cookie)
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    private URI uri(String path) {
+        return URI.create("http://localhost:" + port + path);
+    }
+
+    /** The {@code JSESSIONID=...} pair the response set. */
+    private static String sessionCookie(HttpResponse<String> response) {
+        return response.headers().allValues("Set-Cookie").stream()
+                .map(SESSION_COOKIE::matcher)
+                .filter(Matcher::find)
+                .map(Matcher::group)
+                .reduce((first, last) -> last)
+                .orElseThrow(() -> new AssertionError("no session cookie set"));
     }
 
     private String withoutInstance(MockHttpServletResponse response) throws Exception {
