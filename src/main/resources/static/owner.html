@@ -103,6 +103,7 @@
       <span class="tx">Open until <strong id="sandbox-until"></strong>. Tips marked Demo are samples. Send your own to see it all work.</span>
       <span class="acts">
         <a class="ghost" id="sandbox-tip" href="/">Tip your panda</a>
+        <button type="button" class="ghost" id="open-pay" aria-haspopup="dialog" hidden>Test payment details</button>
         <button type="button" class="gold-btn sm" id="open-sheet" aria-haspopup="dialog">Continue on another device</button>
         <label class="split-switch">
           <input type="checkbox" role="switch" id="split-toggle">
@@ -212,6 +213,32 @@
       <p class="careful">The link works once. Anyone who has it gets into your sandbox, so only open it on your own device.</p>
       <div class="sheet-btns">
         <button type="button" class="ghost" id="close-sheet">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="pay-scrim" hidden>
+  <div class="sheet-wrap">
+    <svg class="peek" viewBox="0 0 132 74" aria-hidden="true"><use href="#head"/><g class="eyes"><use href="#eyes-open"/></g></svg>
+    <svg class="paws" viewBox="0 0 132 22" aria-hidden="true"><use href="#paws"/></svg>
+    <div class="sheet" id="pay-sheet" role="dialog" aria-modal="true" aria-labelledby="pay-title" tabindex="-1">
+      <h2 id="pay-title">Test payment details</h2>
+      <p class="sub">These are PayPal sandbox test details. No real money moves.</p>
+      <section class="pay-group" id="pay-card" aria-labelledby="pay-card-title" hidden>
+        <h3 id="pay-card-title">Card</h3>
+        <dl class="pay-rows" id="pay-card-rows"></dl>
+      </section>
+      <section class="pay-group" id="pay-billing" aria-labelledby="pay-billing-title" hidden>
+        <h3 id="pay-billing-title">Billing details</h3>
+        <dl class="pay-rows" id="pay-billing-rows"></dl>
+      </section>
+      <section class="pay-group" id="pay-paypal" aria-labelledby="pay-paypal-title" hidden>
+        <h3 id="pay-paypal-title">PayPal account</h3>
+        <dl class="pay-rows" id="pay-paypal-rows"></dl>
+      </section>
+      <div class="sheet-btns">
+        <button type="button" class="ghost" id="close-pay">Done</button>
       </div>
     </div>
   </div>

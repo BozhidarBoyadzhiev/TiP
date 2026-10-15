@@ -3,8 +3,8 @@
 // The owner dashboard. Loads everything from /api/owner/*, then listens on /ws/owner (docs/OWNER_CHANNEL.md)
 // and refetches what changed. Every value from the server is untrusted and goes into the page with
 // textContent or createTextNode; elements are built with createElement only. The same page serves a judge's
-// sandbox (its strip, sample tips marked Demo, Continue on another device) and the read only public sample,
-// which opens no socket, never polls and shows its write buttons switched off.
+// sandbox (its strip, sample tips marked Demo, Continue on another device, Test payment details) and the read
+// only public sample, which opens no socket, never polls and shows its write buttons switched off.
 (function () {
     const PAGE_SIZE = 20;
     const HIDDEN_PANEL_SIZE = 5;
@@ -69,6 +69,7 @@
         kind: "OWNER",
         readOnly: false,
         sheet: { timer: null, expiresAt: 0, opener: null, working: false },
+        pay: { opener: null },
         currency: null,
         filter: "ALL",
         tips: [],
@@ -1563,6 +1564,7 @@
         if (state.kind === "SANDBOX" && typeof me.expiresAt === "string") {
             el("sandbox-until").textContent = fullTime(me.expiresAt);
             el("sandbox-strip").hidden = false;
+            quietly(loadTestPayment());
         }
         el("who").hidden = false;
     }
@@ -1694,19 +1696,118 @@
         }, COPIED_MS);
     }
 
-    // Escape closes the sheet and Tab stays inside it while it is open.
+    // ---------- test payment details ----------
+
+    // A sandbox's PayPal sandbox card and buyer account, with sample billing details for the card form, so a judge
+    // can pay a tip. Kept in the page only; the button stays hidden when neither the card nor the account is set.
+    async function loadTestPayment() {
+        const details = await getJson("/api/owner/test-payment");
+        const card = details && details.card ? details.card : null;
+        const paypal = details && details.paypal ? details.paypal : null;
+        if (!card && !paypal) {
+            return;
+        }
+        const billing = card && details.billing ? details.billing : null;
+        fillPayGroup("pay-card", card && [
+            ["Card number", card.number],
+            ["Expiry", card.expiry],
+            ["CVC", card.cvc],
+        ]);
+        fillPayGroup("pay-billing", billing && [
+            ["Name", billing.name],
+            ["Postcode", billing.postcode],
+            ["Mobile", billing.mobile],
+            ["Email", billing.email, "billing email"],
+        ]);
+        fillPayGroup("pay-paypal", paypal && [
+            ["Email", paypal.email, "PayPal email"],
+            ["Password", paypal.password, "PayPal password"],
+        ]);
+        el("open-pay").hidden = false;
+    }
+
+    function fillPayGroup(id, rows) {
+        const list = el(id + "-rows");
+        list.replaceChildren();
+        el(id).hidden = !rows;
+        if (!rows) {
+            return;
+        }
+        // Each row is a label, its value and, where the label alone is ambiguous, the name a screen reader hears.
+        for (const [label, raw, spoken] of rows) {
+            const value = typeof raw === "string" ? raw : "";
+            const name = spoken || label;
+            const text = make("span", "pay-value", value);
+            const copy = make("button", "ghost", "Copy");
+            copy.type = "button";
+            copy.setAttribute("aria-label", "Copy " + name);
+            copy.addEventListener("click", () => copyValue(copy, value, text, name));
+            const data = make("dd");
+            data.append(text, copy);
+            const row = make("div", "pay-row");
+            row.append(make("dt", null, label), data);
+            list.append(row);
+        }
+    }
+
+    // Without clipboard access (an old browser, or permission refused) the value is selected for copying by hand.
+    async function copyValue(copy, value, text, name) {
+        try {
+            await navigator.clipboard.writeText(value);
+        } catch (e) {
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return;
+        }
+        copy.textContent = "Copied";
+        copy.setAttribute("aria-label", "Copied " + name);
+        setTimeout(() => {
+            copy.textContent = "Copy";
+            copy.setAttribute("aria-label", "Copy " + name);
+        }, COPIED_MS);
+    }
+
+    function openPay() {
+        state.pay.opener = document.activeElement;
+        el("pay-scrim").hidden = false;
+        el("pay-sheet").focus();
+    }
+
+    function closePay() {
+        el("pay-scrim").hidden = true;
+        if (state.pay.opener && state.pay.opener.focus) {
+            state.pay.opener.focus();
+        }
+    }
+
+    // The dialog that is open, if any: Continue on another device or Test payment details.
+    function openDialog() {
+        if (!el("scrim").hidden) {
+            return { sheet: el("sheet"), close: closeSheet };
+        }
+        if (!el("pay-scrim").hidden) {
+            return { sheet: el("pay-sheet"), close: closePay };
+        }
+        return null;
+    }
+
+    // Escape closes the open dialog and Tab stays inside it while it is open.
     function sheetKeys(event) {
-        if (el("scrim").hidden) {
+        const dialog = openDialog();
+        if (dialog === null) {
             return;
         }
         if (event.key === "Escape") {
-            closeSheet();
+            dialog.close();
             return;
         }
         if (event.key !== "Tab") {
             return;
         }
-        const focusable = Array.from(el("sheet").querySelectorAll("button, input")).filter(
+        const focusable = Array.from(dialog.sheet.querySelectorAll("button, input")).filter(
             (node) => !node.disabled && node.offsetParent !== null,
         );
         if (focusable.length === 0) {
@@ -1714,7 +1815,7 @@
         }
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
-        if (event.shiftKey && (document.activeElement === first || document.activeElement === el("sheet"))) {
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.sheet)) {
             event.preventDefault();
             last.focus();
         } else if (!event.shiftKey && document.activeElement === last) {
@@ -1788,6 +1889,13 @@
         el("scrim").addEventListener("click", (event) => {
             if (event.target === el("scrim")) {
                 closeSheet();
+            }
+        });
+        el("open-pay").addEventListener("click", openPay);
+        el("close-pay").addEventListener("click", closePay);
+        el("pay-scrim").addEventListener("click", (event) => {
+            if (event.target === el("pay-scrim")) {
+                closePay();
             }
         });
         document.addEventListener("keydown", sheetKeys);

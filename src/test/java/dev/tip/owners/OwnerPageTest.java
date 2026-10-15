@@ -194,6 +194,26 @@ class OwnerPageTest extends IntegrationTest {
     }
 
     @Test
+    void testPaymentDetailsAreASandboxDialogWithCopyButtons() throws Exception {
+        String html = page(get("/owner").with(user(owner()))).getContentAsString();
+        String script = body("/js/owner.js");
+
+        assertThat(html)
+                .contains("id=\"open-pay\" aria-haspopup=\"dialog\" hidden>Test payment details</button>")
+                .contains("id=\"pay-scrim\" hidden", "id=\"pay-sheet\" role=\"dialog\" aria-modal=\"true\"")
+                .contains("These are PayPal sandbox test details. No real money moves.")
+                .contains(">Card</h3>", ">Billing details</h3>", ">PayPal account</h3>");
+        assertThat(script)
+                .contains("if (state.kind === \"SANDBOX\"", "quietly(loadTestPayment());")
+                .contains("getJson(\"/api/owner/test-payment\")", "if (!card && !paypal) {")
+                .contains("el(\"open-pay\").hidden = false;")
+                .contains("make(\"span\", \"pay-value\", value)", "navigator.clipboard.writeText(value)")
+                .contains("range.selectNodeContents(text);", "copy.textContent = \"Copied\";")
+                .contains("copy.setAttribute(\"aria-label\", \"Copy \" + name);", "\"PayPal password\"")
+                .contains("return { sheet: el(\"pay-sheet\"), close: closePay };");
+    }
+
+    @Test
     void dashboardRedirectsToLoginWhenSignedOut() throws Exception {
         mvc.perform(get("/owner")).andExpect(status().isFound()).andExpect(redirectedUrl("/owner/login"));
     }

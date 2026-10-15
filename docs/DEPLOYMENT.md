@@ -84,6 +84,20 @@ Make each code on your machine:
 
 It prints the code (`TIP-XXXXX-XXXXX-XXXXX-XXXXX`, 100 random bits) once, and the entry to add to `TIP_ACCESS_CODES`. It writes neither to a file. The code goes only into Devpost's private **Additional info** field for the judges; never into the repository, an issue, a pull request, a chat or a screenshot. Only the entry, which holds the SHA-256 of the code, goes on Render. To revoke a code, remove its entry and redeploy; sandboxes it already made run to their own expiry (72 hours at most). Typing is forgiving: case, spaces, dashes, the `TIP` prefix and the letters O, I and L for 0, 1 and 1 do not matter.
 
+### Judge test payment details
+
+Optional. A judge's sandbox shows them under **Test payment details**, so a judge can pay a tip in the PayPal sandbox without making an account. They are PayPal sandbox values that move no real money, but they still live only on Render: never in the repository, a test or a screenshot. Only a sandbox session can read them (`GET /api/owner/test-payment`, `no-store`); the app never logs them.
+
+| Variable | Secret | What it is |
+|---|---|---|
+| `TIP_JUDGE_CARD_NUMBER` | yes | A sandbox test card number, from developer.paypal.com > Testing Tools > Card Generator. |
+| `TIP_JUDGE_CARD_EXPIRY` | yes | Its expiry as PayPal's form takes it, for example `MM/YY`. |
+| `TIP_JUDGE_CARD_CVC` | yes | Its CVC. The card shows only when all three card values are set. |
+| `TIP_JUDGE_PAYPAL_EMAIL` | yes | The email of a sandbox personal (buyer) account, from Sandbox Accounts. |
+| `TIP_JUDGE_PAYPAL_PASSWORD` | yes | Its password. The account shows only when both values are set. |
+
+With neither the card nor the account set, the button is not shown. The billing details in the box (name, postcode, mobile, email) are fixed sample data in the code.
+
 ### Rate limits
 
 Per client IP (the address from `TIP_CLIENT_IP_HEADER`), in memory. The defaults sit well above what an honest person does; change one only if real use hits it. A refusal is 429 `RATE_LIMITED` and one WARN line `rate_limited endpoint=<name> ip=<hash>` (`owner=<sandbox id>` for the per sandbox limit on resume links).

@@ -1605,6 +1605,66 @@ html.embedded .demo-tip {
     justify-content: center;
 }
 
+/* test payment details: label, value and its Copy button per row, grouped like the PayPal card form */
+.pay-group {
+    margin: 0 0 14px;
+    text-align: left;
+}
+
+.pay-group h3 {
+    margin: 0 0 6px;
+    font: 600 15px var(--font);
+    color: var(--cream);
+}
+
+.pay-rows {
+    margin: 0;
+    border: 1px solid var(--card-edge);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.pay-row {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px 4px 12px;
+}
+
+.pay-row + .pay-row {
+    border-top: 1px solid var(--card-edge);
+}
+
+.pay-row dt {
+    font-size: 13px;
+    color: var(--faint);
+}
+
+.pay-row dd {
+    margin: 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pay-value {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--cream);
+    font-size: 15px;
+    user-select: all;
+}
+
+.pay-row .ghost {
+    flex: none;
+    min-width: 68px;
+    padding: 0 12px;
+    font-size: 14px;
+}
+
 /* empty states */
 .empty {
     text-align: center;
