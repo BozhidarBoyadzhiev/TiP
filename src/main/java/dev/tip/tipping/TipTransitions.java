@@ -58,6 +58,12 @@ class TipTransitions {
         return tips.markPendingFailed(tipId) == 1;
     }
 
+    /** Moves CREATED to ABANDONED: never paid. */
+    @Transactional
+    public boolean abandon(UUID tipId) {
+        return tips.markAbandoned(tipId) == 1;
+    }
+
     /** Moves CAPTURED to REFUNDED. Only the caller that wins publishes {@link TipRefunded}. */
     @Transactional
     public boolean refund(UUID tipId) {

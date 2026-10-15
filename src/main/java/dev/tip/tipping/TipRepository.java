@@ -1,6 +1,7 @@
 package dev.tip.tipping;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -65,12 +66,42 @@ interface TipRepository extends JpaRepository<Tip, UUID> {
     @Query(value = "UPDATE tip SET status = 'REVERSED' WHERE id = :id AND status = 'CAPTURED'", nativeQuery = true)
     int markReversed(UUID id);
 
+    /** The first time TiP asks PayPal to capture the tip's order; later attempts keep the first time. */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
-            value = "UPDATE tip SET status = 'ABANDONED' WHERE status = 'CREATED' AND created_at < :cutoff",
+            value = "UPDATE tip SET capture_attempted_at = :at WHERE id = :id AND capture_attempted_at IS NULL",
             nativeQuery = true)
-    int abandonCreatedBefore(Instant cutoff);
+    int markCaptureAttempted(UUID id, Instant at);
+
+    /** CREATED tips older than {@code cutoff} whose capture was never attempted: their orders were never approved. */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            value = "UPDATE tip SET status = 'ABANDONED'"
+                    + " WHERE status = 'CREATED' AND created_at < :cutoff AND capture_attempted_at IS NULL",
+            nativeQuery = true)
+    int abandonUnattemptedCreatedBefore(Instant cutoff);
+
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE tip SET status = 'ABANDONED' WHERE id = :id AND status = 'CREATED'", nativeQuery = true)
+    int markAbandoned(UUID id);
+
+    /** CREATED tips older than {@code cutoff} whose capture was attempted, oldest first. */
+    @Query(
+            value = "SELECT * FROM tip WHERE status = 'CREATED' AND created_at < :cutoff"
+                    + " AND capture_attempted_at IS NOT NULL AND paypal_order_id IS NOT NULL"
+                    + " ORDER BY created_at LIMIT :limit",
+            nativeQuery = true)
+    List<Tip> findAttemptedCreatedBefore(Instant cutoff, int limit);
+
+    /** PENDING tips created before {@code cutoff}, oldest first. */
+    @Query(
+            value = "SELECT * FROM tip WHERE status = 'PENDING' AND created_at < :cutoff"
+                    + " AND paypal_order_id IS NOT NULL ORDER BY created_at LIMIT :limit",
+            nativeQuery = true)
+    List<Tip> findPendingCreatedBefore(Instant cutoff, int limit);
 
     @Query("SELECT t.status FROM Tip t WHERE t.id = :id")
     Optional<TipStatus> findStatus(UUID id);

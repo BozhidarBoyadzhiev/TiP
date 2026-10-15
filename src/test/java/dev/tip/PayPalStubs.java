@@ -98,6 +98,11 @@ public final class PayPalStubs {
                 .willReturn(json(200, order(orderId, "COMPLETED", captureId, captureStatus, amountValue, currency))));
     }
 
+    public static void getOrderError(WireMockServer server, String orderId, int status, String name, String issue) {
+        server.stubFor(
+                get(urlPathEqualTo("/v2/checkout/orders/" + orderId)).willReturn(json(status, error(name, issue))));
+    }
+
     /** Like {@link #captureCompleted} with a random response delay, so racing callers finish in any order. */
     public static void captureCompletedWithJitter(
             WireMockServer server, String orderId, String captureId, int maxDelayMillis) {

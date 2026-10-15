@@ -88,6 +88,7 @@ class TipService {
         if (tip.paypalOrderId() == null) {
             throw new TipExceptions.TipNotReady();
         }
+        tips.markCaptureAttempted(tipId, clock.instant());
         CaptureResult result = payPal.captureOrder(tipId, tip.paypalOrderId());
         if (result instanceof CaptureResult.AlreadyCaptured) {
             result = payPal.lookupOrder(tip.paypalOrderId());

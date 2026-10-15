@@ -15,13 +15,16 @@ import dev.tip.IntegrationTest;
 import dev.tip.PayPalStubs;
 import dev.tip.TestData;
 import dev.tip.tipping.api.TipCaptured;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -35,6 +38,9 @@ class CaptureTipTest extends IntegrationTest {
 
     @Autowired
     CapturedEvents events;
+
+    @Autowired
+    JdbcClient jdbc;
 
     UUID deviceId;
     String orderId;
@@ -155,6 +161,26 @@ class CaptureTipTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("PAYPAL_CAPTURE_FAILED"));
 
         assertThat(data.tipStatus(tipId)).isEqualTo("CREATED");
+        assertThat(data.tipRow(tipId).get("capture_attempted_at"))
+                .as("the abandon job looks such a tip up before abandoning it")
+                .isNotNull();
+    }
+
+    @Test
+    void retryingKeepsTheTimeOfTheFirstAttempt() throws Exception {
+        PayPalStubs.captureError(PAYPAL, orderId, 500, "INTERNAL_SERVER_ERROR", "INTERNAL_SERVICE_ERROR");
+        Instant first = Instant.parse("2026-11-01T10:00:00Z");
+        clock.pin(first);
+        capture(tipId).andExpect(status().isBadGateway());
+        clock.pin(first.plus(Duration.ofMinutes(5)));
+        capture(tipId).andExpect(status().isBadGateway());
+
+        assertThat(jdbc.sql("SELECT capture_attempted_at FROM tip WHERE id = ?")
+                        .param(tipId)
+                        .query(OffsetDateTime.class)
+                        .single()
+                        .toInstant())
+                .isEqualTo(first);
     }
 
     @Test
