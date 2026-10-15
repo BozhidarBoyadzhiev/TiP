@@ -11,6 +11,7 @@ import dev.tip.PayPalStubs;
 import dev.tip.TestData;
 import dev.tip.WebhookEvents;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,7 +60,9 @@ class NoAiBeforeCaptureTest extends IntegrationTest {
 
         webhook(captureId, tipId, orderId, "PAYMENT.CAPTURE.COMPLETED");
 
-        await().atMost(Duration.ofSeconds(30)).until(() -> !"PENDING".equals(data.aiStatus(tipId)));
+        // PROCESSING means the tip is claimed and the call may not have reached the model yet.
+        await().atMost(Duration.ofSeconds(30))
+                .until(() -> !List.of("PENDING", "PROCESSING").contains(data.aiStatus(tipId)));
         assertThat(AnthropicStubs.requestsFor(ANTHROPIC, message)).hasSize(1);
     }
 
