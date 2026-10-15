@@ -24,7 +24,10 @@ class TipTransitions {
         this.clock = clock;
     }
 
-    /** Moves CREATED or PENDING to CAPTURED. Only the caller that wins publishes {@link TipCaptured}. */
+    /**
+     * Moves CREATED, PENDING, FAILED or ABANDONED to CAPTURED, once PayPal confirmed the capture. Only the caller
+     * that wins publishes {@link TipCaptured}.
+     */
     @Transactional
     public boolean capture(UUID tipId, String captureId) {
         Instant capturedAt = clock.instant();

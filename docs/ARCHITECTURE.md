@@ -48,13 +48,13 @@ CREATED ──▶ CAPTURED ──▶ REFUNDED
  FAILED          CREATED older than 6h ──▶ ABANDONED (scheduled job)
 ```
 
-`PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.DECLINED` move `CREATED` or `PENDING` to `FAILED`. `PAYMENT.CAPTURE.REVERSED` moves `CAPTURED` to `REVERSED`. A capture request for a `FAILED` or `ABANDONED` tip gets 409 `TIP_CLOSED`.
+`PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.DECLINED` move `CREATED` or `PENDING` to `FAILED`. `PAYMENT.CAPTURE.REVERSED` moves `CAPTURED` to `REVERSED`. A capture request for a `FAILED` or `ABANDONED` tip gets 409 `TIP_CLOSED`. A capture PayPal confirms (the capture answer, an order lookup or a verified webhook) also moves a `FAILED` or `ABANDONED` tip to `CAPTURED`: the money moved, for example after a lost capture answer whose webhook came after the 6 hours, so it is recorded.
 
 Every transition is a conditional update:
 
 ```sql
 UPDATE tip SET status = 'CAPTURED', paypal_capture_id = ?, captured_at = ?
-WHERE id = ? AND status IN ('CREATED', 'PENDING')
+WHERE id = ? AND status IN ('CREATED', 'PENDING', 'FAILED', 'ABANDONED')
 ```
 
 The caller that gets one affected row owns the transition and is the only one that publishes the event. Anyone who gets zero rows reads the current state and returns it.

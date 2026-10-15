@@ -17,6 +17,8 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -158,6 +160,22 @@ class PayPalWebhookTest extends IntegrationTest {
 
         assertThat(data.tipStatus(tipId)).isEqualTo("CAPTURED");
         assertThat(events.forTip(tipId)).hasSize(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ABANDONED", "FAILED"})
+    void aCaptureConfirmedAfterTheTipWasClosedIsStillRecorded(String closed) throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        String closedOrder = TestData.uniqueId("ORDER");
+        UUID closedTip = data.tip(deviceId, closed, closedOrder, Instant.now());
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, closedOrder))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipRow(closedTip))
+                .containsEntry("status", "CAPTURED")
+                .containsEntry("paypal_capture_id", captureId);
+        assertThat(events.forTip(closedTip)).hasSize(1);
     }
 
     @Test

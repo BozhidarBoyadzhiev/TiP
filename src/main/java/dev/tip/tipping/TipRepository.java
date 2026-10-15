@@ -22,11 +22,15 @@ interface TipRepository extends JpaRepository<Tip, UUID> {
             nativeQuery = true)
     int attachOrder(UUID id, String orderId);
 
+    /**
+     * PayPal confirmed the capture, so the money moved: recorded even when the tip was marked failed or abandoned
+     * meanwhile, for example after a lost capture answer and a webhook that came hours later.
+     */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
             value = "UPDATE tip SET status = 'CAPTURED', paypal_capture_id = :captureId, captured_at = :capturedAt"
-                    + " WHERE id = :id AND status IN ('CREATED', 'PENDING')",
+                    + " WHERE id = :id AND status IN ('CREATED', 'PENDING', 'FAILED', 'ABANDONED')",
             nativeQuery = true)
     int markCaptured(UUID id, String captureId, Instant capturedAt);
 
