@@ -4,18 +4,18 @@ The thread between the passes of Brief 09. Every finding of the review, its seve
 
 ## Where we are
 
-- Pass 1 (audit, then Critical): audit done over backend, static pages, firmware, build, CI, config, migrations and tests. Baseline `./gradlew clean build` green before any change (696 tests). gitleaks 8.30.1 over the full history (174 commits, every branch): no leaks.
-- Next pass starts with the High findings, in the order listed.
+- Pass 1 (audit, then Critical): done. Audit over backend, static pages, firmware, build, CI, config, migrations and tests. Baseline `./gradlew clean build` green before any change (696 tests); green after every commit of the pass (708 tests at the end). gitleaks 8.30.1 over the full history (174 commits, every branch): no leaks. Every Critical fixed, each with tests that failed before the fix.
+- Pass 2 starts with the High findings in order: 09-F005, 09-F006, 09-F007, 09-F008, 09-F010 (09-F009 waits for the lead). Then the open Medium ones.
 - Not yet covered in depth, for pass 2: the README files (read only for setup steps, not checked line by line against the code), `docs/DEPLOYMENT.md`, and a line by line read of `owner.js`, `live.js` and `panda.js` (scanned for markup sinks, storage and outside origins only).
 
 ## Counts
 
 | Severity | Found | Fixed | Open | Lead decision |
 |---|---|---|---|---|
-| Critical | 4 | 0 | 4 | 0 |
+| Critical | 4 | 4 | 0 | 0 |
 | High | 6 | 0 | 5 | 1 |
-| Medium | 8 | 0 | 4 | 4 |
-| Low | 7 | 0 | 7 | 0 |
+| Medium | 9 | 1 | 4 | 4 |
+| Low | 8 | 3 | 5 | 0 |
 
 ## Critical
 
@@ -24,28 +24,28 @@ Where: dev.tip.tipping.PayPalWebhookProcessor.findTip, PayPalWebhookEvent
 What: Capture events are matched to a tip by `resource.custom_id` first, and the captured amount is never compared with the tip's. `custom_id` is whatever the order's creator put there. Our PayPal client id is public (`/api/public/devices/{slug}`), and the PayPal JS SDK lets anyone create and capture an order on our merchant account from a browser with only that client id, with any amount and any `custom_id`. PayPal then sends a genuine, correctly signed `PAYMENT.CAPTURE.COMPLETED` to our webhook.
 Why it matters: Create a tip of £100 through our API (it stays `CREATED`, its order unpaid), then pay £0.01 on an order of your own whose `custom_id` is that tip id. The webhook moves the £100 tip to `CAPTURED`: the owner's totals show £100, the panda plays the biggest pattern, and a model call is made. The same trick with a `DENIED` event fails a stranger's tip in flight if its id is known. Money recorded wrong.
 Fix: Match capture events only through ids we stored ourselves: the related order id against `tip.paypal_order_id`, then the capture id against `tip.paypal_capture_id`; never by `custom_id`. Refund events only through the refunded capture's id. `COMPLETED` and `PENDING` also need the event's amount and currency to equal the tip's, otherwise the event is recorded and the tip left alone, with a WARN.
-Status: open
+Status: fixed in d029ce4
 
 ### 09-F002 [Critical] Anonymous requests of any size are read whole into memory
 Where: every `@RequestBody` endpoint, most of all `POST /webhooks/paypal` (`@RequestBody String`), `POST /api/public/devices/{slug}/tips`, `POST /judges/resume`; form posts (`/owner/login`, `/judges/session`) up to Tomcat's 2 MB default
 What: Nothing limits the size of a request body. The webhook reads the whole body into a `String` before anything is checked, and Jackson builds every string field of a JSON body before Bean Validation looks at its length. Cloudflare passes bodies up to 100 MB.
 Why it matters: A few concurrent 100 MB posts to `/webhooks/paypal` need several hundred MB of heap on a 512 MB Render instance (heap at 75 %): OutOfMemoryError, the app stops serving, the demo breaks. No credentials needed.
 Fix: One filter in `shared` that answers 413 problem details for a body over a small fixed limit (64 KB, far above any real request) by `Content-Length`, and stops reading a chunked body at the same limit; `server.tomcat.max-http-form-post-size` lowered to the same size.
-Status: open
+Status: fixed in 0237ee9
 
 ### 09-F003 [Critical] The sign in limiter keeps every email it is sent, at any length, even after refusing
 Where: dev.tip.owners.LoginRateLimiter.tryAcquire
 What: Each sign in attempt puts its `email` field, as typed, into an in memory cache of up to 100 000 buckets kept 5 minutes. The email bucket is created even when the IP bucket already refused the attempt, and the field may be as long as the form allows (2 MB today).
 Why it matters: About 400 sign in posts of 1 MB each with different emails, from one IP, inside five minutes hold some 400 MB of heap: OutOfMemoryError. Anonymous crash, independent of 09-F002 because the per IP limit does not stop it.
 Fix: Key the email bucket by a bounded value: an email longer than 254 characters, which no owner can have, shares one bucket.
-Status: open
+Status: fixed in 5b3cab2
 
 ### 09-F004 [Critical] A capture PayPal confirms after the tip was abandoned is never recorded
 Where: dev.tip.tipping.TipRepository.markCaptured, AbandonedTipsJob
 What: `AbandonedTipsJob` marks `CREATED` tips older than 6 hours `ABANDONED`. `markCaptured` moves only `CREATED` or `PENDING`. If our capture call reached PayPal but its answer was lost (timeout) and the tipper did not retry, the tip waits for the `PAYMENT.CAPTURE.COMPLETED` webhook; PayPal retries webhooks for days with growing gaps, so after an outage of our webhook endpoint the event can arrive after 6 hours. It then changes nothing, and its event id is stored, so PayPal's retries are no ops too. The same holds for a `FAILED` tip.
 Why it matters: Money taken at PayPal and missing from our database for good, with nothing to reconcile it. Unlikely, but exactly the "payment not recorded" case.
 Fix: A capture that PayPal confirms (capture response, order lookup or verified webhook, after 09-F001's checks) moves `CREATED`, `PENDING`, `FAILED` or `ABANDONED` to `CAPTURED` and publishes `TipCaptured` like any capture. A tipper's capture request for a `FAILED` or `ABANDONED` tip keeps answering 409 `TIP_CLOSED` without calling PayPal.
-Status: open
+Status: fixed in e6f0212
 
 ## High
 
@@ -149,6 +149,13 @@ Why it matters: A tampered release would run in CI with the repository checked o
 Fix: Verify the published SHA-256 of the tarball before extracting.
 Status: open
 
+### 09-F026 [Medium] NoAiBeforeCaptureTest failed whenever it ran alone
+Where: src/test/java/dev/tip/ai/NoAiBeforeCaptureTest
+What: Found while fixing 09-F001. The test waited until the tip's AI status left `PENDING`, which `PROCESSING` already does, then counted the requests the model stub had received. In the full suite the warm JVM made the call in time; run alone, the first call of a cold JVM had not reached WireMock yet, and the test failed every time, on the untouched baseline too.
+Why it matters: A flaky test around the one guarantee that no model call happens before a confirmed capture.
+Fix: Wait for a final AI status.
+Status: fixed in 775202c
+
 ## Low
 
 ### 09-F019 [Low] The webhook logs a sender supplied header at WARN
@@ -166,7 +173,7 @@ Status: open
 ### 09-F021 [Low] `PayPalWebhookEvent.customId` becomes unused once 09-F001 is fixed
 Where: dev.tip.tipping.PayPalWebhookEvent
 Fix: Remove it with 09-F001.
-Status: open
+Status: fixed in d029ce4
 
 ### 09-F022 [Low] Demo sessions are created freely
 Where: `POST /demo/session`
@@ -189,7 +196,13 @@ Status: open
 Where: src/test/java/dev/tip/WebhookEvents
 What: Every test webhook carries `2.00 GBP` whatever the tip, which hid the missing amount check (09-F001).
 Fix: Take the amount as a parameter, done with 09-F001.
-Status: open
+Status: fixed in d029ce4
+
+### 09-F027 [Low] The friendly detail for 413 never applied
+Where: dev.tip.shared.GenericProblems
+What: Found while fixing 09-F002. The detail switch named `HttpStatus.PAYLOAD_TOO_LARGE`, but `HttpStatus.valueOf(413)` resolves to `CONTENT_TOO_LARGE`, so a framework 413 got "Content Too Large." instead of "The request is too large."
+Fix: Name `CONTENT_TOO_LARGE`.
+Status: fixed in 0237ee9
 
 ## Checked and fine
 
