@@ -381,10 +381,16 @@ section {
 /* PayPal renders its own buttons in an iframe; they are disabled through the SDK, this only dims them.
    Its document is light, and an iframe whose colour scheme differs from its page gets an opaque white
    background, so the container is light too. */
+/* PayPal's buttons and its inline card form sit on a paper panel: the card form draws dark text on a
+   transparent background inside PayPal's iframe, which we cannot style, so it needs a light surface. */
 .pay {
     color-scheme: light;
     margin-top: 14px;
-    min-height: 48px;
+    min-height: 76px;
+    padding: 14px;
+    background: var(--paper);
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 0 1px rgba(90, 60, 30, 0.25), 0 10px 24px rgba(0, 0, 0, 0.3);
     transition: opacity 0.2s;
 }
 
