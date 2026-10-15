@@ -173,6 +173,18 @@ class ObserverChannelTest extends IntegrationTest {
         }
     }
 
+    /** A display script outside a browser sends no Origin; the docs promise it may watch. */
+    @Test
+    void aClientWithoutAnOriginMayWatch() throws Exception {
+        String slug = TestData.uniqueSlug();
+        data.device(slug, "Panda");
+
+        try (RawWebSocket response = RawWebSocket.handshake(
+                port, "/ws/observe/" + slug, Map.of("X-Forwarded-For", DeviceChannelTest.uniqueIp()))) {
+            assertThat(response.status).isEqualTo(101);
+        }
+    }
+
     @Test
     void inboundMessagesAreIgnoredAndOversizeClosesWith1009() throws Exception {
         String slug = TestData.uniqueSlug();
