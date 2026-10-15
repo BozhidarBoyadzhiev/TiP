@@ -146,6 +146,34 @@ class SideBySideTest extends IntegrationTest {
     }
 
     @Test
+    void theGapsBetweenTheColumnsAreSeparatorsThatResizeThem() throws Exception {
+        String page = mvc.perform(html(get("/owner/live").session(sandbox.session())))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String script = body("/js/live.js");
+        String styles = body("/css/live.css");
+
+        assertThat(page)
+                .containsPattern("<section class=\"col tip\"[\\s\\S]*id=\"handle-tip\" role=\"separator\" "
+                        + "aria-orientation=\"vertical\" tabindex=\"0\"[\\s\\S]*<section class=\"col panda\"")
+                .containsPattern("<section class=\"col panda\"[\\s\\S]*id=\"handle-dash\" role=\"separator\" "
+                        + "aria-orientation=\"vertical\" tabindex=\"0\"[\\s\\S]*<section class=\"col dash\"")
+                .contains("<div class=\"drag-cover\" id=\"drag-cover\" hidden></div>");
+        assertThat(script)
+                .contains("const MIN_TIP = 340;", "const MIN_PANDA = 280;", "const MIN_DASH = 400;")
+                .contains("const DEFAULT_TIP = 390;", "const DEFAULT_DASH = 460;", "const KEY_STEP = 16;")
+                .contains(
+                        "event.key === \"ArrowLeft\" || event.key === \"ArrowRight\"", "addEventListener(\"dblclick\"")
+                .contains("handle.setPointerCapture(event.pointerId);", "el(\"drag-cover\").hidden = false;")
+                .contains("el(\"drag-cover\").hidden = true;", "stage.style.setProperty(\"--tip\"")
+                .doesNotContain("localStorage", "sessionStorage", "document.cookie");
+        assertThat(styles)
+                .contains("grid-template-columns: var(--tip) 14px minmax(280px, 1fr) 14px var(--dash);")
+                .contains(".drag-cover {\n    position: fixed;\n    inset: 0;\n    z-index: 10;");
+    }
+
+    @Test
     void embeddedPagesOnlyChangeWhatTheyShow() throws Exception {
         String owner = body("/js/owner.js");
         String ownerPage = mvc.perform(get("/owner").session(sandbox.session()))

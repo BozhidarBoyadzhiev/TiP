@@ -15,20 +15,25 @@
     <script src="/js/live.js" defer nonce="{{CSP_NONCE}}"></script>
 </head>
 <body>
-<main class="stage">
-  <section class="col tip" aria-labelledby="cap-tip">
+<main class="stage" id="stage">
+  <section class="col tip" id="col-tip" aria-labelledby="cap-tip">
     <h2 class="cap" id="cap-tip"><b aria-hidden="true">1</b>Leave a tip</h2>
     <div class="frame"><iframe id="frame-tip" title="Tip page"></iframe></div>
   </section>
+  <div class="handle" id="handle-tip" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-controls="col-tip" aria-label="Resize the tip page and the panda"></div>
   <section class="col panda" aria-labelledby="cap-panda">
     <h2 class="cap" id="cap-panda"><b aria-hidden="true">2</b>Watch the panda react</h2>
     <div class="frame"><iframe id="frame-panda" title="Your panda"></iframe></div>
   </section>
-  <section class="col dash" aria-labelledby="cap-dash">
+  <div class="handle" id="handle-dash" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-controls="col-dash" aria-label="Resize the panda and the dashboard"></div>
+  <section class="col dash" id="col-dash" aria-labelledby="cap-dash">
     <h2 class="cap" id="cap-dash"><b aria-hidden="true">3</b>See it on your dashboard</h2>
     <div class="frame"><iframe id="frame-dash" title="Dashboard"></iframe></div>
   </section>
 </main>
+<div class="drag-cover" id="drag-cover" hidden></div>
 <p class="note" id="load-error" role="alert" hidden>Your sandbox could not be loaded. <a href="/owner">Open the dashboard</a></p>
 </body>
 </html>

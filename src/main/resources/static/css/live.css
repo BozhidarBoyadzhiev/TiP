@@ -13,12 +13,59 @@ body {
     overflow: hidden;
 }
 
+/* Columns and separators: live.js sets --tip and --dash when a separator moves; the panda takes the rest. */
 .stage {
+    --tip: 390px;
+    --dash: 460px;
     height: 100vh;
     display: grid;
-    grid-template-columns: 390px minmax(320px, 1fr) 460px;
-    gap: 14px;
+    grid-template-columns: var(--tip) 14px minmax(280px, 1fr) 14px var(--dash);
     padding: 14px;
+}
+
+.handle {
+    position: relative;
+    cursor: col-resize;
+    touch-action: none;
+    border-radius: 7px;
+}
+
+.handle::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+    border-radius: 2px;
+    background: var(--card-edge);
+    transition: background 0.15s, height 0.15s;
+}
+
+.handle:hover::after,
+.handle:focus-visible::after,
+.dragging .handle::after {
+    height: 72px;
+    background: var(--gold);
+}
+
+.handle:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+}
+
+/* While a separator is dragged it lies over the frames, so they never take the pointer. */
+.drag-cover {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    cursor: col-resize;
+    background: transparent;
+}
+
+.dragging {
+    user-select: none;
 }
 
 .col {
