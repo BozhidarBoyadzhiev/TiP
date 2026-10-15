@@ -99,6 +99,20 @@ class OwnerLoginTest extends IntegrationTest {
     }
 
     @Test
+    void addressesOfOneIpv6NetworkShareTheIpBucket() throws Exception {
+        String network = TestData.uniqueIpv6Network();
+        for (int i = 1; i <= 5; i++) {
+            login(TestData.uniqueEmail(), "wrong-password", network + "::" + i, new MockHttpSession())
+                    .andExpect(status().isUnauthorized());
+        }
+
+        login(email, TestData.OWNER_PASSWORD, network + ":abcd:1:2:3", new MockHttpSession())
+                .andExpect(status().isTooManyRequests());
+        login(email, TestData.OWNER_PASSWORD, TestData.uniqueIpv6Network() + "::1", new MockHttpSession())
+                .andExpect(status().isFound());
+    }
+
+    @Test
     void sixthAttemptInAMinuteForOneEmailIs429FromAnyIp() throws Exception {
         for (int i = 0; i < 5; i++) {
             login(email, "wrong-password", randomIp(), new MockHttpSession()).andExpect(status().isUnauthorized());

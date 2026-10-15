@@ -88,13 +88,74 @@ abstract class ClientIpHeaderTest extends IntegrationTest {
 
     @Test
     void ipv6LiteralIsTheClient() throws Exception {
-        String client = "2001:db8::" + Integer.toHexString(UUID.randomUUID().hashCode() & 0xffff);
+        String client = TestData.uniqueIpv6Network() + "::1";
 
         for (int i = 1; i <= TIPS_PER_MINUTE; i++) {
             createTip("no-such-panda", header(), client);
         }
 
         assertThat(createTip("no-such-panda", header(), client).statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    void everyAddressOfOneIpv6NetworkSharesTheTipBucket() throws Exception {
+        String network = TestData.uniqueIpv6Network();
+
+        for (int i = 1; i <= TIPS_PER_MINUTE; i++) {
+            assertThat(createTip("no-such-panda", header(), network + "::" + Integer.toHexString(i))
+                            .statusCode())
+                    .as("tip %d", i)
+                    .isEqualTo(404);
+        }
+
+        assertThat(createTip("no-such-panda", header(), network + ":ffff:1:2:3").statusCode())
+                .isEqualTo(429);
+        assertThat(createTip("no-such-panda", header(), TestData.uniqueIpv6Network() + "::1")
+                        .statusCode())
+                .isEqualTo(404);
+    }
+
+    @Test
+    void deviceHandshakeFailuresCountPerIpv6Network() throws Exception {
+        UUID deviceId = data.device(TestData.uniqueSlug(), "Panda", TestData.randomSecret());
+        String network = TestData.uniqueIpv6Network();
+
+        for (int attempt = 1; attempt <= HandshakeFailureLimiter.FAILURES_PER_MINUTE; attempt++) {
+            try (RawWebSocket response = deviceHandshake(deviceId, network + "::" + attempt)) {
+                assertThat(response.status).as("attempt %d", attempt).isEqualTo(401);
+            }
+        }
+
+        try (RawWebSocket sameNetwork = deviceHandshake(deviceId, network + ":1::99");
+                RawWebSocket otherNetwork = deviceHandshake(deviceId, TestData.uniqueIpv6Network() + "::1")) {
+            assertThat(sameNetwork.status).isEqualTo(429);
+            assertThat(otherNetwork.status).isEqualTo(401);
+        }
+    }
+
+    @Test
+    void observerConnectionsCountPerIpv6Network() throws Exception {
+        String slug = TestData.uniqueSlug();
+        data.device(slug, "Busy Panda");
+        String network = TestData.uniqueIpv6Network();
+        List<RawWebSocket> open = new ArrayList<>();
+        try {
+            for (int i = 1; i <= ObserverConnectionLimiter.MAX_PER_IP; i++) {
+                RawWebSocket observer = observe(slug, network + "::" + i);
+                open.add(observer);
+                assertThat(observer.status).as("connection %d", i).isEqualTo(101);
+            }
+
+            try (RawWebSocket sameNetwork = observe(slug, network + "::99");
+                    RawWebSocket otherNetwork = observe(slug, TestData.uniqueIpv6Network() + "::1")) {
+                assertThat(sameNetwork.status).isEqualTo(429);
+                assertThat(otherNetwork.status).isEqualTo(101);
+            }
+        } finally {
+            for (RawWebSocket socket : open) {
+                socket.close();
+            }
+        }
     }
 
     @Test

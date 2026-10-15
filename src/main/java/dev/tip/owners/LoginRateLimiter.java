@@ -2,13 +2,15 @@ package dev.tip.owners;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import dev.tip.shared.ClientKeys;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import java.time.Duration;
 import org.springframework.stereotype.Component;
 
 /**
- * In memory token buckets for sign in attempts: 5 per minute per client IP and 5 per minute per email,
+ * In memory token buckets for sign in attempts: 5 per minute per client IP (an IPv6 client by its /64, {@link
+ * ClientKeys}) and 5 per minute per email,
  * counting every attempt, successful or not. Idle buckets expire. Single instance only. An email longer
  * than any owner's can be shares one bucket, so the cache never holds what a sender typed beyond that length.
  */
@@ -27,7 +29,8 @@ class LoginRateLimiter {
 
     /** Takes one attempt from both buckets. False when either is empty. */
     boolean tryAcquire(String clientIp, String email) {
-        boolean ipAllowed = byIp.get(clientIp, key -> newBucket()).tryConsume(1);
+        boolean ipAllowed =
+                byIp.get(ClientKeys.of(clientIp), key -> newBucket()).tryConsume(1);
         String normalized = OwnerEmails.normalize(email);
         String emailKey = normalized.length() > MAX_EMAIL_LENGTH ? TOO_LONG : normalized;
         boolean emailAllowed = byEmail.get(emailKey, key -> newBucket()).tryConsume(1);

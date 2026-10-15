@@ -54,6 +54,15 @@ public class TestData {
         return "198." + (18 + n / 65_536 % 2) + "." + (n / 256 % 256) + "." + (n % 256);
     }
 
+    /**
+     * The first four groups of an IPv6 /64 no other test uses, from 2001:db8::/32 (reserved for documentation).
+     * Append {@code ::1} or another interface id to get an address in it.
+     */
+    public static String uniqueIpv6Network() {
+        int n = PUBLIC_IPS.incrementAndGet();
+        return "2001:db8:" + Integer.toHexString(n / 65_536 % 65_536) + ":" + Integer.toHexString(n % 65_536);
+    }
+
     /** A MockMvc request from {@link #uniquePublicIp()}, so per IP limits never carry over between requests. */
     public static RequestPostProcessor newClient() {
         String ip = uniquePublicIp();
