@@ -171,6 +171,25 @@ void test_short_apdu() {
   expectStatus(0x6700, 0);
 }
 
+// Lc says two data bytes but only one arrived: the byte after the command is never read.
+void test_select_with_missing_data_bytes_selects_nothing() {
+  const uint8_t apdu[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x04};
+  send(apdu, sizeof(apdu) - 1);
+  expectStatus(0x6A82, 0);
+  readBinary(0, 2);
+  expectStatus(0x6A82, 0);
+}
+
+void test_set_ndef_refuses_a_message_larger_than_the_file() {
+  uint8_t tooLong[Type4Tag::kMaxMessage + 1];
+  memset(tooLong, 'x', sizeof(tooLong));
+  TEST_ASSERT_FALSE(tag.setNdef(tooLong, sizeof(tooLong)));
+  selectNdefFile();
+  readBinary(2, static_cast<uint8_t>(messageLength));
+  expectStatus(0x9000, messageLength);
+  TEST_ASSERT_EQUAL_MEMORY(message, reply, messageLength);
+}
+
 void test_a_new_session_selects_no_file() {
   selectNdefFile();
   tag.startSession();
@@ -198,6 +217,8 @@ int main() {
   RUN_TEST(test_read_at_offset_ffff);
   RUN_TEST(test_update_binary_is_refused);
   RUN_TEST(test_short_apdu);
+  RUN_TEST(test_select_with_missing_data_bytes_selects_nothing);
+  RUN_TEST(test_set_ndef_refuses_a_message_larger_than_the_file);
   RUN_TEST(test_a_new_session_selects_no_file);
   return UNITY_END();
 }

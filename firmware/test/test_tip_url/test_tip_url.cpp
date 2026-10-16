@@ -115,6 +115,16 @@ void test_uri_message_needs_https_and_room() {
   TEST_ASSERT_EQUAL_size_t(29, tip::buildUriMessage("https://tip.example/t/demo-panda", message, 29));
 }
 
+// A short record's payload length is one byte: a longer URL is refused, never wrapped.
+void test_uri_message_refuses_a_payload_over_255_bytes() {
+  char longUrl[301];
+  memcpy(longUrl, "https://", 8);
+  memset(longUrl + 8, 'a', sizeof(longUrl) - 9);
+  longUrl[sizeof(longUrl) - 1] = 0;
+  uint8_t message[512];
+  TEST_ASSERT_EQUAL_size_t(0, tip::buildUriMessage(longUrl, message, sizeof(message)));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_configured_url_is_the_tip_page_and_fits_the_tag);
@@ -126,5 +136,6 @@ int main() {
   RUN_TEST(test_a_url_longer_than_the_buffer_is_refused);
   RUN_TEST(test_uri_message_layout);
   RUN_TEST(test_uri_message_needs_https_and_room);
+  RUN_TEST(test_uri_message_refuses_a_payload_over_255_bytes);
   return UNITY_END();
 }
