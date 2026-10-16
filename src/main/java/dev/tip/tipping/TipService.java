@@ -93,7 +93,14 @@ class TipService {
         if (result instanceof CaptureResult.AlreadyCaptured) {
             result = payPal.lookupOrder(tip.paypalOrderId());
         }
-        apply(tip, result);
+        try {
+            apply(tip, result);
+        } catch (TipExceptions.PayPalUnavailable failed) {
+            // The webhook may have recorded the capture while our call failed: the tipper gets what is stored.
+            return tips.findStatus(tipId)
+                    .filter(status -> status == TipStatus.CAPTURED || status == TipStatus.PENDING)
+                    .orElseThrow(() -> failed);
+        }
         // The tip may be gone: an expired sandbox is deleted with its tips while PayPal is called.
         return tips.findStatus(tipId).orElseThrow(TipExceptions.TipNotFound::new);
     }

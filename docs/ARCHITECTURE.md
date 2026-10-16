@@ -64,7 +64,7 @@ The caller that gets one affected row owns the transition and is the only one th
 
 ## Concurrency and failure modes
 
-**Capture response and webhook race.** Both arrive within milliseconds and both say the payment completed. Without care the panda reacts twice or the tip is double counted. The conditional update above makes exactly one winner, enforced by PostgreSQL row locking, not by application code. A test runs both paths on two threads against real PostgreSQL and asserts one event.
+**Capture response and webhook race.** Both arrive within milliseconds and both say the payment completed. Without care the panda reacts twice or the tip is double counted. The conditional update above makes exactly one winner, enforced by PostgreSQL row locking, not by application code. A test runs both paths on two threads against real PostgreSQL and asserts one event. The webhook can also win while our capture call fails (a 404, a 5xx or a timeout): before answering with an error, the capture re-reads the tip, and a tip now `CAPTURED` or `PENDING` gets exactly the answer of a successful or pending capture, so a tipper who paid is never told the payment failed.
 
 **PayPal retries webhooks.** Every event id is inserted into `paypal_webhook_event` with a unique constraint in the same transaction as the state change. A duplicate hits the constraint and we return 200 without doing anything. If processing fails, the transaction rolls back, the event row is not kept, and PayPal's retry gets a clean second attempt.
 

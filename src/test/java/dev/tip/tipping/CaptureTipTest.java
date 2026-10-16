@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -201,12 +202,49 @@ class CaptureTipTest extends IntegrationTest {
         assertThat(data.tipStatus(tipId)).isEqualTo("FAILED");
     }
 
-    /** The webhook may record the capture while our capture call waits; a late "order not found" never fails it. */
+    /**
+     * The webhook may record the capture while our capture call waits; a late "order not found" never fails it, and
+     * the tipper is answered as for a capture.
+     */
     @Test
     void anOrderNotFoundAnswerNeverFailsATipTheWebhookCaptured() throws Exception {
+        MockHttpServletResponse answer = failedCallWhileTheWebhookLands(
+                404, "RESOURCE_NOT_FOUND", "INVALID_RESOURCE_ID", "PAYMENT.CAPTURE.COMPLETED");
+
+        assertCapturedAnswer(answer);
+        assertThat(data.tipRow(tipId))
+                .containsEntry("status", "CAPTURED")
+                .containsEntry("paypal_capture_id", captureId);
+        assertThat(events.forTip(tipId)).hasSize(1);
+    }
+
+    @Test
+    void aServerErrorWhileTheWebhookCapturesTheTipAnswersLikeACapture() throws Exception {
+        MockHttpServletResponse answer = failedCallWhileTheWebhookLands(
+                500, "INTERNAL_SERVER_ERROR", "INTERNAL_SERVICE_ERROR", "PAYMENT.CAPTURE.COMPLETED");
+
+        assertCapturedAnswer(answer);
+        assertThat(data.tipStatus(tipId)).isEqualTo("CAPTURED");
+        assertThat(events.forTip(tipId)).hasSize(1);
+    }
+
+    @Test
+    void aServerErrorWhileTheWebhookPendsTheTipAnswersLikeAPendingCapture() throws Exception {
+        MockHttpServletResponse answer = failedCallWhileTheWebhookLands(
+                500, "INTERNAL_SERVER_ERROR", "INTERNAL_SERVICE_ERROR", "PAYMENT.CAPTURE.PENDING");
+
+        assertThat(answer.getStatus()).isEqualTo(200);
+        assertThat(answer.getContentAsString()).isEqualTo("{\"status\":\"PENDING\"}");
+        assertThat(data.tipStatus(tipId)).isEqualTo("PENDING");
+        assertThat(events.forTip(tipId)).isEmpty();
+    }
+
+    /** Holds PayPal's failed capture answer, applies the webhook meanwhile, then lets the answer go. */
+    private MockHttpServletResponse failedCallWhileTheWebhookLands(
+            int status, String name, String issue, String eventType) throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
         HeldResponses.Hold hold = HeldResponses.hold();
-        PayPalStubs.captureErrorHeld(PAYPAL, orderId, 404, "RESOURCE_NOT_FOUND", "INVALID_RESOURCE_ID");
+        PayPalStubs.captureErrorHeld(PAYPAL, orderId, status, name, issue);
 
         try (ExecutorService pool = Executors.newSingleThreadExecutor()) {
             Future<MvcResult> answer = pool.submit(() -> capture(tipId).andReturn());
@@ -214,18 +252,19 @@ class CaptureTipTest extends IntegrationTest {
             mvc.perform(post("/webhooks/paypal")
                             .headers(WebhookEvents.transmissionHeaders())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(WebhookEvents.capture(
-                                    TestData.uniqueId("WH"), "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId))
+                            .content(
+                                    WebhookEvents.capture(TestData.uniqueId("WH"), eventType, captureId, null, orderId))
                             .with(TestData.newClient()))
                     .andExpect(status().isOk());
             hold.release();
-            answer.get(30, TimeUnit.SECONDS);
+            return answer.get(30, TimeUnit.SECONDS).getResponse();
         }
+    }
 
-        assertThat(data.tipRow(tipId))
-                .containsEntry("status", "CAPTURED")
-                .containsEntry("paypal_capture_id", captureId);
-        assertThat(events.forTip(tipId)).hasSize(1);
+    /** Exactly what a successful capture answers. */
+    private static void assertCapturedAnswer(MockHttpServletResponse answer) throws Exception {
+        assertThat(answer.getStatus()).isEqualTo(200);
+        assertThat(answer.getContentAsString()).isEqualTo("{\"status\":\"CAPTURED\"}");
     }
 
     @Test
