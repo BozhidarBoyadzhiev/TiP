@@ -18,9 +18,6 @@ import org.apache.catalina.valves.ValveBase;
  * once and holds exactly one IP literal, so a list, a hostname or garbage is never a rate limit key and the
  * {@code RemoteIpValve} keeps the connection address. {@code X-Forwarded-For} is a list by design and passes
  * unchanged.
- *
- * <p>With diagnostics on it also records the connection address and the raw proxy headers for
- * {@link ClientIpDiagnostics}, because the {@code RemoteIpValve} rewrites the header it reads.
  */
 final class ClientIpValve extends ValveBase {
 
@@ -31,19 +28,14 @@ final class ClientIpValve extends ValveBase {
     private static final Pattern IPV6_CHARACTERS = Pattern.compile("[0-9A-Fa-f:.]+");
 
     private final String header;
-    private final boolean diagnostics;
 
-    ClientIpValve(String header, boolean diagnostics) {
+    ClientIpValve(String header) {
         super(true);
         this.header = header;
-        this.diagnostics = diagnostics;
     }
 
     @Override
     public void invoke(Request request, Response response) throws IOException, ServletException {
-        if (diagnostics) {
-            request.setAttribute(ClientIpDiagnostics.ATTRIBUTE, ClientIpDiagnostics.Snapshot.of(request));
-        }
         if (!header.equalsIgnoreCase(FORWARDED_FOR)
                 && !isSingleIpLiteral(Collections.list(request.getHeaders(header)))) {
             request.getCoyoteRequest().getMimeHeaders().removeHeader(header);

@@ -119,8 +119,7 @@ The whole app classifies at most 200 tip messages a UTC hour and 1000 a UTC day 
 
 | Variable | Secret | What it is |
 |---|---|---|
-| `TIP_CLIENT_IP_HEADER` | no | **On Render set `CF-Connecting-IP`**, see "Behind Render's proxy" below. The header the client address is read from, `X-Forwarded-For` by default. On another host, set it to the header the host's edge overwrites, chosen as in "Choosing the client IP header on a new host" below. |
-| `TIP_DEBUG_CLIENT_IP` | no | Optional, `false` by default. **For a one time check only.** With `true` the app logs one line per `/api/public/` request with the connection address, the resolved client address and the raw `X-Forwarded-For`, `X-Real-IP`, `True-Client-IP` and `CF-Connecting-IP` headers. That writes client IPs to the log, so set it back to `false` as soon as the check is done. |
+| `TIP_CLIENT_IP_HEADER` | no | **On Render set `CF-Connecting-IP`**, see "Behind Render's proxy" below. The header the client address is read from, `X-Forwarded-For` by default. On another host, pick it from the table in "Choosing the client IP header on a new host" below. |
 
 ### JVM
 
@@ -222,17 +221,11 @@ Render's own **Auto-Deploy** must be **Off** on the service, so the deploy hook 
 
 ## Choosing the client IP header on a new host
 
-Rate limits are only per client if the app reads the client address from a header the client cannot forge. Hosts differ in which header that is: some append the real address to `X-Forwarded-For` (then the default works), others put it first and the client's own entries after it, and an edge such as Cloudflare overwrites `True-Client-IP` and `CF-Connecting-IP`. Do not guess; check once:
+Rate limits are only per client if the app reads the client address from a header the client cannot forge.
 
-1. Set `TIP_DEBUG_CLIENT_IP=true` and deploy.
-2. Send one request with every header forged to a different value:
+| Host | `TIP_CLIENT_IP_HEADER` |
+|---|---|
+| Behind Cloudflare (Render is) | `CF-Connecting-IP` |
+| Directly exposed, no proxy in front | not set |
 
-   ```powershell
-   '{"amountMinor":100,"currency":"GBP"}' | Set-Content body.json -NoNewline -Encoding ascii
-   curl.exe -s -o NUL -w "%{http_code}`n" -H "X-Forwarded-For: 203.0.113.1" -H "True-Client-IP: 203.0.113.2" -H "CF-Connecting-IP: 203.0.113.3" -H "Content-Type: application/json" --data-binary "@body.json" https://<service>.onrender.com/api/public/devices/no-such-panda/tips
-   Remove-Item body.json
-   ```
-3. Find the line starting `Client IP check:` in the service log. A header that shows your real IP despite the forged value is one the edge overwrites, so a client cannot forge it. `X-Forwarded-For` is only safe as the default if your real IP is its rightmost entry. If the request in step 2 got 403 and left no log line, an edge such as Cloudflare refused the forged `CF-Connecting-IP`; that refusal makes the header unforgeable. Send the request again without that header to see the others.
-4. Set `TIP_CLIENT_IP_HEADER` to that header (leave it unset for `X-Forwarded-For`), set `TIP_DEBUG_CLIENT_IP=false`, deploy, and rerun smoke test step 8 for `X-Forwarded-For` and for the chosen header.
-
-`TIP_DEBUG_CLIENT_IP` writes client IPs to the log. Turn it off right after the check; it is not for normal operation.
+Unset, the app takes `X-Forwarded-For` only from private addresses, so a directly exposed app uses the connection address. Rerun smoke test step 8 after a change.
