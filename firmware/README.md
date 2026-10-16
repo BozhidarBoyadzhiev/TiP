@@ -98,7 +98,37 @@ The PN532 emulates an NFC Forum Type 4 tag, read only, holding one NDEF URI reco
 - Re-arm: after a read the tag stays off for 3 s, so an iPhone left on the coin does not show a second prompt, then until there has been no field for 100 ms (at most 3 s more).
 - Missing or silent PN532: a failure while it answered gets a wake-up and SAMConfig, up to 6 tries from 20 ms doubling. If it still does not answer, or is missing at boot, the task looks for it again after 1 s, doubling to every 30 s, with a log line each time. While armed, every 30 s it stops the tag (for about 20 ms) and asks for the firmware version, so a PN532 that was unplugged or lost power is found again; when a phone's field was seen less than 5 s before the check is due, the 30 s start over instead (`tip_alive_check`). The tag cannot see a field while armed, so the timer runs across taps and re-arms: a check that falls due during a tap meets that tap's field when the tag is armed again. None of this affects the WebSocket, acks or the LED.
 
-The HSU link is our own code (`tip_pn532_frame`, `src/pn532.cpp`), written from the PN532 user manual; the Seeed-Studio/PN532 library the 05c spike used is not a dependency, because its HSU receive spins without yielding while the tag is armed. `tip_type4_tag` is ported from that library's `emulatetag.cpp` (Seeed-Studio/PN532 v1.1.0, BSD-3-Clause, Copyright (c) 2012 Adafruit Industries, (c) 2013 Seeed Technology Inc.); the file carries the licence text, and a firmware binary given to anyone else must carry it too. `spikes/pn532/` is the 05c spike, kept as evidence and not built by CI.
+The HSU link is our own code (`tip_pn532_frame`, `src/pn532.cpp`), written from the PN532 user manual; the Seeed-Studio/PN532 library the 05c spike used is not a dependency, because its HSU receive spins without yielding while the tag is armed. `tip_type4_tag` is ported from that library's `emulatetag.cpp` (Seeed-Studio/PN532 v1.1.0, BSD-3-Clause, Copyright (c) 2012 Adafruit Industries, (c) 2013 Seeed Technology Inc.); the file carries the licence text, and a firmware binary given to anyone else must carry it too.
+
+### Tap results from the brief 05c spike
+
+Brief 05c tried the PN532 in a separate spike project, with the Seeed-Studio/PN532 library, before brief 05d moved the tag into this firmware; the spike's code is gone, these are its measurements. Same board and wiring as above, UART2 at 115200 baud. The link test answered `32 01 06 07` (IC 0x32, firmware 1.6) first time. A passive NTAG215 sticker was the alternative but was never tested: none was on hand.
+
+First run, with the library's `EmulateTag` (2026-10-13):
+
+| Phone | Worked of 10 | Banner shown | URL correct | Notes |
+|---|---|---|---|---|
+| iPhone | 2 (taps 8 and 9) | yes | yes | phone almost touching the PN532 |
+| Android | 2 (taps 4 and 5) | yes | yes | phone almost touching the PN532 |
+| iPhone, through 3 to 4 mm of cardboard | 0 | no | n/a | the PN532 was never activated |
+
+The serial log matched: 4 sessions, and the failed taps never activated the tag. `TgInitAsTarget` failed 50 times when re-armed, in bursts right after a session, and the tag cannot be tapped while that happens. With the NFC task at priority 1 on core 1 the heartbeat's longest gap was 101 ms; at priority 2 `loop()` got no time for 15 s. The task's free stack stayed at 3728 of 6144 bytes. No power meter, so no current figures.
+
+Follow-up (2026-10-13), after the cold SDA joint above was reworked:
+
+| Change | iPhone | Android | Notes |
+|---|---|---|---|
+| re-arm after no field for 100 ms, resync on failure | owner: 7 taps, 5 opened (each with two prompts), 2 nothing; log: 6 taps, each read twice about 506 ms apart | owner: 10 of 10; log: 12 complete reads | 0 failures, armed 120 to 282 ms after a session |
+| quiet window 1 s (not kept) | log: 3 taps, one read each | log: 1 | one session ended with status 0x13 and recovered by itself |
+| 3 s hold-off after each session, 100 ms quiet window (kept) | log: 4 taps, one read each; owner: everything works | log: 1 tap, one read | armed about 3.1 s after a session |
+| `TgInitAsTarget` mode 0x05 | no change needed: PICC only, passive only already | | |
+| 921600 baud | not tap tested | not tap tested | links, configures and arms; default stays 115200 |
+| READ BINARY bounds | no phone read went past the file (largest: offset 2, 51 bytes) | | |
+| taps through 1 to 2 mm of plastic or card | not tested | not tested | |
+
+Across every follow-up round: 0 re-arm failures, 0 resyncs, heartbeat max gap 101 ms. APDU times at 115200, from asking `TgSetData` to its answer: 6.3 ms for a status word, 10.3 ms for the 15 byte capability container, 19.6 ms for the 51 byte message. An iPhone read is 7 APDUs in about 140 ms; Android's is 6 APDUs and the session lasts until the phone is pulled away (540 to 870 ms). The iPhone keeps polling for about 2 s after a read.
+
+Two library findings shaped this firmware: `PN532_HSU::receive` busy waits on the UART without yielding the whole time the tag is armed, and `PN532::SAMConfig()` returns false on success over HSU. `EmulateTag` also re-armed straight after a session and bounded only the READ BINARY offset, so a reader could read past its buffers.
 
 ## WebSocket library
 

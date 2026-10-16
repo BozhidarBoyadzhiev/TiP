@@ -9,7 +9,7 @@
 namespace tip {
 namespace pn532 {
 
-// Transport results, the codes Seeed-Studio/PN532 uses, so logs compare with the 05c spike's.
+// Transport results, the codes Seeed-Studio/PN532 uses, so logs compare with that library's.
 constexpr int16_t kBadAck = -1;
 constexpr int16_t kTimeout = -2;
 constexpr int16_t kInvalidFrame = -3;

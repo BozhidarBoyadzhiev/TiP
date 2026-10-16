@@ -175,8 +175,8 @@ terms.
 ### PN532 Type 4 tag emulation, ported from Seeed-Studio/PN532 1.1.0
 
 `firmware/lib/tip_core/src/tip_type4_tag.cpp` and `tip_type4_tag.h` are a port of the library's `emulatetag.cpp`
-(Armin Wieser), changed for TiP so READ BINARY is bounded by the selected file and the tag stays read only. The brief
-05c spike's `firmware/spikes/pn532/src/type4_tag.h` comes from the same file. https://github.com/Seeed-Studio/PN532
+(Armin Wieser), changed for TiP so READ BINARY is bounded by the selected file and the tag stays read only.
+https://github.com/Seeed-Studio/PN532
 
 Licence: BSD 3-Clause, `LICENSES/BSD-3-Clause.txt`.
 
