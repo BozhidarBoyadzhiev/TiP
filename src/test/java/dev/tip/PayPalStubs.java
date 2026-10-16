@@ -67,6 +67,13 @@ public final class PayPalStubs {
                 .willReturn(json(201, order(orderId, "COMPLETED", captureId, "COMPLETED", amountValue, currency))));
     }
 
+    /** A completed capture of 2.00 GBP whose answer waits for the test, see {@link HeldResponses}. */
+    public static void captureCompletedHeld(WireMockServer server, String orderId, String captureId) {
+        server.stubFor(post(urlPathEqualTo(capturePath(orderId)))
+                .willReturn(json(201, order(orderId, "COMPLETED", captureId, "COMPLETED", "2.00", "GBP"))
+                        .withTransformers(HeldResponses.NAME)));
+    }
+
     /** A pending capture of 2.00 GBP. */
     public static void capturePending(WireMockServer server, String orderId, String captureId) {
         capturePending(server, orderId, captureId, "2.00", "GBP");

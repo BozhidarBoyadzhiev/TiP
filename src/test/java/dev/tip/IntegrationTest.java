@@ -48,7 +48,7 @@ public abstract class IntegrationTest {
     protected static final String EXPIRED_CODE = AccessCode.display(AccessCode.generate(new SecureRandom()));
 
     protected static final WireMockServer PAYPAL =
-            new WireMockServer(WireMockConfiguration.options().dynamicPort());
+            new WireMockServer(WireMockConfiguration.options().dynamicPort().extensions(HeldResponses.INSTANCE));
 
     protected static final WireMockServer ANTHROPIC =
             new WireMockServer(WireMockConfiguration.options().dynamicPort());
@@ -84,6 +84,7 @@ public abstract class IntegrationTest {
 
     @BeforeEach
     void resetStubs() {
+        HeldResponses.releaseAll();
         PAYPAL.resetAll();
         PayPalStubs.token(PAYPAL);
         ANTHROPIC.resetAll();

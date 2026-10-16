@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.tip.AnthropicStubs;
+import dev.tip.HeldResponses;
 import dev.tip.IntegrationTest;
 import dev.tip.PayPalStubs;
 import dev.tip.ReactedEvents;
@@ -19,17 +20,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 /**
  * A tip plays on the device only when its capture landed within 10 minutes of TiP's first capture attempt. A later
  * capture (a late webhook, a settled pending tip, a revived failed or abandoned tip) and one TiP never attempted are
- * recorded and classified, but neither the device nor an observer plays them.
+ * recorded and classified, but neither the device nor an observer plays them. A webhook that lands while the capture
+ * call is still out plays as usual.
  */
 class PlaybackWindowTest extends IntegrationTest {
 
@@ -118,6 +125,53 @@ class PlaybackWindowTest extends IntegrationTest {
         assertThat(deliveries(fresh.id())).isOne();
     }
 
+    /**
+     * The capture attempt is committed before the capture call goes out, so a COMPLETED webhook that PayPal sends
+     * while our call still waits for its answer finds it, and the tip plays once.
+     */
+    @Test
+    void aWebhookAppliedWhileTheCaptureCallIsHeldStillPlaysOnce() throws Exception {
+        String slug = TestData.uniqueSlug();
+        String secret = TestData.randomSecret();
+        UUID deviceId = data.device(slug, "Held Panda", secret);
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        TestTip tip = tip(deviceId, "CREATED", null);
+        String captureId = TestData.uniqueId("CAPTURE");
+        HeldResponses.Hold hold = HeldResponses.hold();
+        PayPalStubs.captureCompletedHeld(PAYPAL, tip.orderId(), captureId);
+
+        try (TestSocket device = TestSocket.connectDevice(port, deviceId, secret);
+                ExecutorService pool = Executors.newSingleThreadExecutor()) {
+            assertThat(device.nextJson()).containsEntry("type", "hello");
+            Future<MvcResult> capture = pool.submit(() -> mvc.perform(
+                            post("/api/public/tips/{tipId}/capture", tip.id()).with(TestData.newClient()))
+                    .andReturn());
+            hold.awaitArrived();
+
+            assertThat(data.tipRow(tip.id()).get("capture_attempted_at"))
+                    .as("committed before the capture call went out")
+                    .isNotNull();
+            completed(tip.orderId(), captureId);
+            assertThat(data.tipStatus(tip.id())).isEqualTo("CAPTURED");
+            assertThat(device.nextJson())
+                    .containsEntry("type", "reaction")
+                    .containsEntry("id", tip.id().toString());
+
+            hold.release();
+            MvcResult answer = capture.get(30, TimeUnit.SECONDS);
+            assertThat(answer.getResponse().getStatus()).isEqualTo(200);
+            assertThat(answer.getResponse().getContentAsString()).contains("\"CAPTURED\"");
+            device.sync();
+            assertThat(device.pending()).isZero();
+        }
+
+        assertThat(reacted.forTip(tip.id()))
+                .singleElement()
+                .extracting(TipReacted::playOnDevice)
+                .isEqualTo(true);
+        assertThat(deliveries(tip.id())).isOne();
+    }
+
     private TestTip tip(UUID deviceId, String status, Instant captureAttemptedAt) {
         String message = TestData.uniqueMessage("Thanks for the song");
         String orderId = TestData.uniqueId("ORDER");
@@ -129,15 +183,15 @@ class PlaybackWindowTest extends IntegrationTest {
     }
 
     private void completed(String orderId) throws Exception {
+        completed(orderId, TestData.uniqueId("CAPTURE"));
+    }
+
+    private void completed(String orderId, String captureId) throws Exception {
         mvc.perform(post("/webhooks/paypal")
                         .headers(WebhookEvents.transmissionHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(WebhookEvents.capture(
-                                TestData.uniqueId("WH"),
-                                "PAYMENT.CAPTURE.COMPLETED",
-                                TestData.uniqueId("CAPTURE"),
-                                null,
-                                orderId))
+                                TestData.uniqueId("WH"), "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId))
                         .with(TestData.newClient()))
                 .andExpect(status().isOk());
     }
