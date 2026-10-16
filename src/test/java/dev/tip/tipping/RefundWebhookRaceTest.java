@@ -65,6 +65,7 @@ class RefundWebhookRaceTest extends IntegrationTest {
                 .refund(any());
     }
 
+    /** The only test that catches markRefunded losing its status condition (Brief 10, R5): never remove it. */
     @Test
     void refundResponseAndWebhookTogetherMakeOneTransition() throws Exception {
         PayPalStubs.verifyWebhookWithJitter(PAYPAL, MAX_JITTER_MILLIS);

@@ -45,6 +45,7 @@ class CaptureWebhookRaceTest extends IntegrationTest {
     private final HttpClient http =
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
+    /** The only test that catches markCaptured losing its status condition (Brief 10, R1): never remove it. */
     @Test
     void captureAndWebhookTogetherPublishExactlyOneEvent() throws Exception {
         PayPalStubs.verifyWebhookWithJitter(PAYPAL, MAX_JITTER_MILLIS);

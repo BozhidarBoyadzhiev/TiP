@@ -127,7 +127,8 @@ class PlaybackWindowTest extends IntegrationTest {
 
     /**
      * The capture attempt is committed before the capture call goes out, so a COMPLETED webhook that PayPal sends
-     * while our call still waits for its answer finds it, and the tip plays once.
+     * while our call still waits for its answer finds it, and the tip plays once. The only test that catches
+     * capture_attempted_at being written after the PayPal call (Brief 10, C1): never remove it.
      */
     @Test
     void aWebhookAppliedWhileTheCaptureCallIsHeldStillPlaysOnce() throws Exception {
