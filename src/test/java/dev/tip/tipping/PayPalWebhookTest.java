@@ -395,6 +395,22 @@ class PayPalWebhookTest extends IntegrationTest {
         assertThat(events.forTip(tipId)).hasSize(1);
     }
 
+    /** PayPal does not promise the order of its webhooks: a late PENDING never undoes a recorded capture. */
+    @Test
+    void aPendingWebhookAfterTheCaptureLeavesTheTipCaptured() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+
+        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId))
+                .andExpect(status().isOk());
+        webhook(WebhookEvents.capture(TestData.uniqueId("WH"), "PAYMENT.CAPTURE.PENDING", captureId, null, orderId))
+                .andExpect(status().isOk());
+
+        assertThat(data.tipRow(tipId))
+                .containsEntry("status", "CAPTURED")
+                .containsEntry("paypal_capture_id", captureId);
+        assertThat(events.forTip(tipId)).hasSize(1);
+    }
+
     @Test
     void deniedAndDeclinedWebhooksFailAPendingTip() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
