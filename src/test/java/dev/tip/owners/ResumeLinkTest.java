@@ -214,6 +214,26 @@ class ResumeLinkTest extends IntegrationTest {
     }
 
     @Test
+    void aTokenOfASandboxThatHasExpiredFails() throws Exception {
+        String token = Judges.token(link());
+        jdbc.sql("UPDATE owner SET expires_at = ? WHERE id = ?")
+                .params(java.sql.Timestamp.from(NOW.minus(Duration.ofMinutes(1))), sandbox.ownerId())
+                .update();
+        MockHttpSession other = new MockHttpSession();
+
+        MockHttpServletResponse expiredSandbox = mvc.perform(
+                        Judges.resume(token).session(other).with(TestData.newClient()))
+                .andReturn()
+                .getResponse();
+        MockHttpServletResponse unknown =
+                resume(Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[16]));
+
+        assertFailed(expiredSandbox);
+        assertThat(withoutInstance(expiredSandbox)).isEqualTo(withoutInstance(unknown));
+        assertThat(other.getAttribute("SPRING_SECURITY_CONTEXT")).isNull();
+    }
+
+    @Test
     void aLinkNeverOutlivesItsSandbox() throws Exception {
         clock.pin(NOW.plus(Duration.ofHours(72)).minus(Duration.ofMinutes(3)));
         String body = mvc.perform(post("/api/owner/resume-link")
