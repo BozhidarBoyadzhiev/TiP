@@ -89,6 +89,12 @@ public final class PayPalStubs {
         server.stubFor(post(urlPathEqualTo(capturePath(orderId))).willReturn(json(status, error(name, issue))));
     }
 
+    /** A capture error whose answer waits for the test, see {@link HeldResponses}. */
+    public static void captureErrorHeld(WireMockServer server, String orderId, int status, String name, String issue) {
+        server.stubFor(post(urlPathEqualTo(capturePath(orderId)))
+                .willReturn(json(status, error(name, issue)).withTransformers(HeldResponses.NAME)));
+    }
+
     /** The order with one capture of 2.00 GBP in {@code captureStatus}. */
     public static void getOrder(WireMockServer server, String orderId, String captureId, String captureStatus) {
         getOrder(server, orderId, captureId, captureStatus, "2.00", "GBP");

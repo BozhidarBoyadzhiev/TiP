@@ -11,21 +11,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.tip.CapturedEvents;
+import dev.tip.HeldResponses;
 import dev.tip.IntegrationTest;
 import dev.tip.PayPalStubs;
 import dev.tip.TestData;
+import dev.tip.WebhookEvents;
 import dev.tip.tipping.api.TipCaptured;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 class CaptureTipTest extends IntegrationTest {
@@ -192,6 +199,33 @@ class CaptureTipTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("PAYPAL_ORDER_NOT_FOUND"));
 
         assertThat(data.tipStatus(tipId)).isEqualTo("FAILED");
+    }
+
+    /** The webhook may record the capture while our capture call waits; a late "order not found" never fails it. */
+    @Test
+    void anOrderNotFoundAnswerNeverFailsATipTheWebhookCaptured() throws Exception {
+        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
+        HeldResponses.Hold hold = HeldResponses.hold();
+        PayPalStubs.captureErrorHeld(PAYPAL, orderId, 404, "RESOURCE_NOT_FOUND", "INVALID_RESOURCE_ID");
+
+        try (ExecutorService pool = Executors.newSingleThreadExecutor()) {
+            Future<MvcResult> answer = pool.submit(() -> capture(tipId).andReturn());
+            hold.awaitArrived();
+            mvc.perform(post("/webhooks/paypal")
+                            .headers(WebhookEvents.transmissionHeaders())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(WebhookEvents.capture(
+                                    TestData.uniqueId("WH"), "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId))
+                            .with(TestData.newClient()))
+                    .andExpect(status().isOk());
+            hold.release();
+            answer.get(30, TimeUnit.SECONDS);
+        }
+
+        assertThat(data.tipRow(tipId))
+                .containsEntry("status", "CAPTURED")
+                .containsEntry("paypal_capture_id", captureId);
+        assertThat(events.forTip(tipId)).hasSize(1);
     }
 
     @Test
