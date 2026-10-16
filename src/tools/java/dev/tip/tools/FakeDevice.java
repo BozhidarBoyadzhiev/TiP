@@ -55,12 +55,13 @@ public final class FakeDevice {
     private final AtomicBoolean replaced = new AtomicBoolean();
     private volatile WebSocket socket;
 
-    FakeDevice(URI endpoint, String secret, PrintStream out, Backoff backoff) {
+    /** {@code speedUp} plays patterns that many times faster than the panda; 1 outside tests. */
+    FakeDevice(URI endpoint, String secret, PrintStream out, Backoff backoff, int speedUp) {
         this.endpoint = endpoint;
         this.secret = secret;
         this.out = out;
         this.backoff = backoff;
-        this.player = new Player(out);
+        this.player = new Player(out, speedUp);
     }
 
     public static void main(String[] args) {
@@ -69,8 +70,8 @@ public final class FakeDevice {
             System.exit(EXIT_USAGE);
             return;
         }
-        FakeDevice device =
-                new FakeDevice(options.get().endpoint(), options.get().secret(), System.out, new Backoff(Math::random));
+        FakeDevice device = new FakeDevice(
+                options.get().endpoint(), options.get().secret(), System.out, new Backoff(Math::random), 1);
         Runtime.getRuntime().addShutdownHook(new Thread(device::stop));
         System.exit(device.run());
     }

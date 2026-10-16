@@ -10,7 +10,8 @@ import java.util.ArrayDeque;
  * Plays reactions one after another, like the LED on the panda: a reaction that arrives while another
  * plays waits in a queue of 8, and the oldest waiting one is dropped when the queue is full; the one playing
  * has already left the queue, so it is never dropped. Acks are not sent from here: the device acks on
- * receipt, before playback.
+ * receipt, before playback. {@code speedUp} divides only the time a pattern takes, so tests need not wait out real
+ * patterns; the printed length stays the protocol's.
  */
 final class Player implements Runnable {
 
@@ -20,9 +21,11 @@ final class Player implements Runnable {
 
     private final ArrayDeque<Reaction> queue = new ArrayDeque<>();
     private final PrintStream out;
+    private final int speedUp;
 
-    Player(PrintStream out) {
+    Player(PrintStream out, int speedUp) {
         this.out = out;
+        this.speedUp = speedUp;
     }
 
     /** Queues the reaction and returns the one dropped to make room, or null. */
@@ -68,6 +71,6 @@ final class Player implements Runnable {
                 pattern.picture(repeats),
                 length.toMillis() / 1000.0,
                 reaction.tipId());
-        Thread.sleep(length);
+        Thread.sleep(length.dividedBy(speedUp));
     }
 }

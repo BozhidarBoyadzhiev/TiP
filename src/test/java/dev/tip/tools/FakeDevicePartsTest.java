@@ -119,7 +119,7 @@ class FakeDevicePartsTest {
 
     @Test
     void playerQueueKeeps8WaitingAndDropsTheOldestWaitingOne() {
-        Player player = new Player(new PrintStream(new ByteArrayOutputStream()));
+        Player player = new Player(new PrintStream(new ByteArrayOutputStream()), 1);
         for (int i = 1; i <= Player.QUEUE_SIZE; i++) {
             assertThat(player.enqueue(new Player.Reaction("tip-" + i, LedPattern.PLAIN, 1)))
                     .isNull();
@@ -139,7 +139,8 @@ class FakeDevicePartsTest {
                 URI.create("ws://localhost:1/ws/device/" + UUID.randomUUID()),
                 "secret",
                 new PrintStream(bytes, true, StandardCharsets.UTF_8),
-                new Backoff(() -> 0));
+                new Backoff(() -> 0),
+                1);
         String tipId = UUID.randomUUID().toString();
         String reaction = "{\"type\":\"reaction\",\"id\":\"" + tipId + "\",\"reaction\":\"WARM\",\"at\":\"x\"}";
 

@@ -30,6 +30,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** The fake device against the real device channel. */
 class FakeDeviceTest extends IntegrationTest {
 
+    /** Patterns play four times faster than on the panda, so the longest takes 2.3 s instead of 9.17 s. */
+    private static final int SPEED_UP = 4;
+
     @LocalServerPort
     int port;
 
@@ -122,7 +125,7 @@ class FakeDeviceTest extends IntegrationTest {
             transactions.executeWithoutResult(status ->
                     events.publishEvent(new TipReacted(queued, deviceId, Reaction.PLAIN, 2, clock.instant())));
 
-            // The first pattern runs 9.17 s, so both acks arriving well within it means ack on receipt.
+            // The first pattern runs 2.3 s at this speed, so both acks arriving well within it means ack on receipt.
             await().atMost(Duration.ofSeconds(3)).until(() -> acked(queued));
             assertThat(output(bytes))
                     .contains("giggle x6", "repeats 5", "tip " + longest)
@@ -226,7 +229,8 @@ class FakeDeviceTest extends IntegrationTest {
                 URI.create("ws://localhost:" + port + "/ws/device/" + deviceId),
                 secret,
                 new PrintStream(bytes, true, StandardCharsets.UTF_8),
-                new Backoff(() -> 0));
+                new Backoff(() -> 0),
+                SPEED_UP);
     }
 
     private boolean acked(UUID tipId) {
