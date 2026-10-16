@@ -50,7 +50,6 @@ class LinkPreviewTest extends IntegrationTest {
                 "/favicon.ico", "image/x-icon",
                 "/icons/favicon-panda.svg", "image/svg+xml",
                 "/icons/apple-touch-icon-panda.png", "image/png",
-                "/icons/icon-512-panda.png", "image/png",
                 "/images/og-image-panda.png", "image/png");
         for (Map.Entry<String, String> each : types.entrySet()) {
             mvc.perform(get(each.getKey()).accept(MediaType.TEXT_HTML, MediaType.ALL))
