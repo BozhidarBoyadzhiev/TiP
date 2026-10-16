@@ -8,7 +8,11 @@ import dev.tip.IntegrationTest;
 import dev.tip.PayPalStubs;
 import dev.tip.TestData;
 import dev.tip.WebhookEvents;
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -45,6 +49,30 @@ class RequestSizeLimitTest extends IntegrationTest {
         HttpResponse<String> response = send(request);
 
         isTooLarge(response);
+        PAYPAL.verify(0, postRequestedFor(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH)));
+    }
+
+    /** Only the headers and a few bytes arrive: the answer comes at once, without waiting for the declared body. */
+    @Test
+    void aDeclaredLengthOverTheLimitIsRefusedWithoutReadingTheBody() throws Exception {
+        try (Socket socket = new Socket("localhost", port)) {
+            socket.setSoTimeout(1_000);
+            OutputStream out = socket.getOutputStream();
+            out.write(("POST /webhooks/paypal HTTP/1.1\r\n"
+                            + "Host: localhost\r\n"
+                            + "X-Forwarded-For: " + TestData.uniquePublicIp() + "\r\n"
+                            + "Content-Type: application/json\r\n"
+                            + "Content-Length: 10000000\r\n\r\n"
+                            + "{\"id\":\"x\"")
+                    .getBytes(StandardCharsets.ISO_8859_1));
+            out.flush();
+
+            String statusLine = new BufferedReader(
+                            new InputStreamReader(socket.getInputStream(), StandardCharsets.ISO_8859_1))
+                    .readLine();
+
+            assertThat(statusLine).startsWith("HTTP/1.1 413");
+        }
         PAYPAL.verify(0, postRequestedFor(urlPathEqualTo(PayPalStubs.VERIFY_WEBHOOK_PATH)));
     }
 
