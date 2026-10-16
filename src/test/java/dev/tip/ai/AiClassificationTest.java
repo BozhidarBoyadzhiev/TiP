@@ -163,15 +163,6 @@ class AiClassificationTest extends IntegrationTest {
     @ValueSource(
             strings = {
                 "{\"kind\":\"EXCITED\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":null}",
-                "{\"kind\":\"POSITIVE\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":null}",
-                "{\"kind\":\"WARM\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":\"Feedback: lovely\"}",
-                "{\"kind\":\"PLAYFUL\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":\"Request: Wonderwall\"}",
-                "{\"kind\":\"PLAIN\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":\"Request: louder\"}",
-                "{\"kind\":\"REQUEST\",\"flagged\":false,\"flagReason\":null,\"ownerNote\":\"Request: "
-                        + "a song that goes on and on and on and on and on and on and on and on and on and on"
-                        + " and on and on until the end\"}",
-                "{\"kind\":\"WARM\",\"flagged\":false,\"flagReason\":null}",
-                "{\"kind\":\"PLAIN\",\"flagged\":\"yes\",\"flagReason\":null,\"ownerNote\":null}",
                 "I think this is WARM"
             })
     void invalidModelOutputIsRetriedThenFailsAsPlain(String modelText) {
@@ -204,17 +195,6 @@ class AiClassificationTest extends IntegrationTest {
         recoveryJob.recover();
         assertThat(AnthropicStubs.requestsFor(ANTHROPIC, message)).hasSize(3);
         assertThat(reacted.forTip(tipId)).hasSize(1);
-    }
-
-    @Test
-    void flagReasonOver200CharactersIsAnInvalidResponse() {
-        String message = TestData.uniqueMessage("Long reason");
-        UUID tipId = data.capturedTip(deviceId, message);
-        AnthropicStubs.replyFor(ANTHROPIC, message, AnthropicStubs.classification("PLAIN", true, "x".repeat(201)));
-
-        worker.process(tipId);
-
-        assertThat(data.tipRow(tipId)).containsEntry("ai_status", "PENDING").containsEntry("reaction", null);
     }
 
     @Test

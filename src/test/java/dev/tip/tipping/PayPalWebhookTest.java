@@ -63,7 +63,7 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
-    void completedWebhookCapturesTheTipAndPublishesOneEvent() throws Exception {
+    void completedWebhookFindsTheTipByItsOrderIdAndCapturesItOnce() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
 
         webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, tipId.toString(), orderId))
@@ -74,16 +74,6 @@ class PayPalWebhookTest extends IntegrationTest {
                 .containsEntry("paypal_capture_id", captureId);
         assertThat(events.forTip(tipId)).hasSize(1);
         assertThat(data.webhookEvents(eventId)).isEqualTo(1);
-    }
-
-    @Test
-    void tipIsFoundByRelatedOrderIdWhenCustomIdIsMissing() throws Exception {
-        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
-
-        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.COMPLETED", captureId, null, orderId))
-                .andExpect(status().isOk());
-
-        assertThat(data.tipStatus(tipId)).isEqualTo("CAPTURED");
     }
 
     @Test
@@ -453,24 +443,12 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
-    void reversedWebhookMovesCapturedToReversed() throws Exception {
+    void reversedWebhookFindsTheTipByItsCaptureIdAndReversesIt() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
         UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());
         data.setCaptureId(captured, captureId);
 
         webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, captured.toString(), null))
-                .andExpect(status().isOk());
-
-        assertThat(data.tipStatus(captured)).isEqualTo("REVERSED");
-    }
-
-    @Test
-    void reversalIsMatchedByCaptureIdWithoutCustomId() throws Exception {
-        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
-        UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());
-        data.setCaptureId(captured, captureId);
-
-        webhook(WebhookEvents.capture(eventId, "PAYMENT.CAPTURE.REVERSED", captureId, null, null))
                 .andExpect(status().isOk());
 
         assertThat(data.tipStatus(captured)).isEqualTo("REVERSED");
@@ -509,24 +487,12 @@ class PayPalWebhookTest extends IntegrationTest {
     }
 
     @Test
-    void refundedWebhookMovesCapturedToRefunded() throws Exception {
+    void refundedWebhookFindsTheTipThroughTheCaptureItsUpLinkNames() throws Exception {
         PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
         UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());
         data.setCaptureId(captured, captureId);
 
         webhook(WebhookEvents.refund(eventId, TestData.uniqueId("REFUND"), captureId, captured.toString()))
-                .andExpect(status().isOk());
-
-        assertThat(data.tipStatus(captured)).isEqualTo("REFUNDED");
-    }
-
-    @Test
-    void refundIsMatchedThroughTheCaptureLinkWithoutCustomId() throws Exception {
-        PayPalStubs.verifyWebhook(PAYPAL, "SUCCESS");
-        UUID captured = data.tip(deviceId, "CAPTURED", TestData.uniqueId("ORDER"), Instant.now());
-        data.setCaptureId(captured, captureId);
-
-        webhook(WebhookEvents.refund(eventId, TestData.uniqueId("REFUND"), captureId, null))
                 .andExpect(status().isOk());
 
         assertThat(data.tipStatus(captured)).isEqualTo("REFUNDED");

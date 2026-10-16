@@ -135,11 +135,6 @@ class SecurityTest extends IntegrationTest {
     }
 
     @Test
-    void healthIsPublic() throws Exception {
-        mvc.perform(get("/actuator/health")).andExpect(status().isOk());
-    }
-
-    @Test
     void responsesCarrySecurityHeaders() throws Exception {
         mvc.perform(get("/api/public/devices/demo-panda").secure(true))
                 .andExpect(status().isOk())

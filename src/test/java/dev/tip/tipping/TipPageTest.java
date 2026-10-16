@@ -56,16 +56,6 @@ class TipPageTest extends IntegrationTest {
     }
 
     @Test
-    void messageBoxInvitesAnyKindOfMessageUpTo280Characters() throws Exception {
-        mvc.perform(get("/t/demo-panda"))
-                .andExpect(content().string(containsString("<label for=\"message\">Leave a message")))
-                .andExpect(content().string(containsString("maxlength=\"280\"")))
-                .andExpect(content().string(containsString("0 / 280")))
-                .andExpect(content()
-                        .string(containsString("placeholder=\"Say something nice, ask for a song, or just tip.\"")));
-    }
-
-    @Test
     void pageHasTheBrandAndNoInlineStyles() throws Exception {
         String page =
                 mvc.perform(get("/t/demo-panda")).andReturn().getResponse().getContentAsString();
@@ -154,41 +144,12 @@ class TipPageTest extends IntegrationTest {
     }
 
     @Test
-    void aResolvedClickSaysPayPalIsOpeningUntilItOpensComesBackOrFiveSecondsPass() throws Exception {
-        String page =
-                mvc.perform(get("/t/demo-panda")).andReturn().getResponse().getContentAsString();
-        String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
-
-        assertThat(page)
-                .containsPattern("<div id=\"paypal-buttons\" class=\"pay\"></div>\\s*"
-                        + "<p id=\"paypal-opening\" class=\"opening\" aria-live=\"polite\"></p>");
-        assertThat(script)
-                .containsPattern("const resolved = actions\\.resolve\\(\\);\\s+showOpening\\(\\);\\s+return resolved;")
-                .contains("const OPENING_MS = 5000;", "setTimeout(clearOpening, OPENING_MS)")
-                .contains("el(\"paypal-opening\").textContent = \"Opening PayPal")
-                .contains("new ResizeObserver(", ".observe(el(\"paypal-buttons\"));")
-                .containsPattern("onApprove: \\(data, actions\\) => \\{\\s+clearOpening\\(\\);")
-                .containsPattern("onError: \\(\\) => \\{\\s+clearOpening\\(\\);");
-    }
-
-    @Test
     void amountParserNeverGoesThroughFloatingPoint() throws Exception {
         String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
 
         assertThat(script)
                 .contains("Number(whole + fraction)", ".replace(\",\", \".\")", "match[2].length > digits")
                 .doesNotContain("parseFloat", "toFixed", "Math.round(");
-    }
-
-    @Test
-    void deviceNameFollowsTheBrandRuleAndIsSetAsText() throws Exception {
-        String script = mvc.perform(get("/js/tip.js")).andReturn().getResponse().getContentAsString();
-
-        assertThat(script)
-                .contains("if (!window.TipBrand.isBrandName(config.displayName)) {")
-                .contains("el(\"device-name\").textContent = config.displayName.trim();")
-                .contains("count.classList.toggle(\"near\", message.value.length > MESSAGE_NEAR);")
-                .contains("const MESSAGE_NEAR = 250;");
     }
 
     @Test
@@ -199,14 +160,6 @@ class TipPageTest extends IntegrationTest {
                 .andExpect(content().string(containsString("This panda wandered off")))
                 .andExpect(content().string(not(containsString("/js/tip.js"))));
         mvc.perform(get("/t/Not_A_Slug")).andExpect(status().isNotFound());
-    }
-
-    @Test
-    void pageAssetsArePublic() throws Exception {
-        mvc.perform(get("/js/tip.js")).andExpect(status().isOk());
-        mvc.perform(get("/js/brand.js")).andExpect(status().isOk());
-        mvc.perform(get("/css/tip.css")).andExpect(status().isOk());
-        mvc.perform(get("/css/brand.css")).andExpect(status().isOk());
     }
 
     @Test

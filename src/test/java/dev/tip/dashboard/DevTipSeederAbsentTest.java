@@ -6,6 +6,7 @@ import dev.tip.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /** The app as every environment but a developer's laptop runs it: without the {@code dev} profile. */
@@ -26,5 +27,10 @@ class DevTipSeederAbsentTest extends IntegrationTest {
                         .query(Long.class)
                         .single())
                 .isZero();
+    }
+
+    @Test
+    void onlyTheDevProfileEnablesTheSeeder() {
+        assertThat(DevTipSeeder.class.getAnnotation(Profile.class).value()).containsExactly("dev");
     }
 }

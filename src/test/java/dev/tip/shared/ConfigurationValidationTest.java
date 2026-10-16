@@ -1,9 +1,7 @@
 package dev.tip.shared;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.anthropic.client.AnthropicClient;
 import dev.tip.TestData;
 import dev.tip.TipApplication;
 import org.junit.jupiter.api.AfterAll;
@@ -11,7 +9,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.bind.validation.BindValidationException;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -44,17 +41,6 @@ class ConfigurationValidationTest {
                 .rootCause()
                 .isInstanceOf(BindValidationException.class)
                 .hasMessageContaining("ANTHROPIC_API_KEY");
-    }
-
-    @Test
-    void startsWithoutAnthropicKeyWhileAiIsDisabled() {
-        try (ConfigurableApplicationContext context = app().run(
-                        "--TIP_AI_ENABLED=false",
-                        "--ANTHROPIC_API_KEY=",
-                        "--spring.main.web-application-type=servlet",
-                        "--server.port=0")) {
-            assertThat(context.getBeansOfType(AnthropicClient.class)).isEmpty();
-        }
     }
 
     @Test

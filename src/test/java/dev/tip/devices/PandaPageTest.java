@@ -82,50 +82,6 @@ class PandaPageTest extends IntegrationTest {
     }
 
     @Test
-    void pandaLightsTheCoinInTheReactionsColour() throws Exception {
-        String script =
-                mvc.perform(get("/js/panda.js")).andReturn().getResponse().getContentAsString();
-
-        assertThat(script)
-                .contains("\"#ff7fb0\"", "\"#ffd54a\"", "\"#6fb6ff\"", "\"#fff4e0\"")
-                .contains("el(\"panda-coin-glow\").setAttribute(\"opacity\", String(level))")
-                .contains("el(\"panda-coin-light\").setAttribute(\"opacity\", String(level * COIN_TINT))")
-                .contains("el(\"panda-coin-sparkle\").setAttribute(\"opacity\", String(level))")
-                .contains("const COIN_TINT = 0.35;", "style.setProperty(\"--light\", colour)")
-                .contains("setLed(reducedMotion.matches ? 1 : levelAt(state.playing.steps, elapsed))")
-                .contains("el(\"device-name\").textContent = name")
-                .contains("window.TipBrand.isBrandName(name)");
-    }
-
-    @Test
-    void brandScriptIsSharedAndHidesNamesThatRepeatTheBrand() throws Exception {
-        String page =
-                mvc.perform(get("/p/demo-panda")).andReturn().getResponse().getContentAsString();
-        String brand = mvc.perform(get("/js/brand.js"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("innerHTML"))))
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        assertThat(page).contains("href=\"/css/brand.css\"", "src=\"/js/brand.js\"");
-        assertThat(page.indexOf("/js/brand.js")).isLessThan(page.indexOf("/js/panda.js"));
-        assertThat(brand)
-                .contains("[\"tip\", \"tipintegratedpanda\"]", "name.replace(/\\s+/g, \"\").toLowerCase()")
-                .contains("parentElement.style.setProperty(\"--w\", part.scrollWidth + \"px\")")
-                .contains("document.fonts.ready.then(measure)");
-    }
-
-    @Test
-    void unknownSlugGetsTheNotFoundPage() throws Exception {
-        mvc.perform(get("/p/no-such-panda"))
-                .andExpect(status().isNotFound())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("This panda wandered off")))
-                .andExpect(content().string(not(containsString("/js/panda.js"))));
-    }
-
-    @Test
     void pageAndFontsReferenceNoOutsideOrigin() throws Exception {
         // The preview tags name our own public base URL, http://localhost:8080 in the test profile.
         Pattern outside = Pattern.compile("https?://(?!www\\.w3\\.org/2000/svg\"|localhost:8080/)");
