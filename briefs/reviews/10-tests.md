@@ -260,3 +260,106 @@ Not a missing test, but worth knowing:
    - Run `DevTipSeederTest`'s sample set checks through `SampleTips.seed` in the default context, keeping one dev profile test for the seeder bean.
 4. **Stop matching JavaScript and CSS as exact text for user experience behaviour.** A few dozen assertions in `TipPageTest`, `PandaPageTest`, `OwnerPageTest` and `SideBySideTest` match exact source lines, indentation included. Reformatting breaks them, while a regression written differently passes. Keep the ones that guard security (no `innerHTML`, own origin calls only, CSRF header, nonce, client policy constants). Move the rest into a few browser tests once the lead decides how to run a headless browser without a build step. Until then, do not add new exact text tests.
 5. **Lock in the guards that only one test catches.** R1, R5 and C1 each depend on a single test. Mark them in the test names or Javadoc as fix tests that must not be removed. When the follow-up from recommendation 2 runs, rerun the mutation list in section 3, which has every edit spelled out, to confirm 57 of 64 are still caught, and 64 of 64 once the missing tests exist.
+
+## 6. Follow up: done
+
+The lead's decisions on this review, carried out in commits `48cf910` to `6b5268a`.
+
+- **Missing tests written (7).** All seven section 4 tests are in, under the names given there. Each failed against its Part 2 mutation, for the reason the table gives, before it passed on the real code. R3, R7, T3 and S1 have one commit each; N2, N5 and N6 share one firmware commit.
+- **Removals and merges made (31 runs).** Everything listed under the REMOVE, PARTIAL and MERGE rows of section 2. The kept webhook twins are renamed for the lookup they check:
+  - `completedWebhookFindsTheTipByItsOrderIdAndCapturesItOnce`
+  - `refundedWebhookFindsTheTipThroughTheCaptureItsUpLinkNames`
+  - `reversedWebhookFindsTheTipByItsCaptureIdAndReversesIt`
+
+  `invalidModelOutputIsRetriedThenFailsAsPlain` keeps two rows: an unknown kind and output that is not JSON. `@Profile`'s check moved into `DevTipSeederAbsentTest`. Every security text check stayed.
+- **Speedups (2).**
+  - `paypal.verify-read-timeout` is 15 s by default as before and 2 s in the test profile. The timed out verification test now takes 2.1 s instead of 15.1 s.
+  - The fake device plays patterns four times faster in `FakeDeviceTest`. Its queued order test now takes 2.5 s instead of 9.4 s.
+
+  The spy contexts and the seeder context were left alone, as decided.
+- **Protected tests (3).** `CaptureWebhookRaceTest.captureAndWebhookTogetherPublishExactlyOneEvent` (R1), `RefundWebhookRaceTest.refundResponseAndWebhookTogetherMakeOneTransition` (R5) and `PlaybackWindowTest.aWebhookAppliedWhileTheCaptureCallIsHeldStillPlaysOnce` (C1) now each carry a line saying they are the only guard and must not be removed.
+
+### After the follow up
+
+| | Before | After |
+|---|---|---|
+| Backend tests | 768 | 741 (31 removed, 4 added) |
+| Firmware test cases | 89 | 92 |
+| `./gradlew clean build` | 3 min 41 s | 3 min 32 s |
+| Sum of test class times | 195.4 s | 186.2 s |
+| Guards caught | 57 of 64 | **64 of 64** |
+
+Every commit of the follow up was built on its own in a separate worktree (`./gradlew build` green for each; `pio run` and `pio test -e native` for the firmware commit).
+
+The build saved less than the 22 s the two speedups took off their tests. The default context start, which `TipApplicationTests` used to carry, now lands on the first class to run: `AiBreakerTest` took 35.4 s. Context start times also vary from run to run.
+
+### Part 2 rerun
+
+The same 64 mutations, rerun against the suite after the follow up. Filters that named `TrueClientIpHeaderTest` now name `CfConnectingIpHeaderTest`. `git status --porcelain` was empty after every run and at the end. No run hit a compile error or an unrelated failure.
+
+| # | Guard | Caught? | By which test |
+|---|---|---|---|
+| A1 | Capture amount check: the currency must match | yes | `tipping.CaptureTipTest.aCaptureOfAnotherAmountOrCurrencyLeavesTheTipUnchanged`, `tipping.PayPalWebhookTest.aCaptureInAnotherCurrencyOrWithoutAnAmountLeavesTheTipUnchanged` |
+| A2 | Capture amount check: the value must equal the tip's minor units | yes | `tipping.AbandonedTipsJobTest.anAttemptedTipIsLookedUpBeforeItIsAbandoned`, `tipping.CaptureTipTest.anAlreadyCapturedOrderOfAnotherAmountLeavesTheTipUnchanged`, `tipping.CaptureTipTest.aCaptureOfAnotherAmountOrCurrencyLeavesTheTipUnchanged`, `tipping.PayPalWebhookTest.aCaptureOfAnotherAmountLeavesTheTipUnchanged` |
+| A3 | Webhook: COMPLETED/PENDING must charge the tip's amount | yes | `tipping.PayPalWebhookTest.aCaptureOfAnotherAmountLeavesTheTipUnchanged`, `tipping.PayPalWebhookTest.aCaptureInAnotherCurrencyOrWithoutAnAmountLeavesTheTipUnchanged` |
+| A4 | Webhook: the amount check covers PENDING too | yes | `tipping.PayPalWebhookTest.aCaptureOfAnotherAmountLeavesTheTipUnchanged` |
+| A5 | Capture answer must charge the tip's amount | yes | `tipping.CaptureTipTest.anAlreadyCapturedOrderOfAnotherAmountLeavesTheTipUnchanged`, `tipping.CaptureTipTest.aCaptureOfAnotherAmountOrCurrencyLeavesTheTipUnchanged` |
+| A6 | Order lookup (jobs) must charge the tip's amount | yes | `tipping.AbandonedTipsJobTest.anAttemptedTipIsLookedUpBeforeItIsAbandoned` |
+| A7 | Tip creation: the maximum amount | yes | `tipping.CreateTipTest.invalidInputIsRejected` |
+| W1 | Webhook lookup by related order id | yes | `tipping.PayPalWebhookTest.completedWebhookFindsTheTipByItsOrderIdAndCapturesItOnce`, `tipping.PayPalWebhookTest.aPendingWebhookAfterTheCaptureLeavesTheTipCaptured`, `tipping.PayPalWebhookTest.deniedAndDeclinedWebhooksFailAPendingTip`, `tipping.PayPalWebhookTest.aReversalBeforeItsCaptureIsRetriedAndAppliedAfterIt` and 7 more |
+| W2 | Webhook lookup by capture id (fallback) | yes | `tipping.PayPalWebhookTest.reversedWebhookFindsTheTipByItsCaptureIdAndReversesIt` |
+| W3 | Refund webhook lookup by the capture its `up` link names | yes | `tipping.PayPalWebhookTest.aRefundOfAPendingCaptureIsRetriedAndAppliedOnceTheCaptureCompleted`, `tipping.PayPalWebhookTest.refundedWebhookFindsTheTipThroughTheCaptureItsUpLinkNames`, `tipping.TipRefundTest.pendingRefundReturns202AndTheWebhookCompletesIt` |
+| W4 | Refund or reversal before its capture answers 503 | yes | `tipping.PayPalWebhookTest.aReversalBeforeItsCaptureIsRetriedAndAppliedAfterIt`, `tipping.PayPalWebhookTest.aRefundOfAPendingCaptureIsRetriedAndAppliedOnceTheCaptureCompleted` |
+| R1 | markCaptured: status condition | yes | `tipping.CaptureWebhookRaceTest.captureAndWebhookTogetherPublishExactlyOneEvent` |
+| R2 | markCaptured: a FAILED or ABANDONED tip is still recorded | yes | `devices.PlaybackWindowTest.onlyCapturesInsideTheWindowPlay`, `tipping.AbandonedTipsJobTest.pendingTipsOlderThanAnHourAreSettledFromPayPal`, `tipping.PayPalWebhookTest.[1] closed = "ABANDONED"`, `tipping.PayPalWebhookTest.[2] closed = "FAILED"` |
+| R3 | markPending: only from CREATED | yes | `tipping.PayPalWebhookTest.aPendingWebhookAfterTheCaptureLeavesTheTipCaptured` |
+| R4 | markPendingFailed: only from PENDING | yes | `tipping.PayPalWebhookTest.[1] eventType = "PAYMENT.CAPTURE.DECLINED"`, `tipping.PayPalWebhookTest.[2] eventType = "PAYMENT.CAPTURE.DENIED"` |
+| R5 | markRefunded: only from CAPTURED | yes | `tipping.RefundWebhookRaceTest.refundResponseAndWebhookTogetherMakeOneTransition` |
+| R6 | markReversed: only from CAPTURED | yes | `tipping.PayPalWebhookTest.aReversalOfATipThatCanNoLongerBeCapturedChangesNothing` |
+| R7 | markFailed: only from CREATED or PENDING | yes | `tipping.CaptureTipTest.anOrderNotFoundAnswerNeverFailsATipTheWebhookCaptured` |
+| R8 | markCaptureAttempted: only the first attempt | yes | `tipping.CaptureTipTest.retryingKeepsTheTimeOfTheFirstAttempt` |
+| C1 | capture_attempted_at written before the PayPal call | yes | `devices.PlaybackWindowTest.aWebhookAppliedWhileTheCaptureCallIsHeldStillPlaysOnce` |
+| O1 | Tip history: owner scoping | yes | `dashboard.TipHistoryTest.sameTimeTipsKeepAStableOrderAcrossPages`, `dashboard.TipHistoryTest.pagesWalkThroughTheTipsAndReportTheTotal`, `dashboard.TipHistoryTest.[1] hiddenStatus = "CREATED"`, `dashboard.TipHistoryTest.[2] hiddenStatus = "FAILED"` and 13 more |
+| O2 | Today, requests and digest inputs: owner scoping | yes | `dashboard.DashboardTest.todayCountsOnlyTheOwnersTipsSinceLocalMidnightInTheirZone`, `dashboard.DashboardTest.aRefundedRequestShowsInTheRequestsPanelButIsNotOneOfTodaysRequests`, `dashboard.DashboardTest.requestsUseTodaysDigestGroupsWhenThereAreSome`, `dashboard.DashboardTest.requestsCoverSevenLocalDaysAndLeaveFlaggedAndOtherOwnersOut` and 7 more |
+| O3 | Reveal and verdict: owner scoping | yes | `dashboard.ModerationTest.anotherOwnersTipAnUnflaggedTipAndAnUnknownIdGetTheSame404FromBoth`, `owners.SandboxIsolationTest.anotherOwnersTipIsTheSame404AsAnUnknownIdOnEveryEndpoint` |
+| O4 | Refund: owner scoping | yes | `owners.SandboxIsolationTest.anotherOwnersTipIsTheSame404AsAnUnknownIdOnEveryEndpoint`, `tipping.TipRefundTest.tipOfAnotherOwnerIsNotFoundAndPayPalIsNotCalled` |
+| O5 | Devices panel: owner scoping | yes | `dashboard.DashboardTest.devicesListsOnlyTheOwnersDevices`, `owners.SandboxIsolationTest.everyListHoldsOnlyTheCallersOwnData` |
+| O6 | Digest read: owner scoping | yes | `dashboard.DashboardTest.digestIsNullUntilOneIsStoredAndOnlyTheOwnersOwn`, `dashboard.DashboardTest.requestsUseTodaysDigestGroupsWhenThereAreSome`, `dashboard.DashboardTest.requestsCoverSevenLocalDaysAndLeaveFlaggedAndOtherOwnersOut`, `dashboard.DigestJobTest.aSpendLimitKeepsTheNotesAndNoCallIsMadeUntilTheRestIsOver` and 8 more |
+| D1 | Public demo read only filter | yes | `owners.PublicDemoTest.everyMutatingOwnerEndpointAnswers403ReadOnly` |
+| D2 | Expired sandbox session ends | yes | `dashboard.OwnerChannelAccessTest.anExpiredSandboxsSocketIsClosedAndItsHandshakeRefused`, `owners.SandboxTest.anExpiredSandboxIsSignedOutAndItsPagesAnswerLikeAnUnknownDevice` |
+| T1 | Resume token: single use | yes | `owners.ResumeLinkTest.twoBrowsersOpeningTheSameLinkAtOnceGetOneSession`, `owners.ResumeLinkTest.theLinkCarriesItsTokenInTheFragmentAndSignsAnotherBrowserInOnce` |
+| T2 | Resume token: expiry | yes | `owners.ResumeLinkTest.anExpiredLinkFailsLikeAnUnknownOne` |
+| T3 | Resume: the sandbox must still be active | yes | `owners.ResumeLinkTest.aTokenOfASandboxThatHasExpiredFails` |
+| T4 | Resume link never outlives its sandbox | yes | `owners.ResumeLinkTest.aLinkNeverOutlivesItsSandbox` |
+| K1 | Access code: expiry | yes | `owners.AccessCodeTest.anExpiredCodeIsRejectedLikeAWrongOne`, `owners.SandboxTest.wrongAndExpiredCodesGetTheSameAnswerAsAWrongPasswordAndMakeNothing` |
+| K2 | Access code: constant time comparison | yes | `owners.AccessCodeTest.everyEntryIsComparedInConstantTimeWithoutAnEarlyExit` |
+| K3 | Sandbox never outlives its access code | yes | `owners.SandboxTest.aSandboxNeverOutlivesItsCodeAndItsSessionNeverOutlivesTheSandbox` |
+| H1 | Device handshake: the secret must match | yes | `devices.DeviceChannelTest.rejectedHandshakesAllLookTheSame`, `devices.DeviceChannelTest.spoofedLeftmostForwardedForEntriesCountAgainstTheRealClientBehindTheProxy`, `devices.DeviceChannelTest.eleventhFailedHandshakeInAMinuteFromOneIpGets429`, `devices.DeviceSecretVerifierTest.wrongSecretFails` |
+| H2 | Device handshake: virtual only devices refused | yes | `devices.DeviceSecretVerifierTest.aVirtualOnlyDeviceWithTheRightSecretIsRejectedLikeAnUnknownOne`, `owners.PublicDemoTest.theDemoPandaCanBeWatchedButTakesNoTipsAndNoHardware`, `owners.SandboxTest.theSandboxPandaTakesTipsAndCanBeWatchedButNeverConnectsAsHardware` |
+| L1 | HandshakeFailureLimiter | yes | `devices.CfConnectingIpHeaderTest.deviceHandshakeFailuresCountAgainstTheHeadersClient`, `devices.CfConnectingIpHeaderTest.deviceHandshakeFailuresCountPerIpv6Network`, `devices.DeviceChannelTest.spoofedLeftmostForwardedForEntriesCountAgainstTheRealClientBehindTheProxy`, `devices.DeviceChannelTest.eleventhFailedHandshakeInAMinuteFromOneIpGets429` |
+| L2 | ObserverConnectionLimiter: at most 5 | yes | `devices.CfConnectingIpHeaderTest.observerConnectionsCountAgainstTheHeadersClient`, `devices.CfConnectingIpHeaderTest.observerConnectionsCountPerIpv6Network`, `devices.ObserverChannelTest.spoofedLeftmostForwardedForEntriesCountAgainstTheRealClientBehindTheProxy`, `devices.ObserverChannelTest.sixthConcurrentConnectionFromOneIpGets429AndClosingFreesAPlace` |
+| L3 | WebhookFailureLimiter | yes | `tipping.PayPalWebhookTest.[1] failure = SERVER_ERROR`, `tipping.PayPalWebhookTest.[2] failure = UNAVAILABLE`, `tipping.PayPalWebhookTest.[3] failure = THROTTLED`, `tipping.PayPalWebhookTest.[4] failure = TOKEN_REJECTED` and 10 more |
+| L4 | TipRateLimiter: captures | yes | `tipping.CaptureRateLimitTest.theThirtyFirstCaptureInAMinuteFromOneIpIs429AndOtherClientsAreUnaffected` |
+| L5 | TipRateLimiter: orders | yes | `shared.BehindProxyTest.spoofedLeftmostForwardedForEntriesShareTheRealClientsTipBucket`, `shared.BehindProxyTest.differentClientsBehindTheProxyGetTheirOwnTipBuckets`, `tipping.CreateTipTest.eleventhTipInAMinuteFromOneIpIsRateLimited` |
+| L6 | LoginRateLimiter: per email | yes | `owners.OwnerLoginTest.sixthAttemptInAMinuteForOneEmailIs429FromAnyIp`, `owners.OwnerLoginTest.emailsLongerThanAnyOwnersShareOneBucket` |
+| L7 | AccessRateLimits: resume links per sandbox | yes | `owners.ResumeLinkTest.eachSandboxMakesAtMostFiveLinksInTenMinutes` |
+| L8 | AccessRateLimits: judge sessions per IP | yes | `owners.AccessLogTest.everyAccessEventLogsOneLineWithoutPersonalData`, `owners.SandboxTest.anEleventhAttemptInAnHourFromOneIpIsRateLimited` |
+| L9 | ClientKeys: IPv6 by /64 | yes | `devices.CfConnectingIpHeaderTest.everyAddressOfOneIpv6NetworkSharesTheTipBucket`, `devices.CfConnectingIpHeaderTest.observerConnectionsCountPerIpv6Network`, `devices.CfConnectingIpHeaderTest.deviceHandshakeFailuresCountPerIpv6Network`, `owners.OwnerLoginTest.addressesOfOneIpv6NetworkShareTheIpBucket` and 2 more |
+| L10 | ClientRateLimiter keys through ClientKeys | yes | `devices.CfConnectingIpHeaderTest.everyAddressOfOneIpv6NetworkSharesTheTipBucket` |
+| S1 | Request size limit: declared length | yes | `shared.RequestSizeLimitTest.aDeclaredLengthOverTheLimitIsRefusedWithoutReadingTheBody` |
+| S2 | Request size limit: chunked body count | yes | `shared.RequestSizeLimitTest.aChunkedBodyOverTheLimitIs413` |
+| P1 | Classification cap: the hourly limit | yes | `ai.ClassificationCapTest.pastTheHourlyCapATipReactsPlainOnceAndIsNeverClassifiedLater` |
+| P2 | Classification cap: the daily limit | yes | `ai.ClassificationCapTest.pastTheDailyCapNoHourHasRoomUntilTheNextDay` |
+| P3 | Playback window: captured within 10 minutes | yes | `devices.PlaybackWindowTest.onlyCapturesInsideTheWindowPlay` |
+| P4 | Playback window: never attempted never plays | yes | `devices.PlaybackWindowTest.onlyCapturesInsideTheWindowPlay` |
+| F1 | frame-ancestors per path | yes | `owners.SideBySideTest.everyOtherResponseStaysUnframeable`, `shared.SecurityTest.responsesCarrySecurityHeaders`, `shared.SecurityTest.ownerPagesCarrySecurityHeadersToo` |
+| F2 | X-Frame-Options per path | yes | `owners.SideBySideTest.everyOtherResponseStaysUnframeable` |
+| F3 | CSP script-src without 'unsafe-inline' | yes | `devices.PandaPageTest.fontFilesArePublicWoff2UnderTheSamePolicy`, `devices.PandaPageTest.servesThePandaPageWithItsNonce`, `owners.OwnerPageTest.judgesPageHasItsHeadPolicyTokenAndStates`, `owners.OwnerPageTest.resumePageIsGenericAndCarriesItsToken` and 8 more |
+| F4 | Framing allowed for `/owner` only, not `/owner/**` | yes | `owners.SideBySideTest.everyOtherResponseStaysUnframeable` |
+| F5 | frame-src 'self' only on `/owner/live` | yes | `owners.SideBySideTest.ourOwnOriginMayFrameTheTipPageThePandaAndTheDashboard` |
+| N1 | READ BINARY bounded by the selected file | yes | `test_read_past_the_capability_container`, `test_read_one_byte_past_the_ndef_file`, `test_read_the_largest_le_past_the_end` |
+| N2 | setNdef refuses a message larger than the NDEF file | yes | `test_set_ndef_refuses_a_message_larger_than_the_file` |
+| N3 | APDU shorter than its header refused | yes | `test_short_apdu` |
+| N4 | Tip URL longer than the tag holds refused | yes | `test_a_url_longer_than_the_tag_holds_is_refused` |
+| N5 | NDEF short record payload at most 255 | yes | `test_uri_message_refuses_a_payload_over_255_bytes` |
+| N6 | SELECT by id needs its two data bytes | yes | `test_select_with_missing_data_bytes_selects_nothing` |
