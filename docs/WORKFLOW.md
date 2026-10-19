@@ -1,22 +1,27 @@
-# How the TiP team works
+# How TiP was built
+
+TiP has one developer and a teammate, working with two Claude roles.
 
 ## Roles
 
 | Who | Role |
 |---|---|
-| Lead (Claude chat on the owner's account) | Tech lead. Makes the technical and design decisions, writes every brief and issue, reviews every report and pull request. Everything gets reported here. |
-| Owner | Runs the lead chat and his own coding agent. Relays briefs and reports, reviews the working tree, pushes, merges, deploys. Does anything only a person can do (secrets, PayPal and Render dashboards, hardware, video). |
-| Owner's agent (Claude Code) | Builds the core: payments, devices, AI, firmware, deployment. Works on `develop`. |
+| Owner | Has the idea and the vision. Decides what TiP is, how it should look and feel, and what matters. Brings his view to every decision and has the final say. Does everything only a person can do: secrets, the PayPal and Render dashboards, the hardware, the video. Reviews and ships every change. |
+| Lead (a Claude chat) | Turns the owner's vision into a technical design. Proposes approaches with an opinion, builds design previews, writes the instructions for the agent and reviews every report. |
+| Agent (Claude Code) | Writes the code, tests and docs, and reports back. |
+| Teammate | Contributed the tip history API early on and made the panda's cardboard template. |
 
-## The owner's loop
+## How a piece of work goes
 
-1. The lead writes a brief.
-2. The owner pastes it into his agent.
-3. The agent implements, runs `./gradlew build`, commits locally on `develop` and prints its report.
-4. The owner pastes the report back to the lead.
-5. The lead checks it and replies with fixes or the next brief.
-6. The owner reviews the diff, pushes `develop` and waits for CI.
-7. When `develop` is green and ready to ship, the owner fast forwards `main` to `develop` and pushes. CI runs again and deploys to Render.
+1. The owner says what he wants and how he sees it.
+2. The lead works out the design and gives its opinion. They agree on the approach.
+3. For anything visual, the lead builds a preview from the real pages. The owner approves it before any code is written.
+4. The lead writes the instructions. Larger pieces were written as briefs (`briefs/`), smaller ones as short prompts.
+5. The agent builds it on `develop`, runs the full build, commits locally and reports.
+6. The lead reviews the report. Questions that are the owner's call go to him.
+7. The owner reviews the diff, pushes and releases.
+
+Releasing, once `develop` is green:
 
 ```powershell
 git checkout main
@@ -25,23 +30,26 @@ git push origin main
 git checkout develop
 ```
 
-## Reporting
+A push to `main` runs CI and deploys to Render.
 
-Everything flows to the lead.
+## Reviews before submission
 
-- The agent ends every task with the report format in `CLAUDE.md`.
+- A security and correctness review of the whole codebase, with every finding fixed or decided, except two Low findings on the READMEs left to the owner (`briefs/reviews/09-findings.md`).
+- A test review that broke 64 important guards on purpose to prove the tests catch them (`briefs/reviews/10-tests.md`).
+- A search for unused files and code (`briefs/reviews/11-unused.md`).
 
 ## Rules
 
-- `main` and `develop` are protected by GitHub rulesets. Changes need a pull request with green CI. The owner can bypass for his own pushes to `develop` and the fast forward of `main`.
-- Nobody edits another feature's package without a brief that says so.
-- Secrets never go in the repo, in chats, in issues or in pull requests. `.env` is local only and never committed; `.env.example` lists the settings.
-- Start a fresh agent session at the end of each brief. The new session reads `CLAUDE.md`, the docs and `CODEBASE.md`, so nothing is lost.
+- Every commit builds on its own.
+- Tests cover the failure paths, not just the happy path. A flaky test is fixed, never rerun.
+- Secrets never go in the repo, a chat, an issue or a pull request.
+- Pushed history is never rewritten.
+- Each piece of work starts a fresh agent session, which reads `CLAUDE.md`, the docs and `CODEBASE.md` first.
 
 ## Definition of done
 
-- `./gradlew build` green locally and in CI
-- Tests cover the behaviour and the failure paths in the brief
-- `CODEBASE.md` and `README.md` updated when relevant
-- Report written, open questions listed
-- Nothing in the diff the brief did not ask for
+- `./gradlew build` green locally and in CI.
+- Tests cover the behaviour and its failure paths.
+- `CODEBASE.md` and the docs match the code.
+- A report with any open questions.
+- Nothing in the diff that wasn't asked for.
