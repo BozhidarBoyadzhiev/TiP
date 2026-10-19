@@ -1,6 +1,6 @@
 // TiP panda firmware: connects to the server's device channel over verified wss, acks each
 // reaction on receipt and plays its light pattern on the onboard LED, and has a PN532 emulate an
-// NFC tag holding the panda's tip page. See firmware/README.md.
+// NFC tag holding the panda's tip page. See firmware/DESIGN.md.
 #include <Arduino.h>
 
 #include "log.h"
