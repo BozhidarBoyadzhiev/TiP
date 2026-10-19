@@ -33,7 +33,7 @@ class DemoDeviceSeeder implements ApplicationRunner {
     static final String DEV_PROFILE = "dev";
 
     static final String GENERATE_HINT = "Generate 32 random bytes as base64url with"
-            + " `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='` or the PowerShell command in README.md.";
+            + " `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='` or the PowerShell command in docs/SETUP.md.";
 
     private final DemoOwnerProperties ownerProperties;
     private final DemoDeviceProperties deviceProperties;

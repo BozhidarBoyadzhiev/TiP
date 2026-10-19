@@ -71,7 +71,7 @@ The app refuses to start when the smallest tip is above the largest or a preset 
 | `TIP_DEMO_OWNER_NAME` | no | Display name, at most 80 characters. Defaults to the email. |
 | `TIP_DEMO_DEVICE_SLUG` | no | Slug of the demo panda, the last part of the NFC tag URL. |
 | `TIP_DEMO_DEVICE_NAME` | no | Name the tip page and the panda show, at most 80 characters. |
-| `TIP_DEMO_DEVICE_SECRET` | yes | **Differs from local.** A fresh 32 byte base64url secret (see README). The app refuses to start with anything else while a demo device is set. The firmware of the panda that talks to Render needs the same value. |
+| `TIP_DEMO_DEVICE_SECRET` | yes | **Differs from local.** A fresh 32 byte base64url secret (see [SETUP.md](SETUP.md#device-secret)). The app refuses to start with anything else while a demo device is set. The firmware of the panda that talks to Render needs the same value. |
 
 ### Judge access codes
 
@@ -181,7 +181,7 @@ Render's own **Auto-Deploy** must be **Off** on the service. Then the deploy hoo
 
 ## One time setup outside the app
 
-- In the PayPal developer dashboard, add a second webhook to the sandbox app with the URL `https://<service>.onrender.com/webhooks/paypal`, subscribed to the same six `PAYMENT.CAPTURE.*` events as in the README, and put its id in `PAYPAL_WEBHOOK_ID`. Keep your ngrok webhook for local runs.
+- In the PayPal developer dashboard, add a second webhook to the sandbox app with the URL `https://<service>.onrender.com/webhooks/paypal`, subscribed to the same six `PAYMENT.CAPTURE.*` events as in [SETUP.md](SETUP.md#webhooks), and put its id in `PAYPAL_WEBHOOK_ID`. Keep your ngrok webhook for local runs.
 - Add `RENDER_DEPLOY_HOOK_URL` as a GitHub Actions secret (Render: service **Settings > Deploy Hook**).
 - Write `https://<service>.onrender.com/t/<slug>` to the NFC tag, and point the panda's firmware at `<service>.onrender.com` with the Render device secret.
 

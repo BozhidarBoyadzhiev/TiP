@@ -25,7 +25,7 @@ wss://<host>/ws/device/{deviceId}
 Authorization: Bearer <deviceSecret>
 ```
 
-- `deviceId` is the device uuid, in lowercase. `deviceSecret` is 32 random bytes, base64url encoded. The person setting up the panda generates it (the command is in `README.md`). The server gets it as `TIP_DEMO_DEVICE_SECRET` and stores only its SHA-256, at startup, replacing the stored hash when the variable changes. The firmware gets it as `TIP_DEVICE_SECRET` in `secrets.h`. The server refuses a secret that is clearly not random. Virtual pandas (sandboxes and the public demo) get a secret nobody keeps, so they cannot connect here.
+- `deviceId` is the device uuid, in lowercase. `deviceSecret` is 32 random bytes, base64url encoded. The person setting up the panda generates it (the commands are in [SETUP.md](SETUP.md#device-secret)). The server gets it as `TIP_DEMO_DEVICE_SECRET` and stores only its SHA-256, at startup, replacing the stored hash when the variable changes. The firmware gets it as `TIP_DEVICE_SECRET` in `secrets.h`. The server refuses a secret that is clearly not random. Virtual pandas (sandboxes and the public demo) get a secret nobody keeps, so they cannot connect here.
 - The server rejects the handshake with an empty 401 if the device or the secret does not match. No details in the response.
 - After 10 failed handshakes in a minute from one client IP, the server answers 429 before it checks the secret. An IPv6 client counts by its /64.
 - One live connection per device. A new authenticated connection closes the old one with close code 4000 ("replaced"), after a `closing` message with reason `replaced`.

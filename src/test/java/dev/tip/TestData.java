@@ -38,7 +38,7 @@ public class TestData {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 13).toUpperCase();
     }
 
-    /** A fresh device secret: 32 random bytes, base64url without padding, as the README makes one. */
+    /** A fresh device secret: 32 random bytes, base64url without padding, as docs/SETUP.md makes one. */
     public static String randomSecret() {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
