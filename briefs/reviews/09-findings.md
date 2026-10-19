@@ -9,7 +9,7 @@ The thread between the passes of Brief 09. Every finding of the review, its seve
 - Deferred reads done in pass 2: `docs/DEPLOYMENT.md` (one fix, 09-F033), a line by line read of `owner.js`, `live.js` and `panda.js` (Low findings only, 09-F029 to 09-F032) and the README files, checked against the code, findings only, not edited (09-F034, 09-F035).
 - New in pass 2: 09-F028 (found while testing 09-F019) and 09-F029 to 09-F035.
 - Pass 3 (the lead's decisions after pass 2): done. A tip plays on the device only when its capture landed within `tip.ai.playback.window` (10 minutes) of `capture_attempted_at`, replacing the revived rule for playback (877c439); 09-F006 checked and tightened (2b039bf); 09-F029 to 09-F032 fixed (d76eab7). Green after every commit (`./gradlew build`, 767 tests at the end).
-- Left: the READMEs for the owner (09-F034, 09-F035). The firmware of 09-F014 needs flashing.
+- README findings: 09-F034 and 09-F035 fixed in the final docs pass. The firmware of 09-F014 needs flashing.
 
 ## Counts
 
@@ -18,7 +18,7 @@ The thread between the passes of Brief 09. Every finding of the review, its seve
 | Critical | 4 | 4 | 0 | 0 |
 | High | 6 | 6 | 0 | 0 |
 | Medium | 10 | 9 | 1 | 0 |
-| Low | 15 | 11 | 2 | 2 |
+| Low | 15 | 13 | 2 | 0 |
 
 ## Critical
 
@@ -253,12 +253,12 @@ What: Report only, the owner edits the READMEs.
 - Measuring the AI classifier: "about 60 labelled tip messages"; the file has 58.
 - Testing webhooks locally, step 4: unverified webhooks get 400, and after 10 a minute from one address 429 (09-F006).
 - The AI behaviour it describes has gained the classification cap (09-F011): past 200 an hour or 1000 a day tips react `PLAIN` once.
-Status: open (owner)
+Status: fixed in 730ca4f and this commit: the setup details moved to `docs/SETUP.md` with every point corrected (three tipping jobs, the full `docs/` folder, the 72 byte password cap, 58 cases, the 429 after rejected webhooks, the classification cap), and `docs/SETUP.md`, `docs/DEPLOYMENT.md` and `.env.example` now name the card testing page by its URL
 
 ### 09-F035 [Low] firmware/README.md: no word of the task watchdog
 Where: firmware/README.md
 What: Report only. After 09-F014 the Tasks and Behaviour sections should say that the `net`, `led` and `nfc` tasks are watched by the task watchdog (60 s, then a restart) and that the boot log names the reset reason (`Boot: reset reason ...`). The Structure list also leaves out `src/main.cpp`, `src/log.cpp` (described under Logging) and the new `src/watchdog.cpp`.
-Status: open (owner)
+Status: fixed in 7a8a085 and this commit: `firmware/DESIGN.md` has a Task watchdog section, a watchdog line in Behaviour, and `src/main.cpp`, `src/log.cpp` and `src/watchdog.cpp` in Structure; `firmware/README.md` shows the reset reason line of a healthy start
 
 ## Checked and fine
 

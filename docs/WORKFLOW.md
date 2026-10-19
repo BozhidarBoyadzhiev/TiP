@@ -34,7 +34,7 @@ A push to `main` runs CI and deploys to Render.
 
 ## Reviews before submission
 
-- A security and correctness review of the whole codebase, with every finding fixed or decided, except two Low findings on the READMEs left to the owner (`briefs/reviews/09-findings.md`).
+- A security and correctness review of the whole codebase, with every finding fixed or decided (`briefs/reviews/09-findings.md`).
 - A test review that broke 64 important guards on purpose to prove the tests catch them (`briefs/reviews/10-tests.md`).
 - A search for unused files and code (`briefs/reviews/11-unused.md`).
 

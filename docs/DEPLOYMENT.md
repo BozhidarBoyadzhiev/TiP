@@ -93,7 +93,7 @@ Optional. A judge's sandbox shows them under **Test payment details**, so a judg
 
 | Variable | Secret | What it is |
 |---|---|---|
-| `TIP_JUDGE_CARD_NUMBER` | no | A sandbox test card number, from developer.paypal.com > Testing Tools > Card Generator. |
+| `TIP_JUDGE_CARD_NUMBER` | no | A sandbox test card number, from PayPal's card testing page, https://developer.paypal.com/tools/sandbox/card-testing/. |
 | `TIP_JUDGE_CARD_EXPIRY` | no | Its expiry as PayPal's form takes it, for example `MM/YY`. |
 | `TIP_JUDGE_CARD_CVC` | no | Its CVC. The card shows only when all three card values are set. |
 | `TIP_JUDGE_PAYPAL_EMAIL` | yes | The email of a sandbox personal (buyer) account, from Sandbox Accounts. |

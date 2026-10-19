@@ -53,6 +53,7 @@ At boot, before it sets the watchdog, it logs the reset reason: `Boot: reset rea
 - Reconnect: 1 s doubling to 60 s, each delay shortened by up to 20 % at random. The backoff starts over only after a connection stayed up 60 s, after WiFi drops too. After `closing` with reason `replaced` the wait is at least 60 s.
 - A 401 on the handshake logs "auth rejected", shows three quick flicks every 5 s and tries again every 10 minutes, so a corrected secret on the server is picked up without touching the panda. While connecting the LED flicks for 30 ms every second.
 - A placeholder or malformed `TIP_DEVICE_ID`, or the template's `TIP_DEVICE_SECRET`, stops the network task at boot with a `Config:` log line and the rejected pattern.
+- Watchdog: the `net`, `led` and `nfc` tasks are watched by the task watchdog. A task stuck for 60 s restarts the board, and the next boot logs the reset reason (`Boot: reset reason ...`). See Task watchdog.
 - These are the client policy of `docs/DEVICE_PROTOCOL.md`; the fake device and the virtual panda follow it too.
 
 ### Logging
