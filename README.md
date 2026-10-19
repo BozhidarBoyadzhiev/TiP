@@ -50,7 +50,7 @@ flowchart LR
 ```
 
 1. The phone taps the coin and opens the tip page.
-2. PayPal takes the payment. The server confirms it with a verified webhook.
+2. PayPal takes the payment. The server confirms it from PayPal's capture answer or a verified webhook.
 3. Claude reads the message. Its answer is checked and never trusted blindly.
 4. The device plays the pattern. The owner sees the tip live.
 
@@ -90,8 +90,9 @@ key.
 | Variable | Where to get it |
 |---|---|
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | PayPal developer dashboard, Apps & Credentials, your sandbox app |
+| `PAYPAL_WEBHOOK_ID` | The webhook you add to that app, see [docs/SETUP.md](docs/SETUP.md). The app does not start without it |
 | `ANTHROPIC_API_KEY` | console.anthropic.com, API keys. Or set `TIP_AI_ENABLED=false` |
-| `TIP_DEMO_OWNER_EMAIL`, `TIP_DEMO_OWNER_PASSWORD` | Your choice. The password needs 12 characters or more |
+| `TIP_DEMO_OWNER_EMAIL`, `TIP_DEMO_OWNER_PASSWORD` | Your choice. The password needs 12 to 72 characters |
 | `TIP_DEMO_DEVICE_SLUG` | Your choice. It becomes the URL, like `/t/my-panda` |
 | `TIP_DEMO_DEVICE_SECRET` | Generate it with the command below |
 
