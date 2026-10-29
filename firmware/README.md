@@ -30,7 +30,7 @@ Solder the PN532's header well. In brief 05c a cold SDA joint left the board sil
 The full build is in [panda/README.md](../panda/README.md). The rules that matter for the electronics:
 
 - Put the PN532 in a window in the case, antenna side out and level with the outside, so only paper covers it. In brief 05c a phone through 3 to 4 mm of cardboard never reached it.
-- Keep metal away from the antenna. In the panda the power bank stands upright at the back, about 5 cm behind it.
+- Keep metal away from the antenna. In the panda the power bank lies inside the body, away from it.
 - The light is the DevKit's onboard blue LED, so the DevKit sits behind a window too. In the panda it lies on its side behind the nose.
 - Do not put an NFC sticker on the case. A sticker answers the phone instead of the panda.
 
