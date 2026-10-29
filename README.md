@@ -127,7 +127,9 @@ Docker must be running. PayPal and Claude are stubbed, so no keys are needed.
 
 ## The device
 
-An ESP32 DevKit, a PN532 NFC board and one LED. Build and flash steps are in
+An ESP32 DevKit, a PN532 NFC board and a power bank inside a cardboard panda. The
+DevKit's own blue LED is the light. How to build the panda is in
+[panda/README.md](panda/README.md). Build and flash steps are in
 [firmware/README.md](firmware/README.md).
 
 ## Docs
@@ -135,7 +137,10 @@ An ESP32 DevKit, a PN532 NFC board and one LED. Build and flash steps are in
 - [Setup](docs/SETUP.md): everything about running it yourself
 - [Architecture](docs/ARCHITECTURE.md): design, security and failure modes
 - [Device protocol](docs/DEVICE_PROTOCOL.md): how the device talks to the server
+- [Owner channel](docs/OWNER_CHANNEL.md): how the dashboard hears about changes live
 - [Deployment](docs/DEPLOYMENT.md): running it on Render
+- [Firmware design](firmware/DESIGN.md): how the device firmware works inside
+- [Build the panda](panda/README.md): the cardboard case and where the boards go
 - [How it was built](docs/WORKFLOW.md): the brief and review process
 
 ## Licence

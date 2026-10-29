@@ -4,6 +4,17 @@ A detailed map for coding agents and deep readers. People should start with READ
 
 Spring Boot 4 monolith, package by feature under `dev.tip`. A feature uses another feature only through its `api` subpackage or Spring events; `ArchitectureTest` enforces it.
 
+## Top level docs
+
+| File | What it is |
+|---|---|
+| `README.md` | The front page for people: what TiP is, the live demo, a short local run, the docs list |
+| `docs/SETUP.md` | Everything about running it yourself: variables, webhooks, sample data, the fake device |
+| `docs/WORKFLOW.md` | How TiP was built: the roles, the brief and review loop, releasing |
+| `LICENSE` | Apache 2.0 |
+
+`docs/ARCHITECTURE.md`, `docs/DEVICE_PROTOCOL.md`, `docs/OWNER_CHANNEL.md` and `docs/DEPLOYMENT.md` are the design and the shared contracts; `briefs/` is the history of the work.
+
 ## Runtime and deployment
 
 Runs on Render as one Docker container (`Dockerfile`: exec form `java -jar`, so the JVM is PID 1 and gets `SIGTERM`; `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`). `application.properties` listens on `PORT` (8080 without it; `SERVER_PORT` wins), caps the Hikari pool at `TIP_DB_POOL_SIZE` (5), and uses `server.forward-headers-strategy=native`: Tomcat's `RemoteIpValve` trusts `X-Forwarded-*` only from private addresses and takes the rightmost untrusted `X-Forwarded-For` entry as the client, so `getRemoteAddr()` is the real client for every rate limit, HTTP and WebSocket alike, and a forwarded `https` request is secure. `TIP_CLIENT_IP_HEADER` (bound to `server.tomcat.remoteip.remote-ip-header`) picks another header such as `True-Client-IP`; `ClientIpValve` runs in front of the `RemoteIpValve` and drops such a single value header unless it is sent once with exactly one IP literal, so the connection address is the client then. Health probes are off, so `/actuator/health` answers only `{"status":"UP"}` (database, disk space, ping, ssl; never PayPal or Anthropic). `docs/DEPLOYMENT.md` has the variables, health path, deploy flow and smoke test.
@@ -153,7 +164,7 @@ Everything else is denied. Every error, including those from Spring Security and
 
 The virtual panda (`/p/{slug}`) is an inline SVG of the seated cardboard giant panda (black ears, arms and feet, white head and body) holding the gold TiP coin, under the TiP brand button that unfolds into "Tip integrated Panda" on hover, focus or tap. It loads the device name from `/api/public/devices/{slug}` and shows it under the panda unless it is "TiP" or "Tip integrated Panda", opens `/ws/observe/{slug}` and plays the protocol's four patterns on `requestAnimationFrame` in their colours (`WARM` pink, `PLAYFUL` yellow, `REQUEST` blue, `PLAIN` soft white), each a unit played `base + (repeats - 1)` times with its gap, the client policy of `docs/DEVICE_PROTOCOL.md` (queue of 8 waiting, dropping the oldest waiting; backoff 1 to 60 s with up to 20 % taken off, reset only after 60 s connected), captions and connection status. The light is on the coin only: each frame's level sets the opacity of `#panda-coin-glow` and `#panda-coin-sparkle`, and 0.35 of it on `#panda-coin-light`; the colour is `--light` on the SVG. With `prefers-reduced-motion` it holds a steady coin light for the scaled pattern's length and drops the idle animations and the brand's transitions.
 
-The panda art: `src/test/resources/art/panda-sprite.svg` is the canonical source of the drawn panda (for now a byte identical copy of the approved `briefs/assets/08-panda/panda-sprite.svg`; the build reads only the copy), a giant panda in cardboard (symbols `head` 132 × 74, `eyes-open`, `eyes-shut`, `paws-eyes`, `paws` 132 × 22, `face` 64 × 64 for icons). Each page that draws it (tip, 404, judge code, resume, owner login, dashboard) carries the symbols it uses inline in a hidden `svg.sprite` and draws the peek, eyes and paws with `<use href>`; pupils that move and the dozing lids are groups and rects around `eyes-open`. `PandaArtTest` fails the build when a page's copy differs from the sprite beyond whitespace. The panda page draws `panda-sitting.svg` inline instead.
+The panda art: `src/test/resources/art/panda-sprite.svg` is the canonical source of the drawn panda (a byte identical copy of the approved `briefs/assets/08-panda/panda-sprite.svg`; the build reads only the copy), a giant panda in cardboard (symbols `head` 132 × 74, `eyes-open`, `eyes-shut`, `paws-eyes`, `paws` 132 × 22, `face` 64 × 64 for icons). Each page that draws it (tip, 404, judge code, resume, owner login, dashboard) carries the symbols it uses inline in a hidden `svg.sprite` and draws the peek, eyes and paws with `<use href>`; pupils that move and the dozing lids are groups and rects around `eyes-open`. `PandaArtTest` fails the build when a page's copy differs from the sprite beyond whitespace. The panda page draws `panda-sitting.svg` inline instead.
 
 Shared page parts: `static/css/brand.css` (colour tokens, `.sprite`, the brand button and its unfold, the paper note with the peeking panda and paws) and `static/js/brand.js` (splits and measures the brand letters, tap toggle, `TipBrand.isBrandName`: "TiP" or "Tip integrated Panda" ignoring case and whitespace) are used by the tip, panda and 404 pages; the owner pages use `brand.css` too, with their own small brand letters.
 
@@ -197,6 +208,10 @@ Every `JavaExec` task runs with `-Dstdout.encoding=UTF-8` and `-Dstderr.encoding
 - `src/secure_transport.cpp` is the TLS client under links2004/WebSockets 2.7.1 in `NETWORK_CUSTOM` mode: `NetworkClientSecure` with the built in CA bundle and hostname check, then the validity dates of every presented certificate against SNTP time before the library sends the upgrade request; it also reads the HTTP status line, so a 401 stops reconnects.
 
 Device side of the protocol: connect to `wss://<host>/ws/device/{deviceId}` with `Authorization: Bearer <secret>` and no `Origin`; `hello` is logged; each `reaction` is validated (lowercase uuid id, known kind or `PLAIN` x1 for an unknown one, `repeats` missing or not an integer as 1, clamped to 1 to 5), acked with `{type: ack, id}` on receipt, and played unless its id is among the last 16; `closing` is logged and `replaced` makes the next wait at least 60 s; anything else is logged, malformed messages are not acked. Nothing received for 45 s closes the connection. Reconnects back off from 1 s doubling to 60 s with up to 20 % jitter taken off, reset only after a connection stayed up 60 s; a 401 retries every 10 minutes with the rejected status pattern.
+
+## Panda
+
+`panda/` is the cardboard case, outside every build: `README.md` (the build guide: nine boxes from drawn nets, the panel art, where the PN532, the DevKit and the power bank go), `DESIGN.md` (why it is built that way), `panel-art.pdf` (one A4 page: coin, face, paw pads), `nets-print.pdf` (the nets on six A4 sheets for printing instead), `images/` (the nets with measurements and the 3D model renders). The PN532 sits in a window behind the paper coin, and the DevKit's onboard LED behind the nose window is the light.
 
 ## How a refund flows
 
