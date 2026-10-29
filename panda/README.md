@@ -65,22 +65,14 @@ Tap the coin with a phone before you glue the head on, while everything is easy 
 
 ## How ours came together
 
-The bare boxes with the PN532 in its window:
+The two main boxes with the components inside:
 
-![The boxes with the PN532 in the body window](images/progress-1-boxes.jpg)
+![The body and the head with the PN532 in the body window](images/progress-1-boxes.jpg)
 
 Inside, with the doors open:
 
-![Inside the panda with the doors open](images/progress-2-inside.jpg)
-
-With the face and the coin on:
-
-![The panda with its face and coin](images/progress-3-face.jpg)
+![Inside the panda with the doors open](images/inside.jpg)
 
 ## Why boxes
 
-Anyone can draw a box with a ruler, so the panda is easy to copy and easy to fix. It is a prototype. A real product could use a sturdier case and different parts, and the server would not change.
-
-## Credits
-
-Bozhidar built the panda with help from [@Edilini05](https://github.com/Edilini05).
+Anyone can draw a box with a ruler, so the panda is easy to copy and easy to fix. It is a prototype. A real product could use a sturdier.
