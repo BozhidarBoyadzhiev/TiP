@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/hero.png" alt="TiP: the tip page, the panda and the owner dashboard side by side" width="820">
+<img src="docs/images/hero.jpg" alt="A phone tapping the TiP panda's coin, with the tip page open on its screen" width="820">
 
 # TiP
 

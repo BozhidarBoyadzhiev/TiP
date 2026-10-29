@@ -8,7 +8,7 @@ Spring Boot 4 monolith, package by feature under `dev.tip`. A feature uses anoth
 
 | File | What it is |
 |---|---|
-| `README.md` | The front page for people: what TiP is, the live demo, a short local run, the docs list |
+| `README.md` | The front page for people: the hero photo `docs/images/hero.jpg`, what TiP is, the live demo, a short local run, the docs list |
 | `docs/SETUP.md` | Everything about running it yourself: variables, webhooks, sample data, the fake device |
 | `docs/WORKFLOW.md` | How TiP was built: the roles, the brief and review loop, releasing |
 | `LICENSE` | Apache 2.0 |
@@ -211,7 +211,7 @@ Device side of the protocol: connect to `wss://<host>/ws/device/{deviceId}` with
 
 ## Panda
 
-`panda/` is the cardboard case, outside every build: `README.md` (the one guide: nine boxes from drawn nets, tips, the panel art, where the PN532, the DevKit and the power bank go, progress photos, why boxes), `panel-art.pdf` (one A4 page: coin and shoulder band, face, paw pads), `nets-print.pdf` (the nets on six A4 sheets for printing instead), `images/` (`nets.png` with every measurement, the 3D model renders `panda-3d.jpg` and `panda-3d-inside.jpg`, and the build photo `progress-1-boxes.jpg`; `finished.jpg` and `inside.jpg`, which the README already shows, are still to come). The PN532 sits in a window behind the paper coin, and the DevKit's onboard LED behind the nose window is the light.
+`panda/` is the cardboard case, outside every build: `README.md` (the one guide: nine boxes from drawn nets, tips, the panel art, where the PN532, the DevKit and the power bank go, progress photos, why boxes), `panel-art.pdf` (one A4 page: coin and shoulder band, face, paw pads), `nets-print.pdf` (the nets on six A4 sheets for printing instead), `images/` (`nets.png` with every measurement, the 3D model renders `panda-3d.jpg` and `panda-3d-inside.jpg`, and the photos `progress-1-boxes.jpg`, `finished.jpg` and `inside.jpg`). The PN532 sits in a window behind the paper coin, and the DevKit's onboard LED behind the nose window is the light.
 
 ## How a refund flows
 
