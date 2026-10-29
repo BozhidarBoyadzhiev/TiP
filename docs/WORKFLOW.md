@@ -1,6 +1,6 @@
 # How TiP was built
 
-TiP has one developer and a teammate, working with two Claude roles.
+TiP has one developer and a teammate, [@Edilini05](https://github.com/Edilini05), working with two Claude roles.
 
 ## Roles
 
@@ -9,7 +9,7 @@ TiP has one developer and a teammate, working with two Claude roles.
 | Owner | Has the idea and the vision. Decides what TiP is, how it should look and feel, and what matters. Brings his view to every decision and has the final say. Does everything only a person can do: secrets, the PayPal and Render dashboards, the hardware, the video. Reviews and ships every change. |
 | Lead (a Claude chat) | Turns the owner's vision into a technical design. Proposes approaches with an opinion, builds design previews, writes the instructions for the agent and reviews every report. |
 | Agent (Claude Code) | Writes the code, tests and docs, and reports back. |
-| Teammate | Contributed the tip history API early on and made the panda's cardboard template. |
+| Teammate ([@Edilini05](https://github.com/Edilini05)) | Wrote the tip history API early on ([#2](https://github.com/BozhidarBoyadzhiev/TiP/pull/2)) and helped build the panda. |
 
 ## How a piece of work goes
 
