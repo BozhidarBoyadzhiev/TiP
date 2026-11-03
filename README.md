@@ -13,7 +13,7 @@
 ![ESP32](https://img.shields.io/badge/device-ESP32-lightgrey)
 
 [Live demo](https://tip-integrated-panda.onrender.com/t/demo-panda) ·
-[Video](#) ·
+[Video](https://www.youtube.com/watch?v=6cuMdTUvuvM) ·
 [How it works](#how-it-works) ·
 [Run it](#run-it-locally) ·
 [Docs](#docs)
