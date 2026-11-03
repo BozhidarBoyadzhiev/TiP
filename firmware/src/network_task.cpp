@@ -1,6 +1,7 @@
 #include <WebSocketsClient.h>
 #include <WiFi.h>
 #include <esp_random.h>
+#include <esp_wifi.h>
 #include <time.h>
 
 #include <atomic>
@@ -12,6 +13,7 @@
 #include "tip_intake.h"
 #include "tip_link.h"
 #include "tip_protocol.h"
+#include "tip_wifi.h"
 #include "watchdog.h"
 
 #if __has_include("secrets.h")
@@ -20,8 +22,10 @@
 #error "Copy include/secrets.example.h to include/secrets.h and fill in your values"
 #endif
 
-#if !defined(TIP_DEVICE_ID) || !defined(TIP_DEVICE_SECRET)
-#error "secrets.h needs TIP_DEVICE_ID and TIP_DEVICE_SECRET, see include/secrets.example.h"
+#if !defined(TIP_WIFI_NETWORKS) && defined(TIP_WIFI_SSID)
+#error "secrets.h has the old TIP_WIFI_SSID and TIP_WIFI_PASSWORD; replace them with TIP_WIFI_NETWORKS, see include/secrets.example.h"
+#elif !defined(TIP_WIFI_NETWORKS) || !defined(TIP_DEVICE_ID) || !defined(TIP_DEVICE_SECRET)
+#error "secrets.h needs TIP_WIFI_NETWORKS, TIP_DEVICE_ID and TIP_DEVICE_SECRET, see include/secrets.example.h"
 #endif
 
 namespace tip {
@@ -33,7 +37,13 @@ constexpr BaseType_t kCore = 1;
 constexpr UBaseType_t kPriority = 2;
 constexpr uint32_t kStackBytes = 12288;
 constexpr uint32_t kLoopDelayMs = 10;
-constexpr uint32_t kWifiRetryMs = 15000;
+
+constexpr WifiNetwork kWifiNetworks[] = {TIP_WIFI_NETWORKS};
+constexpr size_t kWifiNetworkCount = sizeof(kWifiNetworks) / sizeof(kWifiNetworks[0]);
+static_assert(kWifiNetworkCount >= 1 && kWifiNetworkCount <= kMaxWifiNetworks,
+              "TIP_WIFI_NETWORKS in secrets.h needs 1 to 4 networks");
+static_assert(wifiSsidsSet(kWifiNetworks, kWifiNetworkCount),
+              "every network in TIP_WIFI_NETWORKS in secrets.h needs a non empty SSID");
 
 enum class State : uint8_t { Idle, Connecting, Connected };
 
@@ -42,9 +52,11 @@ std::atomic<LinkStatus> status{LinkStatus::Connecting};
 WebSocketsClient socket;
 Intake<kRecentIds> intake;
 uint32_t randomWord(void *) { return esp_random(); }
-Backoff backoff({kBackoffFirstMs, kBackoffCapMs, kBackoffJitterPercent, kStableAfterMs, kReplacedWaitMs,
-                 kAuthRetryMs},
-                randomWord, nullptr);
+constexpr BackoffConfig kBackoffConfig{kBackoffFirstMs, kBackoffCapMs, kBackoffJitterPercent,
+                                       kStableAfterMs, kReplacedWaitMs, kAuthRetryMs};
+Backoff backoff(kBackoffConfig, randomWord, nullptr);
+// Its own instance, so failed WiFi rounds never change the WebSocket's backoff.
+Backoff wifiBackoff(kBackoffConfig, randomWord, nullptr);
 
 State state = State::Idle;
 uint32_t nextAttemptAt = 0;
@@ -210,33 +222,110 @@ void logTime() {
   logLine("Time: %s", text);
 }
 
-// WiFi stays up on its own (auto reconnect); this only logs and nudges it.
-bool wifiReady() {
-  static bool wasUp = false;
-  static uint32_t lastLog = 0;
-  static uint32_t lastRetry = 0;
-  uint32_t now = millis();
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!wasUp) {
-      logLine("WiFi: connected, IP %s, RSSI %d dBm, sleep %s", WiFi.localIP().toString().c_str(),
-              WiFi.RSSI(), WiFi.getSleep() ? "on" : "off");
-      wasUp = true;
+// The driver never reconnects by itself (auto reconnect is off). While WiFi is down this scans,
+// tries the known networks in chooseWifiOrder's order and, when all of them fail, waits for the
+// WiFi backoff before the next scan. A network that drops starts a fresh scan at once, so the panda
+// moves to another known network by itself.
+bool wifiUp = false;
+uint32_t wifiJoinedAt = 0;
+// How long the last joined network stayed up, handed to the backoff once so it can start over.
+uint32_t wifiUpForMs = 0;
+uint32_t nextScanAt = 0;
+ScanResult scanResults[kMaxScanResults];
+
+// Waits up to timeoutMs for done() to turn true, checking every kWifiPollMs and feeding the
+// watchdog on every pass.
+template <typename Done>
+bool waitUntil(uint32_t timeoutMs, Done done) {
+  uint32_t startedAt = millis();
+  while (!done()) {
+    if (millis() - startedAt >= timeoutMs) {
+      return false;
     }
-    return true;
+    watchdogFeed();
+    vTaskDelay(pdMS_TO_TICKS(kWifiPollMs));
   }
-  if (wasUp) {
-    logLine("WiFi: lost");
-    wasUp = false;
-    lastRetry = now;
+  return true;
+}
+
+size_t scanAndChoose(WifiCandidate *order) {
+  int16_t found = WiFi.scanNetworks(true);
+  waitUntil(kWifiScanTimeoutMs, [&found] {
+    if (found == WIFI_SCAN_RUNNING) {
+      found = WiFi.scanComplete();
+    }
+    return found != WIFI_SCAN_RUNNING;
+  });
+  if (found == WIFI_SCAN_RUNNING) {
+    esp_wifi_scan_stop();
+    logLine("WiFi: scan gave no answer in %lu s", static_cast<unsigned long>(kWifiScanTimeoutMs / 1000));
+  } else if (found < 0) {
+    logLine("WiFi: scan failed (%d)", found);
   }
-  if (now - lastLog >= kWaitLogIntervalMs) {
-    logLine("WiFi: waiting for %s (status %d)", TIP_WIFI_SSID, static_cast<int>(WiFi.status()));
-    lastLog = now;
+  size_t seenCount = 0;
+  for (int16_t i = 0; i < found && seenCount < kMaxScanResults; i++) {
+    const auto *record = static_cast<const wifi_ap_record_t *>(WiFi.getScanInfoByIndex(i));
+    if (record != nullptr) {
+      scanResults[seenCount++] = {reinterpret_cast<const char *>(record->ssid), record->rssi};
+    }
   }
-  if (now - lastRetry >= kWifiRetryMs) {
-    WiFi.reconnect();
-    lastRetry = now;
+  size_t count = chooseWifiOrder(kWifiNetworks, kWifiNetworkCount, scanResults, seenCount, order);
+  WiFi.scanDelete();
+  if (order[0].seen) {
+    logLine("WiFi: scan found %u networks, %u known", static_cast<unsigned>(seenCount),
+            static_cast<unsigned>(count));
+  } else {
+    logLine("WiFi: scan found %u networks, none known, trying all %u", static_cast<unsigned>(seenCount),
+            static_cast<unsigned>(count));
   }
+  return count;
+}
+
+bool join(const WifiCandidate &candidate) {
+  const WifiNetwork &network = kWifiNetworks[candidate.network];
+  if (candidate.seen) {
+    logLine("WiFi: joining %s (%ld dBm)", network.ssid, static_cast<long>(candidate.rssi));
+  } else {
+    logLine("WiFi: joining %s (not seen in the scan)", network.ssid);
+  }
+  WiFi.begin(network.ssid, network.password);
+  if (!waitUntil(kWifiJoinTimeoutMs, [] { return WiFi.status() == WL_CONNECTED; })) {
+    logLine("WiFi: %s failed after %lu s (status %d)", network.ssid,
+            static_cast<unsigned long>(kWifiJoinTimeoutMs / 1000), static_cast<int>(WiFi.status()));
+    WiFi.disconnect();
+    return false;
+  }
+  logLine("WiFi: joined %s, IP %s, RSSI %d dBm, sleep %s", network.ssid, WiFi.localIP().toString().c_str(),
+          WiFi.RSSI(), WiFi.getSleep() ? "on" : "off");
+  return true;
+}
+
+// Called while WiFi is down. Returns true once a known network is joined.
+bool joinWifi() {
+  uint32_t now = millis();
+  if (wifiUp) {
+    wifiUp = false;
+    wifiUpForMs = now - wifiJoinedAt;
+    logLine("WiFi: lost after %.1f s, scanning again", wifiUpForMs / 1000.0);
+    WiFi.disconnect();
+    nextScanAt = now;
+  }
+  if (static_cast<int32_t>(now - nextScanAt) < 0) {
+    return false;
+  }
+  WifiCandidate order[kMaxWifiNetworks];
+  size_t count = scanAndChoose(order);
+  for (size_t i = 0; i < count; i++) {
+    if (join(order[i])) {
+      wifiUp = true;
+      wifiJoinedAt = millis();
+      return true;
+    }
+  }
+  uint32_t delay = wifiBackoff.next(wifiUpForMs);
+  wifiUpForMs = 0;
+  nextScanAt = millis() + delay;
+  logLine("WiFi: no known network joined, scanning again in %.1f s", delay / 1000.0);
   return false;
 }
 
@@ -272,12 +361,14 @@ void startAttempt() {
 }
 
 void step() {
-  if (!wifiReady()) {
+  if (WiFi.status() != WL_CONNECTED) {
     if (state == State::Connecting || state == State::Connected) {
       closeConnection("WiFi lost");
     }
     setStatus(LinkStatus::Connecting);
-    return;
+    if (!joinWifi()) {
+      return;
+    }
   }
   if (!timeReady()) {
     return;
@@ -306,18 +397,36 @@ bool deviceIdValid() {
   return isCanonicalUuid(kId, sizeof(kId) - 1) && strcmp(kId, "00000000-0000-0000-0000-000000000000") != 0;
 }
 
+bool wifiTemplateLeft() {
+  for (const WifiNetwork &network : kWifiNetworks) {
+    if (strcmp(network.ssid, "your-wifi-name") == 0 ||
+        (network.password != nullptr && strcmp(network.password, "your-wifi-password") == 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void networkLoop(void *) {
+  if (wifiTemplateLeft()) {
+    logLine("Config: replace the template network in TIP_WIFI_NETWORKS in secrets.h");
+    status.store(LinkStatus::AuthRejected);
+    vTaskDelete(nullptr);
+    return;
+  }
   if (!deviceIdValid() || strcmp(TIP_DEVICE_SECRET, "your-device-secret") == 0) {
     logLine("Config: set TIP_DEVICE_ID (a lowercase uuid) and TIP_DEVICE_SECRET in secrets.h");
     status.store(LinkStatus::AuthRejected);
     vTaskDelete(nullptr);
     return;
   }
+  // Keeps the WiFi configuration in RAM, so joins do not wear the flash and nothing stored
+  // reconnects behind the task's back.
+  WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  WiFi.setAutoReconnect(true);
-  logLine("WiFi: connecting to %s", TIP_WIFI_SSID);
-  WiFi.begin(TIP_WIFI_SSID, TIP_WIFI_PASSWORD);
+  WiFi.setAutoReconnect(false);
+  logLine("WiFi: %u known networks", static_cast<unsigned>(kWifiNetworkCount));
   configTime(0, 0, kNtpServer1, kNtpServer2, kNtpServer3);
 
   socket.beginSSL(TIP_SERVER_HOST, TIP_SERVER_PORT, TIP_DEVICE_PATH_PREFIX TIP_DEVICE_ID, "", "");

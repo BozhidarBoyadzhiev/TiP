@@ -67,11 +67,23 @@ Copy-Item include\secrets.example.h include\secrets.h
 
 | Value | Where it comes from |
 |---|---|
-| `TIP_WIFI_SSID`, `TIP_WIFI_PASSWORD` | Your WiFi. It must be a 2.4 GHz network. |
+| `TIP_WIFI_NETWORKS` | 1 to 4 WiFi networks the panda may join, each `{"ssid", "password"}`. They must be 2.4 GHz. |
 | `TIP_DEVICE_ID` | The device's uuid. The server logs the demo device's id at every start: `Demo device demo-panda has id ...`. |
 | `TIP_DEVICE_SECRET` | `TIP_DEMO_DEVICE_SECRET` of that server. The production value differs from the local one. |
 
-`git check-ignore -v firmware/include/secrets.h` shows the ignore rule. Never commit the file or paste it anywhere. The build stops when it is missing. With the template's placeholder id or secret, the firmware does not connect: it logs `Config: set TIP_DEVICE_ID ...` and shows the rejected pattern. The firmware never prints the secret or the `Authorization` header.
+### WiFi networks
+
+`TIP_WIFI_NETWORKS` is a comma separated list of networks, for example your WiFi at home and a phone hotspot for a market stall:
+
+```c
+#define TIP_WIFI_NETWORKS {"home-wifi", "home-password"}, {"phone-hotspot", "hotspot-password"}
+```
+
+To add a network, append `, {"ssid", "password"}` to the line and flash again. An open network has the password `""`. SSIDs are matched exactly, capitals included. The build stops when the list has no network, more than 4, or an empty SSID. The template's `your-wifi-name` stops the firmware at boot with `Config: replace the template network ...`.
+
+At start, and whenever WiFi drops, the panda scans and tries the listed networks it can see, strongest first, each for up to 15 seconds. When it sees none of them (a hidden SSID, or a scan that missed it), it tries each once in list order. When every try fails, it waits (1 second, doubling to a minute) and scans again. The order in the list only breaks ties and sets the order of blind tries.
+
+`git check-ignore -v firmware/include/secrets.h` shows the ignore rule. Never commit the file or paste it anywhere. The build stops when it is missing. With the template's placeholder id or secret, the firmware does not connect: it logs `Config: set TIP_DEVICE_ID ...` and shows the rejected pattern. The firmware never prints the secret, a WiFi password or the `Authorization` header.
 
 Everything else, such as the server host and the device slug, is in `include/tip_config.h`, which is committed.
 
@@ -100,11 +112,13 @@ TiP panda firmware, device demo-panda on tip-integrated-panda.onrender.com
 Chip: <model> rev v<major>.<minor>, 2 cores, flash <size> bytes, MAC <mac>
 Boot: reset reason power on (1)
 Watchdog: 60 s for the net, led and nfc tasks
-WiFi: connecting to <your network>
+WiFi: 2 known networks
 NFC: tag holds https://tip-integrated-panda.onrender.com/t/demo-panda (51 byte message), PN532 on UART2 GPIO16/17
 NFC: PN532 IC 0x32, firmware 1.6, support 0x07 at 115200 baud
 NFC: tag ready
-WiFi: connected, IP <address>, RSSI <signal> dBm, sleep off
+WiFi: scan found 9 networks, 1 known
+WiFi: joining <your network> (-58 dBm)
+WiFi: joined <your network>, IP <address>, RSSI <signal> dBm, sleep off
 Time: <UTC time>
 WS: connecting to wss://tip-integrated-panda.onrender.com as demo-panda
 WS: connected as demo-panda
@@ -130,6 +144,9 @@ The LED shows the state when no reaction is playing:
 | `pio` fails in Git Bash | Use PowerShell or cmd. |
 | Native tests fail with `0xC0000139` | Windows loaded another program's `libstdc++-6.dll`. The tests are linked statically to avoid this (`scripts/static_link.py`). Check that file is in your checkout and run the tests again. |
 | Three quick flicks every 5 seconds | The server refused the device (401). Check `TIP_DEVICE_ID` and `TIP_DEVICE_SECRET` in `secrets.h` against the server. The panda tries again every 10 minutes, so a fix on the server needs no reflash. |
+| `WiFi: scan found ... none known` | None of the listed networks is in range, or its SSID is hidden or 5 GHz only. Check the SSIDs in `TIP_WIFI_NETWORKS`, capitals included. |
+| `WiFi: <ssid> failed after 15 s` | The password is wrong or the network refused the panda. The panda moves on to the next network in the list. |
+| `secrets.h has the old TIP_WIFI_SSID ...` when building | Move `secrets.h` to the `TIP_WIFI_NETWORKS` format above. |
 | `Time: waiting for SNTP ...` every 5 seconds | The network blocks NTP. Use another network, such as a phone hotspot. |
 | `NFC: no PN532 at 115200 or 921600 baud` | Check the DIP switch (0 0), the wiring (SDA to GPIO16, SCL to GPIO17) and the solder joints. |
 

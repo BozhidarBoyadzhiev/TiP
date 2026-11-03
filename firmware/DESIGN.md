@@ -4,11 +4,11 @@ How the panda's firmware works inside. Building and flashing the panda is in [RE
 
 PlatformIO project for the physical panda: an ESP32 DevKit (esp32dev, CP2102 USB to UART) with the Arduino framework. Arduino ESP32 core 3.3.12 (ESP-IDF 5.5.5) through the pioarduino platform, pinned to release `55.03.312-1` in `platformio.ini`.
 
-The panda joins WiFi, sets its clock over SNTP, opens the device channel (`docs/DEVICE_PROTOCOL.md`) to the server over verified wss, acks every reaction as soon as it arrives and plays its light pattern on the onboard LED (GPIO2, LEDC PWM) with the virtual panda's timings. It reconnects on its own after WiFi drops, server restarts and dead connections. A PN532 on UART2 emulates an NFC tag holding the panda's tip page, so a phone tap on the coin opens it; the panda works the same without it.
+The panda joins the best of up to 4 known WiFi networks, sets its clock over SNTP, opens the device channel (`docs/DEVICE_PROTOCOL.md`) to the server over verified wss, acks every reaction as soon as it arrives and plays its light pattern on the onboard LED (GPIO2, LEDC PWM) with the virtual panda's timings. It reconnects on its own after WiFi drops, server restarts and dead connections. A PN532 on UART2 emulates an NFC tag holding the panda's tip page, so a phone tap on the coin opens it; the panda works the same without it.
 
 ## Configuration
 
-`include/tip_config.h` (committed) holds the server host (`tip-integrated-panda.onrender.com`), port, public base URL (`https://` and the host), device slug (`demo-panda`, used in logs and the tag's URL), the PN532's UART speed and every timing: SNTP servers, TLS and handshake timeouts, the 45 s silence limit, the backoff, the 60 s wait after being replaced, the 1024 byte frame cap, the queue of 8, the ring of 16 ids, the 60 s task watchdog and the NFC retries and re-arm times. `include/secrets.h` holds the per deployment values (see the README).
+`include/tip_config.h` (committed) holds the server host (`tip-integrated-panda.onrender.com`), port, public base URL (`https://` and the host), device slug (`demo-panda`, used in logs and the tag's URL), the PN532's UART speed and every timing: SNTP servers, TLS and handshake timeouts, the 45 s silence limit, the backoff, the 60 s wait after being replaced, the 1024 byte frame cap, the queue of 8, the ring of 16 ids, the 60 s task watchdog, the WiFi scan and join timeouts and the NFC retries and re-arm times. `include/secrets.h` holds the per deployment values (see the README): `TIP_WIFI_NETWORKS`, a list of 1 to 4 `{ssid, password}` pairs that `network_task.cpp` turns into a `tip::WifiNetwork` array, and the device id and secret. `static_assert`s stop the build on 0 or more than 4 networks or an empty SSID, and an `#error` names the old `TIP_WIFI_SSID` format.
 
 ## Image and tests
 
@@ -18,9 +18,9 @@ The native tests are linked statically (`scripts/static_link.py`): a dynamically
 
 ## Structure
 
-- `lib/tip_core/` is plain C++ with no Arduino includes, tested on the host: `tip_protocol` (parsing server messages, building acks), `tip_intake.h` (the ring of the last 16 ids: ack always, play once), `tip_player.h` (the queue of 8, dropping the oldest waiting reaction, never the one playing, and the LED level at any time), `tip_patterns` (the four patterns and the status flicks), `tip_link` (backoff, silence check, HTTP status line, certificate dates), `tip_ndef` (the tip URL and its NDEF URI record), `tip_type4_tag` (the read only Type 4 tag's APDU answers), `tip_pn532_frame` (PN532 frames: build, read back, check), `tip_alive_check` (when the NFC task checks the PN532 still answers).
+- `lib/tip_core/` is plain C++ with no Arduino includes, tested on the host: `tip_protocol` (parsing server messages, building acks), `tip_intake.h` (the ring of the last 16 ids: ack always, play once), `tip_player.h` (the queue of 8, dropping the oldest waiting reaction, never the one playing, and the LED level at any time), `tip_patterns` (the four patterns and the status flicks), `tip_link` (backoff, silence check, HTTP status line, certificate dates), `tip_ndef` (the tip URL and its NDEF URI record), `tip_type4_tag` (the read only Type 4 tag's APDU answers), `tip_pn532_frame` (PN532 frames: build, read back, check), `tip_alive_check` (when the NFC task checks the PN532 still answers), `tip_wifi` (the order to try the known WiFi networks in after a scan).
 - `src/main.cpp`: logs the firmware, device and chip, starts the watchdog and the three tasks.
-- `src/network_task.cpp`: WiFi, SNTP, the WebSocket and its state machine (idle, connecting, connected, rejected), acks.
+- `src/network_task.cpp`: WiFi (scan and join, see WiFi), SNTP, the WebSocket and its state machine (idle, connecting, connected, rejected), acks.
 - `src/playback_task.cpp`: the only code that touches the LED.
 - `src/secure_transport.cpp`: the TLS client under the WebSocket library.
 - `src/nfc_task.cpp`: finds the PN532, arms the tag, answers taps, recovers; `src/pn532.cpp`: the PN532 over HSU and the commands the tag needs.
@@ -32,7 +32,7 @@ The native tests are linked statically (`scripts/static_link.py`): a dynamically
 | Task | Core | Priority | Does |
 |---|---|---|---|
 | WiFi driver, lwIP | 0 | ESP-IDF's | radio and TCP/IP |
-| `net` (12 KB stack) | 1 | 2 | WiFi and time checks, TLS, WebSocket loop, parse, ack, hand over |
+| `net` (12 KB stack) | 1 | 2 | WiFi scan and join, time check, TLS, WebSocket loop, parse, ack, hand over |
 | `led` (4 KB stack) | 1 | 3 | every 10 ms: take reactions from the FreeRTOS queue, advance playback, write the LED |
 | `nfc` (6 KB stack) | 1 | 1 | the PN532: find it, arm the tag, answer a phone's APDUs, re-arm, recover |
 
@@ -46,15 +46,29 @@ At boot, before it sets the watchdog, it logs the reset reason: `Boot: reset rea
 
 ### Behaviour
 
+- WiFi: up to 4 known networks; scan, try the visible ones strongest first (all in list order when none is visible), 15 s each, backoff after a failed round, a fresh scan when a joined network drops. See WiFi.
 - Ack on receipt: a reaction that parses is acked at once, before it is queued. A repeat of one of the last 16 ids is acked again but not played again.
 - Queue: 8 reactions wait behind the one playing; when full, the oldest waiting one is dropped and logged.
 - Untrusted input: frames over 1024 bytes are dropped unparsed. The JSON goes into a 256 byte `StaticJsonDocument` through a filter that keeps only `type`, `id`, `reaction`, `repeats` and `reason`, so anything else the server might send is never stored. The id must be a lowercase uuid. A missing or non integer `repeats` is 1, others are clamped to 1 to 5. An unknown kind is acked and played as `PLAIN` with repeats 1. A malformed message is logged and not acked.
 - Dead connection: nothing received for 45 s (the server pings every 20 s) closes and reconnects.
 - Reconnect: 1 s doubling to 60 s, each delay shortened by up to 20 % at random. The backoff starts over only after a connection stayed up 60 s, after WiFi drops too. After `closing` with reason `replaced` the wait is at least 60 s.
 - A 401 on the handshake logs "auth rejected", shows three quick flicks every 5 s and tries again every 10 minutes, so a corrected secret on the server is picked up without touching the panda. While connecting the LED flicks for 30 ms every second.
-- A placeholder or malformed `TIP_DEVICE_ID`, or the template's `TIP_DEVICE_SECRET`, stops the network task at boot with a `Config:` log line and the rejected pattern.
+- The template's network in `TIP_WIFI_NETWORKS`, a placeholder or malformed `TIP_DEVICE_ID`, or the template's `TIP_DEVICE_SECRET` stops the network task at boot with a `Config:` log line and the rejected pattern.
 - Watchdog: the `net`, `led` and `nfc` tasks are watched by the task watchdog. A task stuck for 60 s restarts the board, and the next boot logs the reset reason (`Boot: reset reason ...`). See Task watchdog.
 - These are the client policy of `docs/DEVICE_PROTOCOL.md`; the fake device and the virtual panda follow it too.
+
+### WiFi
+
+The driver's auto reconnect is off and the WiFi configuration stays in RAM (`WiFi.persistent(false)`), so only the network task decides which network to join. While WiFi is down it closes the WebSocket, shows the connecting flicks and:
+
+1. Scans (asynchronous, polled every 100 ms, given up after 10 s). Up to 64 results are looked at.
+2. Orders the known networks with `tip::chooseWifiOrder`: those the scan saw, strongest first, ties in list order, an SSID seen on several access points once with its best RSSI. When the scan saw none of them (a hidden SSID, or a scan that missed it), every network is tried once in list order.
+3. Tries each with `WiFi.begin`, polling every 100 ms for up to 15 s, and disconnects before the next one.
+4. When all fail, waits for a backoff of its own with the WebSocket's settings (1 s doubling to 60 s, up to 20 % shorter at random), then scans again. It starts over only after a network stayed joined 60 s, as the WebSocket's does.
+
+A joined network that drops starts a fresh scan at once, so the panda moves to another known network by itself. Every wait polls and feeds the watchdog; none is longer than 100 ms. A full round of four failed joins takes about 65 s, but no single wait comes near the 60 s limit. While it joins, the task is in `step()` and the playback and NFC tasks run as before. After a join, SNTP, TLS, the WebSocket and its backoff are unchanged.
+
+Log lines: `WiFi: scan found 9 networks, 2 known` (or `none known, trying all 2`), `WiFi: joining home-wifi (-58 dBm)` (or `(not seen in the scan)`), `WiFi: joined home-wifi, IP ...`, `WiFi: home-wifi failed after 15 s (status 6)`, `WiFi: no known network joined, scanning again in 1.0 s`, `WiFi: lost after 812.4 s, scanning again`. Passwords are never logged.
 
 ### Logging
 

@@ -29,8 +29,15 @@ constexpr const char *kNtpServer3 = "time.cloudflare.com";
 // The clock counts as set from 2025-01-01T00:00:00Z. Before that no TLS connection is attempted.
 constexpr int64_t kClockSetAfter = 1735689600;
 
-// Logging cadence while waiting for WiFi or time.
+// Logging cadence while waiting for time.
 constexpr uint32_t kWaitLogIntervalMs = 5000;
+
+// WiFi: a scan gives up after kWifiScanTimeoutMs and each join after kWifiJoinTimeoutMs. Both waits
+// check every kWifiPollMs and feed the watchdog. Scan results past kMaxScanResults are not looked at.
+constexpr uint32_t kWifiScanTimeoutMs = 10000;
+constexpr uint32_t kWifiJoinTimeoutMs = 15000;
+constexpr uint32_t kWifiPollMs = 100;
+constexpr uint32_t kMaxScanResults = 64;
 
 // TLS: the handshake gives up after this long (the core's default is 120 s).
 constexpr uint32_t kTlsHandshakeTimeoutS = 15;
